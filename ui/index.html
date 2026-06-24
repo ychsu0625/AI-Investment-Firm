@@ -366,6 +366,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .sq-break{font-size:12px;padding:2px 7px;border-radius:3px;font-weight:600;background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow);margin-left:auto}
 .target-input{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:3px;padding:3px 8px;font-size:12px;width:96px;text-align:right;font-variant-numeric:tabular-nums}
 .target-input:focus{outline:none;border-color:var(--blue)}
+/* Step3-Z4: .iter-input was undefined -> inputs rendered browser-default white. Dark-theme it (factory + iter pages). */
+.iter-input{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);padding:6px 8px;font-size:13px;font-family:inherit}
+.iter-input:focus{outline:none;border-color:var(--blue)}
+.iter-input::placeholder{color:var(--text3)}
 
 /* ── 總經雷達 ── */
 .macro-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
