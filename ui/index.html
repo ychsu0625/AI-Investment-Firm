@@ -2466,6 +2466,7 @@ function unlockMacro() {
 // ── 風控三級制（NORMAL / CAUTION / ALERT）────────
 let currentRiskLevel = 'NORMAL';
 let currentPositionScale = 100;
+let _riskCfg = {}; // cached risk_config for positions default display
 
 function applyRiskLevel(level, scale) {
   currentRiskLevel = level;
@@ -2724,6 +2725,9 @@ async function loadPositions() {
     const pos = await fetch(API + '/api/positions', {headers:authHeaders()}).then(r => r.json());
     _posCache = pos; // cache for edit
     pos.forEach(p => { if (p.name) _nameMap[p.code] = p.name; });
+    if (!_riskCfg.stop_loss_wave) {
+      try { _riskCfg = await fetch(API+'/api/risk-config', {headers:authHeaders()}).then(r=>r.json()); } catch {}
+    }
     if (!pos.length) { grid.innerHTML='<div class="empty-state" style="grid-column:1/-1">目前無持倉</div>'; return; }
     // Fetch TW prices
     let snapMap = {};
@@ -2767,6 +2771,14 @@ async function loadPositions() {
       const costTotal = p.cost * p.shares * lotMul;
       const mktVal = cur > 0 ? cur * p.shares * lotMul : 0;
       const fmt = (v) => v >= 1000 ? Math.round(v).toLocaleString() : v.toFixed(2);
+      const _dfltBadge = '<span style="font-size:10px;color:var(--text3);margin-left:3px">預設</span>';
+      const slWave = parseFloat(_riskCfg.stop_loss_wave || '7') / 100;
+      const slDisp = p.stop_loss
+        ? sym + p.stop_loss
+        : p.cost > 0 ? sym + (p.cost * (1 - slWave)).toFixed(2) + _dfltBadge : '--';
+      const tgtDisp = p.target_price
+        ? sym + p.target_price
+        : p.cost > 0 ? sym + (p.cost * 1.20).toFixed(2) + _dfltBadge : '--';
       return `<tr onclick="openChart('${p.code}')" title="點擊看K線">
         <td><span class="pt-code">${(p.name||p.code).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')} (${p.code})</span>${p.lifecycle_stage&&p.lifecycle_stage!=='holding'?`<span style="font-size:10px;background:var(--bg2);padding:1px 4px;border-radius:3px;margin-left:4px">${{research:'📋研究',building:'🔨建倉',holding:'📦持有',reducing:'📉減碼',exiting:'🚪出場'}[p.lifecycle_stage]||p.lifecycle_stage}</span>`:''}</td>
         <td>${p.shares.toLocaleString()}</td>
@@ -2776,8 +2788,8 @@ async function loadPositions() {
         <td>${mktVal > 0 ? sym+fmt(mktVal) : '--'}</td>
         <td class="pt-pnl-${cls}">${cur > 0 ? sign+(pnlAmt/1000).toLocaleString('en',{maximumFractionDigits:0})+'K' : '--'}</td>
         <td>${cur > 0 ? `<span class="pt-badge ${cls}">${sign}${pnlPct.toFixed(1)}%</span>` : '--'}</td>
-        <td style="color:var(--red)">${p.stop_loss ? sym+p.stop_loss : '--'}</td>
-        <td style="color:var(--blue)">${p.target_price ? sym+p.target_price : '--'}</td>
+        <td style="color:var(--red)">${slDisp}</td>
+        <td style="color:var(--blue)">${tgtDisp}</td>
         <td onclick="event.stopPropagation()">
           <div class="pt-actions">
             <button class="pt-btn" onclick="openEditPosition(${p.id})">編輯</button>
@@ -3177,7 +3189,8 @@ function updateMacroGauges(d) {
 // ── Risk config ───────────────────────────────────
 async function loadRiskConfig() {
   try {
-    const cfg = await fetch(API+'/api/risk-config').then(r=>r.json());
+    const cfg = await fetch(API+'/api/risk-config', {headers:authHeaders()}).then(r=>r.json());
+    _riskCfg = cfg;
     if (cfg.stop_loss_wave)   document.getElementById('cfg-stop-wave').value = cfg.stop_loss_wave;
     if (cfg.stop_loss_day)    document.getElementById('cfg-stop-day').value  = cfg.stop_loss_day;
     if (cfg.exit_d_threshold) {
