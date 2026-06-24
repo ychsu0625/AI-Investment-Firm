@@ -119,8 +119,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 /* sidebar nav */
 #nav{
   width:52px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;
+  display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;overflow-y:auto;
 }
+#nav::-webkit-scrollbar{width:3px}
+#nav::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 .nav-btn{
   width:40px;height:40px;border:none;background:none;cursor:pointer;
   border-radius:var(--r);display:flex;flex-direction:column;align-items:center;
@@ -130,6 +132,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .nav-btn:hover{background:var(--bg4);color:var(--text2)}
 .nav-btn.active{background:var(--blue-bg);color:var(--blue)}
 .nav-btn svg{width:17px;height:17px;fill:currentColor}
+.nav-zone-sep{height:1px;background:var(--border);width:36px;margin:2px 0;flex-shrink:0}
+.nav-zone-label{font-size:12px;color:var(--text3);text-align:center;line-height:1.3;letter-spacing:-.3px;max-width:48px;overflow:hidden;white-space:nowrap;flex-shrink:0}
 
 /* content */
 #content{flex:1;overflow:hidden;display:flex;flex-direction:column}
@@ -600,34 +604,41 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
   <div id="main">
     <div id="nav">
+      <!-- Z1 駕駛艙 -->
+      <span class="nav-zone-label">駕駛艙</span>
       <button class="nav-btn active" id="nav-home" onclick="showPage('home')">
         <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
         總覽
-      </button>
-      <button class="nav-btn" id="nav-chart" onclick="showPage('chart')">
-        <svg viewBox="0 0 24 24"><path d="M3.5 18.5l6-6 4 4 8-9.58M22 6.92V12M22 6.92H17" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-        K線
-      </button>
-      <button class="nav-btn" id="nav-pos" onclick="showPage('pos')">
-        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
-        持倉
-      </button>
-      <button class="nav-btn" id="nav-analysis" onclick="showPage('analysis')">
-        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
-        盤後
       </button>
       <button class="nav-btn" id="nav-macro" onclick="showPage('macro')">
         <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
         風控
       </button>
-      <button class="nav-btn" id="nav-datasrc" onclick="showPage('datasrc')">
-        <svg viewBox="0 0 24 24"><path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4zm0 2c3.87 0 6 1.5 6 2s-2.13 2-6 2-6-1.5-6-2 2.13-2 6-2zM4 17v-2.34c1.52 1.1 4.28 1.84 8 1.84s6.48-.75 8-1.84V17c0 .5-2.13 2-6 2s-6-1.5-6-2z" fill="currentColor"/><path d="M4 12v-2.34c1.52 1.1 4.28 1.84 8 1.84s6.48-.75 8-1.84V12c0 .5-2.13 2-6 2s-6-1.5-6-2z" fill="currentColor"/></svg>
-        資料源
+      <!-- Z2 研究台 -->
+      <div class="nav-zone-sep"></div>
+      <span class="nav-zone-label">研究台</span>
+      <button class="nav-btn" id="nav-chart" onclick="showPage('chart')">
+        <svg viewBox="0 0 24 24"><path d="M3.5 18.5l6-6 4 4 8-9.58M22 6.92V12M22 6.92H17" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+        K線
       </button>
-      <button class="nav-btn" id="nav-strategy" onclick="showPage('strategy')">
-        <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z" fill="currentColor"/></svg>
-        策略
+      <button class="nav-btn" id="nav-analysis" onclick="showPage('analysis')">
+        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+        盤後
       </button>
+      <button class="nav-btn" id="nav-ic" onclick="showPage('ic')">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" fill="currentColor"/></svg>
+        資訊中心
+      </button>
+      <!-- Z3 決策引擎 -->
+      <div class="nav-zone-sep"></div>
+      <span class="nav-zone-label">決策引擎</span>
+      <button class="nav-btn" id="nav-expert" onclick="showPage('expert')">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/></svg>
+        專家
+      </button>
+      <!-- Z4 驗證台 -->
+      <div class="nav-zone-sep"></div>
+      <span class="nav-zone-label">驗證台</span>
       <button class="nav-btn" id="nav-backtest" onclick="showPage('backtest')">
         <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" fill="currentColor"/></svg>
         回測
@@ -640,17 +651,27 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
         <svg viewBox="0 0 24 24"><path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3h7zM7 9H4V5h3v4zm10 6h3v4h-3v-4zm0-10h3v4h-3V5z" fill="currentColor"/></svg>
         策略工廠
       </button>
+      <button class="nav-btn" id="nav-strategy" onclick="showPage('strategy')">
+        <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z" fill="currentColor"/></svg>
+        策略
+      </button>
+      <!-- Z5 投資組合 -->
+      <div class="nav-zone-sep"></div>
+      <span class="nav-zone-label">投資組合</span>
+      <button class="nav-btn" id="nav-pos" onclick="showPage('pos')">
+        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+        持倉
+      </button>
       <button class="nav-btn" id="nav-trade" onclick="showPage('trade')">
         <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" fill="currentColor"/></svg>
         交易紀錄
       </button>
-      <button class="nav-btn" id="nav-expert" onclick="showPage('expert')">
-        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/></svg>
-        專家
-      </button>
-      <button class="nav-btn" id="nav-ic" onclick="showPage('ic')">
-        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" fill="currentColor"/></svg>
-        資訊中心
+      <!-- Z6 系統 -->
+      <div class="nav-zone-sep"></div>
+      <span class="nav-zone-label">系統</span>
+      <button class="nav-btn" id="nav-datasrc" onclick="showPage('datasrc')">
+        <svg viewBox="0 0 24 24"><path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4zm0 2c3.87 0 6 1.5 6 2s-2.13 2-6 2-6-1.5-6-2 2.13-2 6-2zM4 17v-2.34c1.52 1.1 4.28 1.84 8 1.84s6.48-.75 8-1.84V17c0 .5-2.13 2-6 2s-6-1.5-6-2z" fill="currentColor"/><path d="M4 12v-2.34c1.52 1.1 4.28 1.84 8 1.84s6.48-.75 8-1.84V12c0 .5-2.13 2-6 2s-6-1.5-6-2z" fill="currentColor"/></svg>
+        資料源
       </button>
       <button class="nav-btn" id="nav-reports" onclick="showPage('reports')">
         <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" fill="currentColor"/></svg>
