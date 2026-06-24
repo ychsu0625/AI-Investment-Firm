@@ -150,15 +150,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
 /* macro bar */
 .macro-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.macro-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:5px;font-size:12px}
-.mc-label{color:var(--text2);font-size:12px}
-.mc-val{font-weight:600;font-variant-numeric:tabular-nums}
+.macro-chip{display:flex;align-items:center;gap:7px;padding:6px 11px;background:var(--bg2);border:1px solid var(--border);border-radius:5px;font-size:12px}
+.mc-label{color:var(--text3);font-size:12px;font-weight:500;letter-spacing:.3px}
+.mc-val{font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
 .up{color:var(--red)}.dn{color:var(--green)}
 
 /* signal cards */
 .signal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
-.sig-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:11px 13px;cursor:pointer;transition:border-color .15s}
-.sig-card:hover{border-color:var(--border2)}
+.sig-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:11px 13px;cursor:pointer;transition:border-color .15s,background .15s}
+.sig-card:hover{border-color:var(--border2);background:var(--bg4)}
 .sig-card.buy{border-left:3px solid var(--red)}
 .sig-card.sell{border-left:3px solid var(--green)}
 .sig-card.warn{border-left:3px solid var(--yellow)}
@@ -193,14 +193,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
 /* pos mini */
 .pos-mini{display:flex;flex-direction:column;gap:6px}
-.pos-row{display:flex;align-items:center;gap:8px;background:var(--bg3);border-radius:var(--r);padding:8px 10px;border-left:3px solid var(--border2);cursor:pointer}
+.pos-row{display:flex;align-items:center;gap:8px;background:var(--bg3);border-radius:var(--r);padding:9px 11px;border-left:3px solid var(--border2);cursor:pointer;transition:background .15s}
+.pos-row:hover{background:var(--bg4)}
 .pos-row.wave-row{border-left-color:var(--blue)}
 .pos-row.day-row{border-left-color:var(--orange)}
-.pr-code{font-weight:700;min-width:50px}
-.pr-type-badge{font-size:12px;padding:1px 5px;border-radius:3px;font-weight:600}
+.pr-code{font-weight:700;font-size:13px;white-space:nowrap}
+.pr-type-badge{font-size:12px;padding:1px 5px;border-radius:3px;font-weight:600;flex-shrink:0}
 .pr-type-badge.wave{background:var(--blue-bg);color:var(--blue)}
 .pr-type-badge.day{background:#2d1e00;color:var(--orange)}
-.pr-pnl{margin-left:auto;font-weight:600;font-size:13px}
+.pr-meta{margin-left:auto;font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pr-pnl{font-weight:700;font-size:13px;font-variant-numeric:tabular-nums;min-width:60px;text-align:right;flex-shrink:0}
+.pr-pnl.muted{color:var(--text3);font-weight:500}
 
 /* home grid */
 .home-grid{display:grid;grid-template-columns:2fr 1fr;gap:12px;position:relative}
@@ -373,10 +376,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .mg-bar-wrap{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
 .mg-bar{height:100%;border-radius:3px;transition:width .5s}
 .mg-sub{font-size:12px;color:var(--text3)}
-.macro-lock-panel{background:var(--red-bg);border:1px solid var(--red-d);border-radius:var(--r);padding:16px;margin-bottom:12px}
-.mlp-title{font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px}
-.mlp-cond{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px}
-.cond-dot{width:7px;height:7px;border-radius:50%;background:var(--text3)}
+.macro-lock-panel{background:var(--red-bg);border:1px solid var(--red-d);border-radius:var(--r);padding:18px 20px;margin-bottom:12px;max-width:880px}
+.mlp-title{font-size:14px;font-weight:700;color:var(--red);margin-bottom:12px}
+.mlp-cond{display:flex;align-items:center;gap:10px;font-size:13px;padding:8px 2px;border-bottom:1px solid var(--border)}
+.mlp-cond:last-child{border-bottom:none}
+.mlp-cond > span:last-child{font-variant-numeric:tabular-nums}
+.cond-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);flex-shrink:0}
 .cond-dot.ok{background:var(--green)}
 .cond-dot.warn{background:var(--red)}
 .lock-btn{padding:8px 20px;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700}
@@ -2773,9 +2778,9 @@ function renderWatchlistTable(rows) {
     return `<tr onclick="openChart('${s.code}','TW')">${td}</tr>`;
   }).join('');
 
-  // Draw sparklines
+  // Draw sparklines (drawSparkline renders a graceful placeholder when data is missing)
   if (cols.includes('spark')) {
-    rows.forEach(s => { if (s.spark?.length > 1) drawSparkline('sp-' + s.code, s.spark); });
+    rows.forEach(s => drawSparkline('sp-' + s.code, s.spark));
   }
 }
 
@@ -2808,8 +2813,17 @@ async function loadWatchlist() {
 function drawSparkline(id, data) {
   const c = document.getElementById(id); if (!c) return;
   const ctx = c.getContext('2d');
-  const w=c.width, h=c.height, mn=Math.min(...data), mx=Math.max(...data), rng=mx-mn||1;
+  const w=c.width, h=c.height;
   ctx.clearRect(0,0,w,h);
+  // graceful placeholder when no trend data (e.g. sparkline endpoint unavailable)
+  if (!Array.isArray(data) || data.length < 2) {
+    ctx.strokeStyle = 'rgba(110,118,129,.55)'; // --text3 dim
+    ctx.lineWidth = 1; ctx.setLineDash([3,3]); ctx.beginPath();
+    ctx.moveTo(3, h/2); ctx.lineTo(w-3, h/2); ctx.stroke();
+    ctx.setLineDash([]);
+    return;
+  }
+  const mn=Math.min(...data), mx=Math.max(...data), rng=mx-mn||1;
   ctx.strokeStyle = data[data.length-1] >= data[0] ? '#f85149' : '#3fb950';
   ctx.lineWidth = 1.5; ctx.beginPath();
   data.forEach((v,i) => {
@@ -2862,13 +2876,28 @@ async function loadPositionsMini() {
     const allPos = await fetch(API + '/api/positions').then(r => r.json());
     const pos = allPos.filter(p => (p.market||_detectMkt(p.code)) === 'TW');
     if (!pos.length) { el.innerHTML='<div class="empty-state">目前無台股持倉</div>'; return; }
+    // current prices for live P&L (same source as full positions page)
+    let priceMap = {};
+    try {
+      const codes = pos.map(p=>p.code).join(',');
+      const snap = await fetch(API+'/api/watchlist?codes='+codes, {headers:authHeaders()}).then(r=>r.json());
+      if (Array.isArray(snap)) snap.forEach(s => { priceMap[s.code] = s.close || s.price || 0; });
+    } catch {}
     el.innerHTML = pos.map(p => {
       const isDay = p.trade_type === '當沖';
+      const cur = priceMap[p.code] || 0, cost = p.cost || 0;
+      let pnlHtml;
+      if (cur && cost) {
+        const pct = (cur - cost) / cost * 100, up = pct >= 0;
+        pnlHtml = `<span class="pr-pnl ${up?'up':'dn'}">${up?'+':''}${pct.toFixed(2)}%</span>`;
+      } else {
+        pnlHtml = `<span class="pr-pnl muted">--</span>`;
+      }
       return `<div class="pos-row ${isDay?'day-row':'wave-row'}" onclick="showPage('pos')">
         <span class="pr-code">${p.name||''} (${p.code})</span>
         <span class="pr-type-badge ${isDay?'day':'wave'}">${p.trade_type}</span>
-        <span style="font-size:12px;color:var(--text2)">${p.shares}張 @ $${p.cost}</span>
-        <span class="pr-pnl"></span>
+        <span class="pr-meta">${p.shares}張 @ $${p.cost}</span>
+        ${pnlHtml}
       </div>`;
     }).join('');
   } catch { el.innerHTML='<div class="empty-state">無法載入</div>'; }
@@ -7609,12 +7638,13 @@ async function loadUSPositionsMini() {
     const pos = await fetch(API+'/api/us/positions').then(r=>r.json());
     if (!Array.isArray(pos)||!pos.length) { el.innerHTML='<div class="empty-state">尚無美股持倉</div>'; return; }
     el.innerHTML = pos.map(p => {
-      const pnl = p.pnl_pct!=null ? (p.pnl_pct>=0?'+':'')+p.pnl_pct.toFixed(2)+'%' : '';
-      const cls = (p.pnl_pct||0)>=0?'up':'dn';
+      const hasPnl = p.pnl_pct != null;
+      const pnl = hasPnl ? (p.pnl_pct>=0?'+':'')+p.pnl_pct.toFixed(2)+'%' : '--';
+      const cls = !hasPnl ? 'muted' : (p.pnl_pct>=0?'up':'dn');
       return `<div class="pos-row wave-row" onclick="openChart('${p.code}','US')">
         <span class="pr-code">${p.code}</span>
         <span class="pr-type-badge wave">美股</span>
-        <span style="font-size:12px;color:var(--text2)">${p.shares}股 @ $${p.cost}</span>
+        <span class="pr-meta">${p.shares}股 @ $${p.cost}</span>
         <span class="pr-pnl ${cls}">${pnl}</span>
       </div>`;
     }).join('');
