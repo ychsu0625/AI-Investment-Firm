@@ -47,22 +47,22 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
   display:flex;align-items:center;padding:0 16px;gap:12px;
 }
 #header .logo{font-size:15px;font-weight:700;color:var(--blue);letter-spacing:.5px;white-space:nowrap}
-.sim-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow)}
-.live-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;background:var(--red-bg);color:var(--red);border:1px solid var(--red)}
+.sim-badge{font-size:12px;padding:2px 7px;border-radius:10px;font-weight:600;background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow)}
+.live-badge{font-size:12px;padding:2px 7px;border-radius:10px;font-weight:600;background:var(--red-bg);color:var(--red);border:1px solid var(--red)}
 .spacer{flex:1}
-.htime{font-size:11px;color:var(--text2)}
+.htime{font-size:12px;color:var(--text2)}
 .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text3)}
 .conn-dot.ok{background:var(--green)}
 .conn-dot.err{background:var(--red)}
-.market-toggle{display:flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;font-size:11px}
+.market-toggle{display:flex;border:1px solid var(--border);border-radius:4px;overflow:hidden;font-size:12px}
 .market-toggle button{background:none;border:none;padding:3px 10px;cursor:pointer;color:var(--text3);font-weight:600;transition:.15s}
 .market-toggle button.active{background:var(--blue-bg);color:var(--blue)}
 .market-toggle button:hover:not(.active){background:var(--bg4)}
 .us-indices{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .us-idx-chip{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:5px;font-size:12px}
-.us-idx-name{font-size:10px;color:var(--text2)}
+.us-idx-name{font-size:12px;color:var(--text2)}
 .us-idx-price{font-weight:700}
-.us-idx-chg{font-size:11px}
+.us-idx-chg{font-size:12px}
 
 /* Phase 9: Strategy page */
 .strat-layout{display:grid;grid-template-columns:280px 1fr;gap:12px;height:calc(100vh - 160px)}
@@ -71,11 +71,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .strat-card:hover{border-color:var(--blue)}
 .strat-card.active{border-color:var(--blue);background:var(--blue-bg)}
 .strat-card .sc-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-.strat-card .sc-id{font-size:11px;font-weight:700;padding:2px 6px;border-radius:3px}
+.strat-card .sc-id{font-size:12px;font-weight:700;padding:2px 6px;border-radius:3px}
 .strat-card .sc-id.buy{background:var(--red-bg);color:var(--red)}
 .strat-card .sc-id.sell{background:var(--green-bg);color:var(--green)}
 .strat-card .sc-name{font-size:12px;font-weight:600}
-.strat-card .sc-desc{font-size:11px;color:var(--text3);line-height:1.4}
+.strat-card .sc-desc{font-size:12px;color:var(--text3);line-height:1.4}
 .strat-toggle{margin-left:auto;width:36px;height:20px;border-radius:10px;border:none;cursor:pointer;position:relative;transition:background .2s}
 .strat-toggle.on{background:var(--green)}
 .strat-toggle.off{background:var(--bg4)}
@@ -91,9 +91,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .sd-param input{padding:4px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px;text-align:right}
 
 /* Phase 9: Backtest monthly heatmap */
-.bt-month-row{display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:11px}
+.bt-month-row{display:flex;align-items:center;gap:4px;margin-bottom:2px;font-size:12px}
 .bt-month-label{width:60px;color:var(--text2);text-align:right}
-.bt-month-bar{height:18px;border-radius:3px;min-width:2px;display:flex;align-items:center;padding:0 4px;font-size:10px;color:#fff;font-weight:600}
+.bt-month-bar{height:18px;border-radius:3px;min-width:2px;display:flex;align-items:center;padding:0 4px;font-size:12px;color:#fff;font-weight:600}
 
 /* nav history bar */
 #nav-history{
@@ -108,10 +108,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 #nav-history button:hover:not(:disabled){background:var(--bg4);color:var(--text)}
 #nav-history button:disabled{opacity:.25;cursor:default}
 #nav-history button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-#nav-history .nh-crumbs{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);margin-left:4px}
+#nav-history .nh-crumbs{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text3);margin-left:4px}
 #nav-history .nh-crumbs .nh-page{color:var(--text2);font-weight:600}
 #nav-history .nh-crumbs .nh-sub{color:var(--blue);font-weight:500}
-#nav-history .nh-sep{color:var(--text3);font-size:10px}
+#nav-history .nh-sep{color:var(--text3);font-size:12px}
 
 /* main area */
 #main{display:flex;flex:1;overflow:hidden}
@@ -126,7 +126,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .nav-btn{
   width:40px;height:40px;border:none;background:none;cursor:pointer;
   border-radius:var(--r);display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:2px;color:var(--text3);font-size:9px;
+  justify-content:center;gap:2px;color:var(--text3);font-size:12px;
   transition:background .15s,color .15s;
 }
 .nav-btn:hover{background:var(--bg4);color:var(--text2)}
@@ -146,12 +146,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
 /* cards */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
-.card-title{font-size:11px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.card-title{font-size:12px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
 
 /* macro bar */
 .macro-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .macro-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:5px;font-size:12px}
-.mc-label{color:var(--text2);font-size:11px}
+.mc-label{color:var(--text2);font-size:12px}
 .mc-val{font-weight:600}
 .up{color:var(--red)}.dn{color:var(--green)}
 
@@ -165,8 +165,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .sig-badge.buy{background:rgba(248,81,73,.18);color:var(--red)}
 .sig-badge.sell{background:rgba(63,185,80,.18);color:var(--green)}
 .sc-code{font-size:13px;font-weight:700}
-.sc-name{font-size:11px;color:var(--text2);margin-bottom:4px}
-.sc-type{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600;display:inline-block;margin-bottom:6px}
+.sc-name{font-size:12px;color:var(--text2);margin-bottom:4px}
+.sc-type{font-size:12px;padding:1px 6px;border-radius:3px;font-weight:600;display:inline-block;margin-bottom:6px}
 .sig-type-BUY_A{background:#2d1b1b;color:var(--red)}
 .sig-type-BUY_B{background:#2d1b1b;color:#ff9999}
 .sig-type-LOW_BUY{background:#1a2d1a;color:var(--green)}
@@ -178,7 +178,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .sig-type-WARN,.sig-type-DAYTRADE_WARN{background:#1a1a0a;color:var(--yellow)}
 .sig-type-MACRO_LOCK{background:#200;color:var(--red)}
 .sc-price{font-size:14px;font-weight:700}
-.sc-detail{font-size:11px;color:var(--text2);margin-top:4px}
+.sc-detail{font-size:12px;color:var(--text2);margin-top:4px}
 
 /* watchlist table */
 .wl-table{width:100%;border-collapse:collapse;table-layout:auto}
@@ -189,7 +189,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .wl-table tr{cursor:pointer;transition:background .1s}
 .wl-table tr:hover td{background:var(--bg3)}
 .wl-code{font-weight:700;font-size:13px}
-.wl-name{color:var(--text2);font-size:11px}
+.wl-name{color:var(--text2);font-size:12px}
 
 /* pos mini */
 .pos-mini{display:flex;flex-direction:column;gap:6px}
@@ -197,7 +197,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .pos-row.wave-row{border-left-color:var(--blue)}
 .pos-row.day-row{border-left-color:var(--orange)}
 .pr-code{font-weight:700;min-width:50px}
-.pr-type-badge{font-size:10px;padding:1px 5px;border-radius:3px;font-weight:600}
+.pr-type-badge{font-size:12px;padding:1px 5px;border-radius:3px;font-weight:600}
 .pr-type-badge.wave{background:var(--blue-bg);color:var(--blue)}
 .pr-type-badge.day{background:#2d1e00;color:var(--orange)}
 .pr-pnl{margin-left:auto;font-weight:600;font-size:13px}
@@ -226,7 +226,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 #stock-search:focus{outline:none;border-color:var(--blue)}
 .tf-btn{padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;font-size:12px;transition:background .1s}
 .tf-btn.active{background:var(--blue-d);border-color:var(--blue);color:#fff}
-.ind-toggle{display:flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;font-size:11px}
+.ind-toggle{display:flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;font-size:12px}
 .ind-toggle.on{background:var(--bg4);color:var(--text);border-color:var(--border2)}
 .ind-toggle input{accent-color:var(--blue)}
 
@@ -235,7 +235,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 #chart-strat-header{display:flex;align-items:center;margin-bottom:6px;font-size:12px;font-weight:600;color:var(--text2)}
 #chart-strat-checks{display:flex;flex-wrap:wrap;gap:4px}
 .csp-item{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:4px;
-  border:1px solid var(--border);cursor:pointer;font-size:11px;transition:.15s}
+  border:1px solid var(--border);cursor:pointer;font-size:12px;transition:.15s}
 .csp-item:hover{background:var(--bg3)}
 .csp-item.synced{background:none}
 .csp-item.desynced{border-color:#ffa657;background:rgba(255,166,87,.08)}
@@ -253,7 +253,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .pb-name{color:var(--text2);font-size:13px}
 .pb-price{font-size:22px;font-weight:700}
 .pb-chg{font-size:13px;font-weight:600}
-.pb-ohlc{display:flex;gap:12px;font-size:11px;color:var(--text2)}
+.pb-ohlc{display:flex;gap:12px;font-size:12px;color:var(--text2)}
 
 /* chart layout — 全部用 JS inline style 控制尺寸 */
 #chart-area{display:flex;flex:1;overflow:hidden;min-height:0}
@@ -268,10 +268,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 /* right panel */
 #chart-right{width:220px;flex-shrink:0;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
 .panel-sec{padding:12px;border-bottom:1px solid var(--border)}
-.panel-sec-title{font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:600;margin-bottom:8px;letter-spacing:.4px}
+.panel-sec-title{font-size:12px;color:var(--text3);text-transform:uppercase;font-weight:600;margin-bottom:8px;letter-spacing:.4px}
 
 /* 五檔 G2 */
-#bidask-table{width:100%;border-collapse:collapse;font-size:11px}
+#bidask-table{width:100%;border-collapse:collapse;font-size:12px}
 #bidask-table td{padding:3px 4px}
 .ba-ask{color:var(--green)}.ba-bid{color:var(--red)}
 .ba-price{text-align:right;font-weight:600;min-width:48px}
@@ -280,17 +280,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
 /* trade type G3 */
 .ttype-sel{display:flex;gap:6px;margin-bottom:10px}
-.ttype-btn{flex:1;padding:5px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:background .1s}
+.ttype-btn{flex:1;padding:5px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;font-size:12px;font-weight:600;transition:background .1s}
 .ttype-btn.wave-on{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
 .ttype-btn.day-on{background:#2d1e00;border-color:var(--orange);color:var(--orange)}
 
 .order-row{display:flex;align-items:center;gap:6px;margin-bottom:8px}
-.order-row label{font-size:10px;color:var(--text2);width:46px;flex-shrink:0}
+.order-row label{font-size:12px;color:var(--text2);width:46px;flex-shrink:0}
 .order-row input{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:12px}
 .order-row input:focus{outline:none;border-color:var(--blue)}
 
 /* G4 slider */
-.sl-row{display:flex;align-items:center;gap:6px;margin:8px 0;font-size:11px}
+.sl-row{display:flex;align-items:center;gap:6px;margin:8px 0;font-size:12px}
 .sl-row label{color:var(--text2)}
 .sl-row input[type=range]{flex:1;accent-color:var(--red)}
 .sl-val{color:var(--red);font-weight:600;min-width:32px;text-align:right}
@@ -316,7 +316,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .pos-table .pt-pnl-up{color:#2ecb71;font-weight:600}
 .pos-table .pt-pnl-down{color:#e74c3c;font-weight:600}
 .pos-table .pt-pnl-flat{color:var(--text3)}
-.pt-badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px}
+.pt-badge{display:inline-block;font-size:12px;font-weight:600;padding:2px 7px;border-radius:10px}
 .pt-badge.up{color:#2ecb71;background:rgba(46,203,113,.12)}
 .pt-badge.down{color:#e74c3c;background:rgba(231,76,60,.12)}
 .pt-badge.flat{color:var(--text3);background:var(--bg3)}
@@ -329,10 +329,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .pos-table .pt-section td{padding:8px 10px;border-bottom:2px solid var(--border)}
 .pos-summary{display:flex;gap:20px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;flex-wrap:wrap}
 .pos-summary .ps-item{display:flex;flex-direction:column;gap:2px}
-.pos-summary .ps-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
+.pos-summary .ps-label{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
 .pos-summary .ps-value{font-size:15px;font-weight:700}
 @media(max-width:700px){
-  .pos-table{font-size:11px}
+  .pos-table{font-size:12px}
   .pos-table thead th,.pos-table tbody td{padding:7px 6px}
   .pos-summary{gap:12px}
 }
@@ -348,19 +348,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .ds-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
 .ds-card.active{border-left:3px solid var(--green)}
 .ds-card.planned{border-left:3px solid var(--yellow);opacity:.85}
-.ds-badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;display:inline-block}
+.ds-badge{font-size:12px;padding:2px 8px;border-radius:10px;font-weight:600;display:inline-block}
 .ds-badge.active{background:var(--green-bg);color:var(--green);border:1px solid var(--green)}
 .ds-badge.planned{background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow)}
 .ds-badge.configured{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue);margin-left:6px}
 .ds-badge.unconfigured{background:var(--red-bg);color:var(--red);border:1px solid var(--red);margin-left:6px}
 .ds-name{font-size:14px;font-weight:700;margin-bottom:6px}
-.ds-category{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.ds-category{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
 .ds-usage{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
-.ds-usage span{font-size:10px;background:var(--bg4);padding:2px 7px;border-radius:3px;color:var(--text2)}
-.ds-meta{font-size:11px;color:var(--text3);line-height:1.7}
+.ds-usage span{font-size:12px;background:var(--bg4);padding:2px 7px;border-radius:3px;color:var(--text2)}
+.ds-meta{font-size:12px;color:var(--text3);line-height:1.7}
 .ds-meta b{color:var(--text2);font-weight:500}
 .squeeze-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--bg3);border-radius:var(--r);border:1px solid var(--border);cursor:pointer;margin-bottom:6px}
-.sq-break{font-size:11px;padding:2px 7px;border-radius:3px;font-weight:600;background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow);margin-left:auto}
+.sq-break{font-size:12px;padding:2px 7px;border-radius:3px;font-weight:600;background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow);margin-left:auto}
 .target-input{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:3px;padding:3px 6px;font-size:12px;width:70px;text-align:right}
 .target-input:focus{outline:none;border-color:var(--blue)}
 
@@ -368,11 +368,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .macro-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(max-width:700px){.macro-grid{grid-template-columns:1fr}}
 .macro-gauge{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:6px}
-.mg-title{font-size:11px;color:var(--text2);font-weight:600}
+.mg-title{font-size:12px;color:var(--text2);font-weight:600}
 .mg-val{font-size:24px;font-weight:700}
 .mg-bar-wrap{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
 .mg-bar{height:100%;border-radius:3px;transition:width .5s}
-.mg-sub{font-size:11px;color:var(--text3)}
+.mg-sub{font-size:12px;color:var(--text3)}
 .macro-lock-panel{background:var(--red-bg);border:1px solid var(--red-d);border-radius:var(--r);padding:16px;margin-bottom:12px}
 .mlp-title{font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px}
 .mlp-cond{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px}
@@ -391,13 +391,13 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .sf-row label{font-size:12px;color:var(--text);min-width:130px}
 .sf-row input[type=number]{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 9px;font-size:13px;width:100px}
 .sf-row input:focus{outline:none;border-color:var(--blue)}
-.sf-unit{color:var(--text3);font-size:11px}
+.sf-unit{color:var(--text3);font-size:12px}
 .sf-row input[type=range]{width:150px;accent-color:var(--red)}
 .sf-save{padding:8px 24px;background:var(--blue-d);border:none;border-radius:4px;color:#fff;font-size:13px;font-weight:600;cursor:pointer}
 .sf-save:hover{background:#1a7fce}
 .sub-tags{display:flex;flex-wrap:wrap;gap:5px}
 .sub-tag{display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:3px 8px 3px 10px;font-size:12px;color:var(--text)}
-.sub-tag .sub-name{color:var(--text2);font-size:11px}
+.sub-tag .sub-name{color:var(--text2);font-size:12px}
 .sub-tag .sub-rm{cursor:pointer;color:var(--red);font-size:14px;line-height:1;margin-left:2px;font-weight:700}
 .sub-tag .sub-rm:hover{color:#f44}
 
@@ -411,7 +411,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .modal{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:20px;width:340px;max-height:80vh;overflow-y:auto}
 .modal h3{font-size:14px;font-weight:700;margin-bottom:14px}
 .m-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
-.m-row label{font-size:11px;color:var(--text2)}
+.m-row label{font-size:12px;color:var(--text2)}
 .m-row input,.m-row select{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 9px;font-size:12px}
 .m-row input:focus,.m-row select:focus{outline:none;border-color:var(--blue)}
 .m-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
@@ -429,7 +429,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 #ic-topbar{background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
 #ic-topbar-row1{padding:8px 18px;display:flex;align-items:center;gap:12px}
 #ic-topbar h1{font-size:14px;font-weight:600;margin:0}
-#ic-last-update{font-size:11px;color:var(--text2)}
+#ic-last-update{font-size:12px;color:var(--text2)}
 #ic-refresh-btn{margin-left:auto;background:var(--blue);color:#000;border:none;
   padding:5px 12px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600}
 #ic-tabs{display:flex;gap:2px;padding:0 12px;overflow-x:auto;scrollbar-width:none}
@@ -443,9 +443,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 #ic-content{flex:1;overflow-y:auto;padding:18px}
 .ic-page{display:none}.ic-page.active{display:block}
 /* ── 市場狀態燈號 ── */
-.price-status{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;
+.price-status{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:700;
   padding:2px 7px;border-radius:10px;letter-spacing:.3px;vertical-align:middle;line-height:1.4}
-.price-status::before{content:'●';font-size:7px}
+.price-status::before{content:'●';font-size:12px}
 .price-status.realtime{color:#2ecb71;background:rgba(46,203,113,.15)}
 .price-status.close{color:#ffa657;background:rgba(255,166,87,.15)}
 .price-status.premarket{color:#8b8b8b;background:rgba(139,139,139,.15)}
@@ -458,7 +458,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 @media(max-width:900px){.ic-grid-4,.ic-grid-3{grid-template-columns:repeat(2,1fr)}.ic-grid-2{grid-template-columns:1fr}}
 .ic-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px}
 .ic-metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
-.ic-metric-label{font-size:11px;color:var(--text2);margin-bottom:4px}
+.ic-metric-label{font-size:12px;color:var(--text2);margin-bottom:4px}
 .ic-metric-value{font-size:19px;font-weight:700}
 .ic-metric-change{font-size:12px;margin-top:3px}
 .ic-up{color:var(--green)}.ic-down{color:var(--red)}.ic-flat{color:var(--text2)}
@@ -469,7 +469,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .ic-market-tab{background:transparent;border:none;color:var(--text2);font-size:13px;font-weight:600;padding:8px 18px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s}
 .ic-market-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
 .ic-market-tab:hover{color:var(--text1)}
-.ic-tab-count{font-size:10px;background:var(--bg3);padding:1px 6px;border-radius:8px;margin-left:4px}
+.ic-tab-count{font-size:12px;background:var(--bg3);padding:1px 6px;border-radius:8px;margin-left:4px}
 .ic-market-tab.active .ic-tab-count{background:var(--blue);color:#fff}
 .ic-rec-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;
   display:flex;flex-direction:column;gap:10px}
@@ -479,24 +479,24 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .ic-rec-header{display:flex;align-items:center;gap:8px}
 .ic-rec-code{font-size:16px;font-weight:700}
 .ic-rec-name{font-size:12px;color:var(--text2)}
-.ic-rec-mkt{font-size:10px;background:var(--bg3);border:1px solid var(--border);padding:2px 6px;border-radius:4px;color:var(--text2)}
+.ic-rec-mkt{font-size:12px;background:var(--bg3);border:1px solid var(--border);padding:2px 6px;border-radius:4px;color:var(--text2)}
 .ic-score-bar-wrap{background:var(--bg);border-radius:4px;height:6px;width:100%}
 .ic-score-bar{height:6px;border-radius:4px;transition:width .3s}
 .ic-signals-wrap{display:flex;flex-wrap:wrap;gap:4px}
-.ic-signal-chip{font-size:11px;background:var(--bg3);border:1px solid var(--border);padding:2px 7px;border-radius:10px;color:var(--text2)}
+.ic-signal-chip{font-size:12px;background:var(--bg3);border:1px solid var(--border);padding:2px 7px;border-radius:10px;color:var(--text2)}
 .ic-ai-text{font-size:12px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;white-space:pre-wrap;line-height:1.6}
 .ic-model-grid{display:flex;flex-direction:column;gap:6px}
 .ic-model-row{display:flex;align-items:center;gap:8px;font-size:12px}
 .ic-model-label{min-width:130px;color:var(--text2)}
 .ic-model-select{flex:1;max-width:260px;padding:5px 8px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px}
 .ic-model-select:disabled{opacity:.4;cursor:not-allowed}
-.ic-src-select{width:104px;padding:5px 6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:11px}
+.ic-src-select{width:104px;padding:5px 6px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px}
 .ic-src-select.sub{border-color:#2ecb71;color:#2ecb71}
-.ic-model-cost{font-size:10px;color:var(--text3);min-width:70px}
-.ic-analyze-btn{background:var(--blue);color:#000;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;align-self:flex-start}
+.ic-model-cost{font-size:12px;color:var(--text3);min-width:70px}
+.ic-analyze-btn{background:var(--blue);color:#000;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;align-self:flex-start}
 .ic-analyze-btn:disabled{opacity:.5;cursor:not-allowed}
 .ic-sector-table{width:100%;border-collapse:collapse;font-size:13px}
-.ic-sector-table th{text-align:left;padding:7px 10px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase}
+.ic-sector-table th{text-align:left;padding:7px 10px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:12px;text-transform:uppercase}
 .ic-sector-table td{padding:7px 10px;border-bottom:1px solid var(--bg3)}
 .ic-sector-table tr:hover td{background:var(--bg3)}
 .ic-bar-cell{display:flex;align-items:center;gap:6px}
@@ -509,7 +509,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .ic-chip-toggle{padding:4px 12px;border-radius:12px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--bg);color:var(--text2);transition:.15s}
 .ic-chip-toggle.active{background:rgba(88,166,255,.15);color:var(--blue);border-color:var(--blue)}
 .ic-save-btn{background:var(--blue);color:#000;border:none;padding:7px 18px;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;margin-top:8px}
-.ic-macro-group-title{font-size:11px;color:var(--purple);font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.ic-macro-group-title{font-size:12px;color:var(--purple);font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
 .ic-macro-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .ic-loading{text-align:center;padding:32px;color:var(--text2);font-size:13px}
 .ic-spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle}
@@ -523,12 +523,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .ic-env-tag.green{color:var(--green)}.ic-env-tag.yellow{color:var(--yellow)}.ic-env-tag.red{color:var(--red)}
 .ic-env-advice{font-size:12px;color:var(--text);flex:1}
 .ic-env-sigs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;width:100%}
-.ic-env-sig{font-size:11px;padding:2px 7px;border-radius:10px;border:1px solid}
+.ic-env-sig{font-size:12px;padding:2px 7px;border-radius:10px;border:1px solid}
 .ic-env-sig.green{color:var(--green);border-color:var(--green);background:rgba(63,185,80,.08)}
 .ic-env-sig.yellow{color:var(--yellow);border-color:var(--yellow);background:rgba(210,153,34,.08)}
 .ic-env-sig.red{color:var(--red);border-color:var(--red);background:rgba(248,81,73,.08)}
 .ic-hist-table{width:100%;border-collapse:collapse;font-size:12px}
-.ic-hist-table th{text-align:left;padding:6px 9px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:11px;white-space:nowrap}
+.ic-hist-table th{text-align:left;padding:6px 9px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:12px;white-space:nowrap}
 .ic-hist-table td{padding:6px 9px;border-bottom:1px solid var(--bg3);vertical-align:middle}
 .ic-hist-table tr:hover td{background:var(--bg3)}
 .ic-outcome-win{color:var(--green);font-weight:700}
@@ -538,19 +538,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .ic-batch-input{width:100%;min-height:72px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font-size:12px}
 .ic-batch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:12px}
 .ic-inst-table{width:100%;border-collapse:collapse;font-size:12px}
-.ic-inst-table th{text-align:right;padding:6px 9px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase}
+.ic-inst-table th{text-align:right;padding:6px 9px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:12px;text-transform:uppercase}
 .ic-inst-table th:first-child,.ic-inst-table td:first-child,.ic-inst-table td:nth-child(2){text-align:left}
 .ic-inst-table td{padding:6px 9px;border-bottom:1px solid var(--bg3);text-align:right}
 .ic-inst-table tr:hover td{background:var(--bg3)}
-.ic-src-badge{font-size:10px;padding:2px 6px;border-radius:8px;font-weight:600;white-space:nowrap}
-.ic-ent-tag{display:inline-block;font-size:10px;padding:1px 6px;margin:1px;border-radius:8px;background:rgba(88,166,255,.12);color:var(--blue);white-space:nowrap}
+.ic-src-badge{font-size:12px;padding:2px 6px;border-radius:8px;font-weight:600;white-space:nowrap}
+.ic-ent-tag{display:inline-block;font-size:12px;padding:1px 6px;margin:1px;border-radius:8px;background:rgba(88,166,255,.12);color:var(--blue);white-space:nowrap}
 .ic-src-system{background:rgba(88,166,255,.12);color:var(--blue);border:1px solid rgba(88,166,255,.3)}
 .ic-src-user{background:rgba(165,160,247,.12);color:var(--purple);border:1px solid rgba(165,160,247,.3)}
 .ic-src-badges-row{display:flex;flex-wrap:wrap;gap:4px}
 .ic-conf-bar-wrap{background:var(--bg);border-radius:4px;height:4px;width:100%}
 .ic-conf-bar{height:4px;border-radius:4px;background:var(--purple);transition:width .3s}
 .ic-src-table{width:100%;border-collapse:collapse;font-size:12px}
-.ic-src-table th{text-align:left;padding:7px 9px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:11px}
+.ic-src-table th{text-align:left;padding:7px 9px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:12px}
 .ic-src-table td{padding:7px 9px;border-bottom:1px solid var(--bg3);vertical-align:middle}
 .ic-src-table tr:hover td{background:var(--bg3)}
 #ic-bt-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center}
@@ -560,7 +560,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 #ic-bt-box h3 button{background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px}
 .ic-bt-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
 .ic-bt-stat{background:var(--bg);border-radius:6px;padding:9px;text-align:center}
-.ic-bt-stat-label{font-size:10px;color:var(--text2);margin-bottom:3px}
+.ic-bt-stat-label{font-size:12px;color:var(--text2);margin-bottom:3px}
 .ic-bt-stat-val{font-size:15px;font-weight:700}
 </style>
 </head>
@@ -575,7 +575,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 <!-- EXIT_D 緊急停損條 -->
 <div id="exitd-strip">
   🚨 <span id="exitd-msg">持倉出現緊急停損條件（跌幅 ≥5%）</span>
-  <span id="exitd-codes" style="margin-left:auto;font-size:11px;color:var(--red)"></span>
+  <span id="exitd-codes" style="margin-left:auto;font-size:12px;color:var(--red)"></span>
 </div>
 
 <div id="app">
@@ -706,9 +706,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
               <div class="card" style="margin-bottom:12px">
                 <div style="display:flex;align-items:center;margin-bottom:10px">
                   <div class="card-title" style="margin:0">今日系統訊號</div>
-                  <button id="btn-manual-scan" onclick="manualScanSignals()" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--blue);cursor:pointer;font-size:11px;padding:3px 10px;border-radius:6px">手動掃描</button>
-                  <button id="btn-after-hours" onclick="runAfterHoursReview()" style="margin-left:6px;background:var(--card);border:1px solid var(--border);color:var(--yellow);cursor:pointer;font-size:11px;padding:3px 10px;border-radius:6px">盤後回顧</button>
-                  <button id="btn-warmup" onclick="warmUpKbars()" style="margin-left:6px;background:var(--card);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:11px;padding:3px 10px;border-radius:6px">補齊K線</button>
+                  <button id="btn-manual-scan" onclick="manualScanSignals()" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--blue);cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px">手動掃描</button>
+                  <button id="btn-after-hours" onclick="runAfterHoursReview()" style="margin-left:6px;background:var(--card);border:1px solid var(--border);color:var(--yellow);cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px">盤後回顧</button>
+                  <button id="btn-warmup" onclick="warmUpKbars()" style="margin-left:6px;background:var(--card);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px">補齊K線</button>
                 </div>
                 <div id="signal-grid" class="signal-grid"><div class="loading">載入訊號中…</div></div>
                 <div id="after-hours-panel" style="display:none;margin-top:12px">
@@ -726,7 +726,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                 </div>
                 <!-- 指標勾選面板 -->
                 <div id="indicator-panel" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:10px">
-                  <div style="font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:600">顯示欄位（勾選後自動套用）</div>
+                  <div style="font-size:12px;color:var(--text3);margin-bottom:6px;font-weight:600">顯示欄位（勾選後自動套用）</div>
                   <div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px">
                     <label class="ind-cb"><input type="checkbox" data-col="price" checked onchange="applyIndicators()"> 現價</label>
                     <label class="ind-cb"><input type="checkbox" data-col="change" checked onchange="applyIndicators()"> 漲跌</label>
@@ -776,8 +776,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
               <div class="card" style="margin-bottom:12px">
                 <div style="display:flex;align-items:center;margin-bottom:10px">
                   <div class="card-title" style="margin:0">今日美股訊號</div>
-                  <button onclick="manualScanUS()" id="btn-us-scan" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--blue);cursor:pointer;font-size:11px;padding:3px 10px;border-radius:6px">手動掃描</button>
-                  <button onclick="runAfterHoursReviewUS()" id="btn-us-review" style="margin-left:6px;background:var(--card);border:1px solid var(--border);color:var(--yellow);cursor:pointer;font-size:11px;padding:3px 10px;border-radius:6px">盤後回顧</button>
+                  <button onclick="manualScanUS()" id="btn-us-scan" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--blue);cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px">手動掃描</button>
+                  <button onclick="runAfterHoursReviewUS()" id="btn-us-review" style="margin-left:6px;background:var(--card);border:1px solid var(--border);color:var(--yellow);cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px">盤後回顧</button>
                 </div>
                 <div id="us-signal-grid" class="signal-grid"><div class="empty-state">切換至美股後自動載入</div></div>
               </div>
@@ -823,14 +823,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           <label class="ind-toggle on" id="tog-ma60"><input type="checkbox" checked onchange="toggleMA(60,this)"> <span style="color:#39d353">MA60</span></label>
           <div class="spacer"></div>
           <label class="ind-toggle on" id="tog-trade"><input type="checkbox" checked onchange="_tradeMarkersVisible=this.checked;this.parentElement.classList.toggle('on',this.checked);reloadChartMarkers()"> <span style="color:#ff9800">交易</span></label>
-          <button id="chart-strat-toggle" onclick="toggleChartStratPanel()" style="background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:11px;padding:3px 10px;border-radius:4px">📋 策略標記</button>
+          <button id="chart-strat-toggle" onclick="toggleChartStratPanel()" style="background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:12px;padding:3px 10px;border-radius:4px">📋 策略標記</button>
         </div>
         <!-- 策略快選面板 -->
         <div id="chart-strat-panel" style="display:none">
           <div id="chart-strat-header">
             <span>策略標記</span>
-            <span id="csp-desync-warn" style="display:none;color:#ffa657;font-size:10px;margin-left:8px">⚠ 與系統不同步</span>
-            <button onclick="resetChartStrats()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:11px;padding:2px 8px;border-radius:4px">⟳ 同步系統</button>
+            <span id="csp-desync-warn" style="display:none;color:#ffa657;font-size:12px;margin-left:8px">⚠ 與系統不同步</span>
+            <button onclick="resetChartStrats()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:4px">⟳ 同步系統</button>
           </div>
           <div id="chart-strat-checks"></div>
         </div>
@@ -878,7 +878,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
               <div class="panel-sec-title">五檔委託</div>
               <table id="bidask-table">
                 <tbody id="bidask-body">
-                  <tr><td colspan="3" style="text-align:center;color:var(--text3);padding:10px;font-size:11px">訂閱中…</td></tr>
+                  <tr><td colspan="3" style="text-align:center;color:var(--text3);padding:10px;font-size:12px">訂閱中…</td></tr>
                 </tbody>
               </table>
             </div>
@@ -905,7 +905,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
             <!-- 停損規則提示 -->
             <div class="panel-sec">
               <div class="panel-sec-title">停損規則說明</div>
-              <div id="trade-rule-hint" style="font-size:11px;color:var(--text2);line-height:1.8">
+              <div id="trade-rule-hint" style="font-size:12px;color:var(--text2);line-height:1.8">
                 <b style="color:var(--blue)">波段單</b>：高點回落 7% 觸發 Exit_C<br>盤後自動掃描狀態
               </div>
             </div>
@@ -941,8 +941,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
             <option value="">全部股票</option>
           </select>
           <div style="flex:1"></div>
-          <button onclick="tradeMigratePositions()" style="padding:5px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px" title="將現有持倉轉為買入紀錄">📥 匯入持倉</button>
-          <button onclick="tradeShowAnalytics()" style="padding:5px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:11px">📊 交易分析</button>
+          <button onclick="tradeMigratePositions()" style="padding:5px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:12px" title="將現有持倉轉為買入紀錄">📥 匯入持倉</button>
+          <button onclick="tradeShowAnalytics()" style="padding:5px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:12px">📊 交易分析</button>
         </div>
         <div id="trade-analytics-box" style="display:none;margin-bottom:10px"></div>
         <div id="trade-list"><div class="loading">載入交易紀錄…</div></div>
@@ -958,34 +958,34 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           <div style="display:grid;gap:10px">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
               <div>
-                <label style="font-size:11px;color:var(--text3)">股票代碼</label>
+                <label style="font-size:12px;color:var(--text3)">股票代碼</label>
                 <input id="trade-code" placeholder="如 2330" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text1)">
               </div>
               <div>
-                <label style="font-size:11px;color:var(--text3)">股票名稱</label>
+                <label style="font-size:12px;color:var(--text3)">股票名稱</label>
                 <input id="trade-name" placeholder="如 台積電" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text1)">
               </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
               <div>
-                <label style="font-size:11px;color:var(--text3)">買/賣</label>
+                <label style="font-size:12px;color:var(--text3)">買/賣</label>
                 <select id="trade-action" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text1)">
                   <option value="BUY">買入 BUY</option>
                   <option value="SELL">賣出 SELL</option>
                 </select>
               </div>
               <div>
-                <label style="font-size:11px;color:var(--text3)">日期</label>
+                <label style="font-size:12px;color:var(--text3)">日期</label>
                 <input id="trade-date" type="date" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text1)">
               </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
               <div>
-                <label style="font-size:11px;color:var(--text3)">張數</label>
+                <label style="font-size:12px;color:var(--text3)">張數</label>
                 <input id="trade-shares" type="number" min="1" value="1" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text1)">
               </div>
               <div>
-                <label style="font-size:11px;color:var(--text3)">成交價</label>
+                <label style="font-size:12px;color:var(--text3)">成交價</label>
                 <input id="trade-price" type="number" step="0.01" placeholder="0" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text1)">
               </div>
             </div>
@@ -993,21 +993,21 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
               <summary style="cursor:pointer;font-size:12px;color:var(--text2)">💰 交易成本設定</summary>
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px">
                 <div>
-                  <label style="font-size:10px;color:var(--text3)">手續費率%</label>
+                  <label style="font-size:12px;color:var(--text3)">手續費率%</label>
                   <input id="trade-commission" type="number" step="0.0001" value="0.1425" style="width:100%;padding:4px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text1);font-size:12px">
                 </div>
                 <div>
-                  <label style="font-size:10px;color:var(--text3)">折扣(0~1)</label>
+                  <label style="font-size:12px;color:var(--text3)">折扣(0~1)</label>
                   <input id="trade-discount" type="number" step="0.05" value="0.6" min="0" max="1" style="width:100%;padding:4px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text1);font-size:12px">
                 </div>
                 <div>
-                  <label style="font-size:10px;color:var(--text3)">交易稅率%</label>
+                  <label style="font-size:12px;color:var(--text3)">交易稅率%</label>
                   <input id="trade-tax" type="number" step="0.001" value="0.3" style="width:100%;padding:4px 6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text1);font-size:12px">
                 </div>
               </div>
             </details>
             <div>
-              <label style="font-size:11px;color:var(--text3)">備註</label>
+              <label style="font-size:12px;color:var(--text3)">備註</label>
               <input id="trade-note" placeholder="選填" style="width:100%;padding:6px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text1)">
             </div>
             <div id="trade-cost-preview" style="background:var(--bg2);border-radius:6px;padding:8px;font-size:12px;color:var(--text2)"></div>
@@ -1022,14 +1022,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           <!-- G5: SQUEEZE_BREAK 候選 -->
           <div class="card">
             <div class="card-title">籌碼擠壓候選</div>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:10px">突破前高自動觸發 SQUEEZE_BREAK 訊號</p>
+            <p style="font-size:12px;color:var(--text3);margin-bottom:10px">突破前高自動觸發 SQUEEZE_BREAK 訊號</p>
             <div id="squeeze-list"><div class="empty-state">今日無候選股</div></div>
           </div>
 
           <!-- G6: 法人目標價 -->
           <div class="card">
             <div class="card-title">法人目標價</div>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:10px">手動輸入目標價，自動計算乖離空間</p>
+            <p style="font-size:12px;color:var(--text3);margin-bottom:10px">手動輸入目標價，自動計算乖離空間</p>
             <table class="wl-table">
               <thead><tr><th>代碼</th><th>現價</th><th>目標價</th><th>空間</th></tr></thead>
               <tbody id="target-body"><tr><td colspan="4" class="loading">載入中…</td></tr></tbody>
@@ -1039,7 +1039,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           <!-- Phase 3: 融券軋空候選 -->
           <div class="card">
             <div class="card-title">融券軋空候選（券資比>30%）</div>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:10px">券資比偏高，留意軋空行情</p>
+            <p style="font-size:12px;color:var(--text3);margin-bottom:10px">券資比偏高，留意軋空行情</p>
             <table class="wl-table">
               <thead><tr><th>代碼</th><th>券資比</th><th>融券餘額</th><th>融資餘額</th></tr></thead>
               <tbody id="chip-squeeze-body"><tr><td colspan="4" class="empty-state">需先抓取籌碼</td></tr></tbody>
@@ -1049,7 +1049,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           <!-- Phase 3: 投信鎖碼 -->
           <div class="card">
             <div class="card-title">投信鎖碼股（連買≥3天）</div>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:10px">投信近5日連續買超</p>
+            <p style="font-size:12px;color:var(--text3);margin-bottom:10px">投信近5日連續買超</p>
             <table class="wl-table">
               <thead><tr><th>代碼</th><th>連買天數</th><th>合計買超</th></tr></thead>
               <tbody id="chip-itrust-body"><tr><td colspan="3" class="empty-state">需先抓取籌碼</td></tr></tbody>
@@ -1059,21 +1059,21 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           <!-- Phase 3: 籌碼棄守 -->
           <div class="card">
             <div class="card-title">籌碼棄守警示</div>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:10px">投信連續2日大賣超(&gt;500張)</p>
+            <p style="font-size:12px;color:var(--text3);margin-bottom:10px">投信連續2日大賣超(&gt;500張)</p>
             <div id="chip-abandon-list"><div class="empty-state">需先抓取籌碼</div></div>
           </div>
 
           <!-- Phase 8: 利多不漲 NLP 情感逆向 -->
           <div class="card">
             <div class="card-title">📰 利多不漲偵測</div>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:10px">正面新聞但開高走低量大收黑 → 利多出盡防守賣出</p>
+            <p style="font-size:12px;color:var(--text3);margin-bottom:10px">正面新聞但開高走低量大收黑 → 利多出盡防守賣出</p>
             <div id="news-bearish-list"><div class="empty-state">需先抓取新聞</div></div>
           </div>
 
           <!-- Phase 8: 當沖比過高午盤防洗 -->
           <div class="card">
             <div class="card-title">⚡ 當沖比警示（午盤防洗）</div>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:10px">當沖比&gt;50%高危名單，12:30後跌破VWAP觸發賣出</p>
+            <p style="font-size:12px;color:var(--text3);margin-bottom:10px">當沖比&gt;50%高危名單，12:30後跌破VWAP觸發賣出</p>
             <table class="wl-table">
               <thead><tr><th>代碼</th><th>當沖比</th><th>當沖量</th><th>總量</th></tr></thead>
               <tbody id="daytrade-warn-body"><tr><td colspan="4" class="empty-state">需先抓取當沖比</td></tr></tbody>
@@ -1083,7 +1083,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           <!-- Phase 8: 融券軋空+突破前日高聯動 -->
           <div class="card">
             <div class="card-title">🔥 融券軋空盤中突破</div>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:10px">券資比&gt;30% + 突破前日高 = 強力軋空買訊</p>
+            <p style="font-size:12px;color:var(--text3);margin-bottom:10px">券資比&gt;30% + 突破前日高 = 強力軋空買訊</p>
             <table class="wl-table">
               <thead><tr><th>代碼</th><th>券資比</th><th>前日高</th><th>現價</th><th>狀態</th></tr></thead>
               <tbody id="squeeze-breakout-body"><tr><td colspan="5" class="empty-state">需先抓取籌碼</td></tr></tbody>
@@ -1127,18 +1127,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
             <span id="risk-reason-summary" style="margin-left:auto;font-size:12px;color:var(--text2)">判斷依據：4 項指標全部正常</span>
           </div>
 
-          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">判斷依據（0 項觸發→100% / 1 項→60% / ≥2 項→30%）：</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:6px">判斷依據（0 項觸發→100% / 1 項→60% / ≥2 項→30%）：</div>
           <div id="macro-conditions">
-            <div class="mlp-cond"><div class="cond-dot" id="dot-vix"></div><span>VIX &gt; 35（恐慌指數）</span><span id="st-vix" style="margin-left:auto;font-size:11px;color:var(--text3)">--</span></div>
-            <div class="mlp-cond"><div class="cond-dot" id="dot-dxy"></div><span>DXY 月漲 &gt; 3%（強勢美元）</span><span id="st-dxy" style="margin-left:auto;font-size:11px;color:var(--text3)">--</span></div>
-            <div class="mlp-cond"><div class="cond-dot" id="dot-us10y"></div><span>US10Y &gt; 5%（利率壓估值）</span><span id="st-us10y" style="margin-left:auto;font-size:11px;color:var(--text3)">--</span></div>
-            <div class="mlp-cond"><div class="cond-dot" id="dot-tw"></div><span>加權低月線 5%（本土弱勢）</span><span id="st-tw" style="margin-left:auto;font-size:11px;color:var(--text3)">--</span></div>
+            <div class="mlp-cond"><div class="cond-dot" id="dot-vix"></div><span>VIX &gt; 35（恐慌指數）</span><span id="st-vix" style="margin-left:auto;font-size:12px;color:var(--text3)">--</span></div>
+            <div class="mlp-cond"><div class="cond-dot" id="dot-dxy"></div><span>DXY 月漲 &gt; 3%（強勢美元）</span><span id="st-dxy" style="margin-left:auto;font-size:12px;color:var(--text3)">--</span></div>
+            <div class="mlp-cond"><div class="cond-dot" id="dot-us10y"></div><span>US10Y &gt; 5%（利率壓估值）</span><span id="st-us10y" style="margin-left:auto;font-size:12px;color:var(--text3)">--</span></div>
+            <div class="mlp-cond"><div class="cond-dot" id="dot-tw"></div><span>加權低月線 5%（本土弱勢）</span><span id="st-tw" style="margin-left:auto;font-size:12px;color:var(--text3)">--</span></div>
           </div>
           <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
             <button id="macro-lock-btn" class="lock-btn lock" onclick="toggleMacroLock()">啟動鎖定</button>
             <span id="macro-lock-status" style="font-size:12px;color:var(--text2)">目前未鎖定</span>
           </div>
-          <div style="font-size:11px;color:var(--text3);margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;color:var(--text3);margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
             📊 完整總經數據（美股指數 / 債券 / 匯率 / 大宗商品 / AI 解讀）請至
             <span onclick="showPage('ic');setTimeout(()=>{const t=document.querySelector('.ic-tab[data-page=macro]');if(t)icNav(t);},50)" style="color:var(--blue);cursor:pointer;text-decoration:underline">資訊中心 → 總經</span>
           </div>
@@ -1176,7 +1176,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                 </div>
               </div>
             </div>
-            <div style="font-size:11px;color:var(--text3);padding:2px 0">步驟：Telegram 搜尋 @BotFather → /newbot → 取得 Token → 對 bot 發訊息 → 用 /getUpdates 取得 Chat ID</div>
+            <div style="font-size:12px;color:var(--text3);padding:2px 0">步驟：Telegram 搜尋 @BotFather → /newbot → 取得 Token → 對 bot 發訊息 → 用 /getUpdates 取得 Chat ID</div>
           </div>
           <div class="sf-group">
             <div class="sf-title">Email SMTP</div>
@@ -1193,7 +1193,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                 </div>
               </div>
             </div>
-            <div style="font-size:11px;color:var(--text3);padding:2px 0">Gmail 用戶：請至 Google 帳號 → 安全性 → 應用程式密碼 產生專用密碼</div>
+            <div style="font-size:12px;color:var(--text3);padding:2px 0">Gmail 用戶：請至 Google 帳號 → 安全性 → 應用程式密碼 產生專用密碼</div>
           </div>
           <div class="sf-group">
             <div class="sf-title">其他通知</div>
@@ -1213,12 +1213,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
               <label>EXIT_D 自動停損</label>
               <select id="cfg-auto-sell"><option value="0">停用（僅警示）</option><option value="1">啟用（自動市價賣出）</option></select>
             </div>
-            <div style="font-size:11px;color:var(--text3);padding:2px 0">⚠ 啟用後，EXIT_D 觸發時自動送出市價賣單。模擬環境僅記錄，正式環境(SJ_PRODUCTION=true)會實際下單。</div>
+            <div style="font-size:12px;color:var(--text3);padding:2px 0">⚠ 啟用後，EXIT_D 觸發時自動送出市價賣單。模擬環境僅記錄，正式環境(SJ_PRODUCTION=true)會實際下單。</div>
             <div class="sf-row" style="margin-top:8px">
               <label>EXIT_C 自動止盈</label>
               <select id="cfg-auto-sell-exitc"><option value="0">停用（僅警示）</option><option value="1">啟用（移動止盈自動賣出）</option></select>
             </div>
-            <div style="font-size:11px;color:var(--text3);padding:2px 0">利潤達到設定門檻後追蹤高點，回落觸發自動止盈賣出。獨立於 EXIT_D 開關。</div>
+            <div style="font-size:12px;color:var(--text3);padding:2px 0">利潤達到設定門檻後追蹤高點，回落觸發自動止盈賣出。獨立於 EXIT_D 開關。</div>
             <div class="sf-row" style="margin-top:8px;gap:8px">
               <button class="sf-save" style="background:#c44;padding:6px 16px" onclick="manualAutoSell()">EXIT_D 掃描</button>
               <button class="sf-save" style="background:#7a4;padding:6px 16px" onclick="manualAutoSellExitC()">EXIT_C 掃描</button>
@@ -1231,13 +1231,13 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
               <label>自動抓取</label>
               <select id="cfg-chip-auto"><option value="1">啟用（每日 14:30 自動抓取）</option><option value="0">停用</option></select>
             </div>
-            <div style="font-size:11px;color:var(--text3);padding:2px 0">台股收盤後（14:30）自動從 TWSE 抓取三大法人 + 融資融券，寫入 chip_snapshot。</div>
+            <div style="font-size:12px;color:var(--text3);padding:2px 0">台股收盤後（14:30）自動從 TWSE 抓取三大法人 + 融資融券，寫入 chip_snapshot。</div>
             <div class="sf-row" style="margin-top:8px;gap:8px;align-items:center">
               <button class="sf-save" style="background:var(--green-d);padding:6px 16px" onclick="saveChipScheduler()">儲存排程設定</button>
               <button class="sf-save" style="padding:6px 14px" onclick="manualChipFetch()">立即抓取今日</button>
               <span id="chip-sched-msg" style="font-size:12px;color:var(--text2)"></span>
             </div>
-            <div id="chip-sched-status" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+            <div id="chip-sched-status" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
           </div>
           <div class="sf-group">
             <div class="sf-title">系統管理</div>
@@ -1245,7 +1245,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
               <button class="sf-save" style="background:#c44;padding:6px 16px" onclick="restartBackend()">🔄 重啟後端</button>
               <span id="restart-msg" style="font-size:12px;color:var(--text2)"></span>
             </div>
-            <div style="font-size:11px;color:var(--text3);padding:2px 0">若頁面顯示「後端未連線」或資料異常，可點此重啟後端服務。重啟約需 3~5 秒。</div>
+            <div style="font-size:12px;color:var(--text3);padding:2px 0">若頁面顯示「後端未連線」或資料異常，可點此重啟後端服務。重啟約需 3~5 秒。</div>
           </div>
           <button class="sf-save" onclick="saveRiskConfig()">儲存設定</button>
           <div id="cfg-save-msg" style="font-size:12px;color:var(--green);margin-top:8px;display:none">✓ 已儲存</div>
@@ -1257,7 +1257,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
       <div class="page" id="page-strategy">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
           <h3 style="font-size:15px;margin:0">策略管理</h3>
-          <span id="strat-count-label" style="font-size:11px;color:var(--text3)"></span>
+          <span id="strat-count-label" style="font-size:12px;color:var(--text3)"></span>
           <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
             <button class="tf-btn active" onclick="filterStrategies('all',this)">全部</button>
             <button class="tf-btn" onclick="filterStrategies('BUY',this)">買進</button>
@@ -1279,7 +1279,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
       <div class="page" id="page-backtest">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
           <h3 style="font-size:15px;margin:0">策略回測</h3>
-          <span style="font-size:11px;color:var(--text3)">歷史資料驗證策略績效（自動抓取缺失數據）</span>
+          <span style="font-size:12px;color:var(--text3)">歷史資料驗證策略績效（自動抓取缺失數據）</span>
         </div>
 
         <!-- 回測設定區 -->
@@ -1328,11 +1328,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           </div>
           <div style="margin-top:10px">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-              <label style="color:var(--text2);font-size:11px">啟用策略</label>
-              <button onclick="btStratToggle(true)" style="font-size:10px;padding:1px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:10px;cursor:pointer">全選</button>
-              <button onclick="btStratToggle(false)" style="font-size:10px;padding:1px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:10px;cursor:pointer">全不選</button>
+              <label style="color:var(--text2);font-size:12px">啟用策略</label>
+              <button onclick="btStratToggle(true)" style="font-size:12px;padding:1px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:10px;cursor:pointer">全選</button>
+              <button onclick="btStratToggle(false)" style="font-size:12px;padding:1px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:10px;cursor:pointer">全不選</button>
             </div>
-            <div id="bt-strategy-checks" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px"></div>
+            <div id="bt-strategy-checks" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:12px"></div>
           </div>
           <div id="bt-progress" style="margin-top:8px;font-size:12px;color:var(--text2)"></div>
         </div>
@@ -1341,27 +1341,27 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
         <div id="bt-results" style="display:none">
           <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:12px">
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">年化報酬</div>
+              <div style="font-size:12px;color:var(--text3)">年化報酬</div>
               <div id="bt-cagr" style="font-size:18px;font-weight:700">--</div>
             </div>
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">勝率</div>
+              <div style="font-size:12px;color:var(--text3)">勝率</div>
               <div id="bt-winrate" style="font-size:18px;font-weight:700">--</div>
             </div>
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">盈虧比</div>
+              <div style="font-size:12px;color:var(--text3)">盈虧比</div>
               <div id="bt-plr" style="font-size:18px;font-weight:700">--</div>
             </div>
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">最大回撤</div>
+              <div style="font-size:12px;color:var(--text3)">最大回撤</div>
               <div id="bt-mdd" style="font-size:18px;font-weight:700;color:var(--red)">--</div>
             </div>
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">夏普比率</div>
+              <div style="font-size:12px;color:var(--text3)">夏普比率</div>
               <div id="bt-sharpe" style="font-size:18px;font-weight:700">--</div>
             </div>
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">總交易</div>
+              <div style="font-size:12px;color:var(--text3)">總交易</div>
               <div id="bt-total" style="font-size:18px;font-weight:700">--</div>
             </div>
           </div>
@@ -1401,7 +1401,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
       <div class="page" id="page-iter">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
           <h3 style="font-size:15px;margin:0">策略迭代實驗室</h3>
-          <span style="font-size:11px;color:var(--text3)">Grid Search → Bayesian → AI 三層自動優化策略參數</span>
+          <span style="font-size:12px;color:var(--text3)">Grid Search → Bayesian → AI 三層自動優化策略參數</span>
         </div>
 
         <!-- 迭代設定 -->
@@ -1455,11 +1455,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           <!-- 策略選擇 -->
           <div style="margin-top:10px">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-              <label style="color:var(--text2);font-size:11px">選擇要優化的策略</label>
-              <button onclick="iterStratToggle(true)" style="font-size:10px;padding:1px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:10px;cursor:pointer">全選</button>
-              <button onclick="iterStratToggle(false)" style="font-size:10px;padding:1px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:10px;cursor:pointer">全不選</button>
+              <label style="color:var(--text2);font-size:12px">選擇要優化的策略</label>
+              <button onclick="iterStratToggle(true)" style="font-size:12px;padding:1px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:10px;cursor:pointer">全選</button>
+              <button onclick="iterStratToggle(false)" style="font-size:12px;padding:1px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:10px;cursor:pointer">全不選</button>
             </div>
-            <div id="iter-strategy-checks" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px"></div>
+            <div id="iter-strategy-checks" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:12px"></div>
           </div>
         </div>
 
@@ -1467,23 +1467,23 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
         <div id="iter-live-panel" style="display:none">
           <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px">
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">狀態</div>
+              <div style="font-size:12px;color:var(--text3)">狀態</div>
               <div id="iter-status" style="font-size:14px;font-weight:700;color:var(--green)">--</div>
             </div>
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">當前輪次</div>
+              <div style="font-size:12px;color:var(--text3)">當前輪次</div>
               <div id="iter-round" style="font-size:18px;font-weight:700">--</div>
             </div>
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">最佳 Sharpe</div>
+              <div style="font-size:12px;color:var(--text3)">最佳 Sharpe</div>
               <div id="iter-best-sharpe" style="font-size:18px;font-weight:700;color:var(--blue)">--</div>
             </div>
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">最佳勝率</div>
+              <div style="font-size:12px;color:var(--text3)">最佳勝率</div>
               <div id="iter-best-wr" style="font-size:18px;font-weight:700">--</div>
             </div>
             <div class="card" style="text-align:center;padding:12px">
-              <div style="font-size:10px;color:var(--text3)">回測次數</div>
+              <div style="font-size:12px;color:var(--text3)">回測次數</div>
               <div id="iter-runs" style="font-size:18px;font-weight:700">--</div>
             </div>
           </div>
@@ -1498,9 +1498,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
             <div class="card">
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div class="card-title">執行日誌</div>
-                <button id="iter-stop-btn" onclick="iterStop()" style="font-size:10px;padding:3px 10px;background:var(--red);color:#fff;border:none;border-radius:var(--r);cursor:pointer">⏹ 停止</button>
+                <button id="iter-stop-btn" onclick="iterStop()" style="font-size:12px;padding:3px 10px;background:var(--red);color:#fff;border:none;border-radius:var(--r);cursor:pointer">⏹ 停止</button>
               </div>
-              <div id="iter-logs" style="max-height:190px;overflow-y:auto;font-size:10px;font-family:monospace;color:var(--text2);line-height:1.6"></div>
+              <div id="iter-logs" style="max-height:190px;overflow-y:auto;font-size:12px;font-family:monospace;color:var(--text2);line-height:1.6"></div>
             </div>
           </div>
 
@@ -1522,7 +1522,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                 <div class="card-title">最佳參數組合</div>
                 <button id="iter-apply-btn" onclick="iterApply()" class="sf-save" style="padding:6px 16px;font-size:12px">✅ 採用此參數</button>
               </div>
-              <div id="iter-best-params" style="font-size:11px;font-family:monospace;max-height:200px;overflow-y:auto"></div>
+              <div id="iter-best-params" style="font-size:12px;font-family:monospace;max-height:200px;overflow-y:auto"></div>
             </div>
           </div>
         </div>
@@ -1538,7 +1538,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
       <div class="page" id="page-factory">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
           <h3 style="font-size:15px;margin:0">🏭 策略工廠</h3>
-          <span style="font-size:11px;color:var(--text3)">AI 自主研發全新交易策略，結合多源數據，累積知識迭代</span>
+          <span style="font-size:12px;color:var(--text3)">AI 自主研發全新交易策略，結合多源數據，累積知識迭代</span>
         </div>
 
         <!-- Tab 切換 -->
@@ -1602,7 +1602,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
             <div id="sf-progress-bar" style="height:6px;background:var(--bg2);border-radius:3px;margin:8px 0;overflow:hidden">
               <div id="sf-progress-fill" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width 0.3s"></div>
             </div>
-            <div id="sf-logs" style="max-height:300px;overflow-y:auto;font-size:11px;font-family:monospace;background:var(--bg1);padding:8px;border-radius:6px;color:var(--text2);white-space:pre-wrap"></div>
+            <div id="sf-logs" style="max-height:300px;overflow-y:auto;font-size:12px;font-family:monospace;background:var(--bg1);padding:8px;border-radius:6px;color:var(--text2);white-space:pre-wrap"></div>
           </div>
 
           <!-- 歷史 session -->
@@ -1677,7 +1677,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
       <div class="page" id="page-expert">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
           <h3 style="font-size:15px;margin:0">🧠 策略專家委員會</h3>
-          <span style="font-size:11px;color:var(--text3)">AI多角色專家分析，多時間維度建議</span>
+          <span style="font-size:12px;color:var(--text3)">AI多角色專家分析，多時間維度建議</span>
           <div style="margin-left:auto;display:flex;gap:2px;background:var(--bg2);border-radius:6px;padding:2px">
             <button class="tf-btn active" onclick="expertSwitchTab('sessions',this)">📋 分析紀錄</button>
             <button class="tf-btn" onclick="expertSwitchTab('new',this)">🚀 新建分析</button>
@@ -1734,7 +1734,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           </div>
           <div style="text-align:center;padding:12px">
             <button onclick="expertStartSession()" style="padding:8px 32px;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600">🧠 開始專家分析</button>
-            <div id="expert-start-msg" style="margin-top:8px;font-size:11px;color:var(--text3)"></div>
+            <div id="expert-start-msg" style="margin-top:8px;font-size:12px;color:var(--text3)"></div>
           </div>
         </div>
 
@@ -1765,7 +1765,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
               </div>
             </div>
             <button onclick="expertSaveConfig()" style="margin-top:12px;padding:6px 18px;border:1px solid var(--blue);background:none;color:var(--blue);border-radius:6px;cursor:pointer;font-size:12px">💾 儲存設定</button>
-            <span id="expert-cfg-msg" style="margin-left:8px;font-size:11px;color:var(--green);display:none">已儲存</span>
+            <span id="expert-cfg-msg" style="margin-left:8px;font-size:12px;color:var(--green);display:none">已儲存</span>
           </div>
         </div>
       </div>
@@ -1925,7 +1925,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                 <button class="ic-market-tab active" data-market="TW" onclick="icSwitchRecMarket('TW')">🇹🇼 台股 <span class="ic-tab-count" id="ic-tab-count-tw">0</span></button>
                 <button class="ic-market-tab" data-market="US" onclick="icSwitchRecMarket('US')">🇺🇸 美股 <span class="ic-tab-count" id="ic-tab-count-us">0</span></button>
                 <div style="flex:1"></div>
-                <select id="ic-rec-scope" style="font-size:11px;padding:2px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-bottom:4px">
+                <select id="ic-rec-scope" style="font-size:12px;padding:2px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;margin-bottom:4px">
                   <option value="all">自選+市場精選</option>
                   <option value="watchlist">僅自選/持倉</option>
                   <option value="universe">僅市場精選</option>
@@ -1941,15 +1941,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
               <!-- 歷史推薦記錄 -->
               <div style="display:flex;align-items:center;gap:10px;margin-top:26px;margin-bottom:10px">
                 <div class="ic-section-title" style="margin:0">歷史推薦記錄</div>
-                <button class="ic-save-btn" style="margin:0;font-size:11px;padding:3px 10px" onclick="icEvaluateHistory()">評估結果</button>
-                <span id="ic-eval-msg" style="font-size:11px;color:var(--green);display:none"></span>
+                <button class="ic-save-btn" style="margin:0;font-size:12px;padding:3px 10px" onclick="icEvaluateHistory()">評估結果</button>
+                <span id="ic-eval-msg" style="font-size:12px;color:var(--green);display:none"></span>
                 <div style="flex:1"></div>
-                <select id="ic-hist-filter" onchange="icRenderHistory()" style="background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:11px">
+                <select id="ic-hist-filter" onchange="icRenderHistory()" style="background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px">
                   <option value="ALL">全部市場</option>
                   <option value="TW">台股</option>
                   <option value="US">美股</option>
                 </select>
-                <select id="ic-hist-outcome" onchange="icRenderHistory()" style="background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:11px">
+                <select id="ic-hist-outcome" onchange="icRenderHistory()" style="background:var(--bg2);color:var(--text1);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px">
                   <option value="ALL">全部結果</option>
                   <option value="WIN">勝</option>
                   <option value="LOSS">敗</option>
@@ -1965,7 +1965,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
             <!-- IC 資料來源 -->
             <div class="ic-page" id="ic-page-sources">
-              <div class="ic-section-title" style="margin-top:0">系統內建來源 <span style="font-size:10px;color:var(--text2);text-transform:none;font-weight:normal">（唯讀）</span></div>
+              <div class="ic-section-title" style="margin-top:0">系統內建來源 <span style="font-size:12px;color:var(--text2);text-transform:none;font-weight:normal">（唯讀）</span></div>
               <div id="ic-sys-sources-wrap" class="ic-card" style="overflow-x:auto">
                 <div class="ic-loading"><span class="ic-spinner"></span>載入中</div>
               </div>
@@ -1990,7 +1990,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                 </div>
                 <button class="ic-save-btn" style="margin-top:10px" onclick="icAddSource()" id="ic-src-add-btn">＋ 新增並入庫</button>
                 <span id="ic-src-msg" style="font-size:12px;color:var(--green);margin-left:10px;display:none">已新增</span>
-                <div style="font-size:11px;color:var(--text2);margin-top:6px">新增後自動切塊＋向量化進知識庫，分析師會依相關度檢索引用。<span id="ic-embed-status"></span></div>
+                <div style="font-size:12px;color:var(--text2);margin-top:6px">新增後自動切塊＋向量化進知識庫，分析師會依相關度檢索引用。<span id="ic-embed-status"></span></div>
               </div>
               <div class="ic-section-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 已建立的資料來源
@@ -2000,8 +2000,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                   <span class="ic-chip-toggle" data-ftype="PDF" onclick="icFilterSources(this)">📄 PDF</span>
                   <span class="ic-chip-toggle" data-ftype="TEXT" onclick="icFilterSources(this)">📝 文字</span>
                 </div>
-                <button class="ic-save-btn" style="margin:0;font-size:11px;padding:3px 10px" onclick="icFetchAllSources()">⟳ 全部刷新</button>
-                <span id="ic-fetch-all-msg" style="font-size:11px;color:var(--green);display:none"></span>
+                <button class="ic-save-btn" style="margin:0;font-size:12px;padding:3px 10px" onclick="icFetchAllSources()">⟳ 全部刷新</button>
+                <span id="ic-fetch-all-msg" style="font-size:12px;color:var(--green);display:none"></span>
               </div>
               <div id="ic-ent-filter" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
               <div id="ic-user-sources-wrap" class="ic-card" style="overflow-x:auto">
@@ -2048,12 +2048,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                 <div class="ic-form-group">
                   <label class="ic-form-label">Claude API Key（來源設「API計費」時使用）</label>
                   <input class="ic-form-input" id="ic-claude-api-key" type="password" placeholder="sk-ant-…" oninput="icCheckApiKey()">
-                  <div style="font-size:11px;color:var(--text2);margin-top:4px">每次分析約 $0.01–0.03 USD。若改用「訂閱」來源則不需填，零 API 費用。</div>
+                  <div style="font-size:12px;color:var(--text2);margin-top:4px">每次分析約 $0.01–0.03 USD。若改用「訂閱」來源則不需填，零 API 費用。</div>
                 </div>
                 <div class="ic-form-group">
                   <label class="ic-form-label">claude CLI 路徑（來源設「訂閱」時使用）</label>
                   <input class="ic-form-input" id="ic-claude-cli-path" type="text" placeholder="claude">
-                  <div style="font-size:11px;color:var(--text2);margin-top:4px">本機需已安裝並登入 Claude Code。預設 <code>claude</code>，找不到時可填完整路徑。</div>
+                  <div style="font-size:12px;color:var(--text2);margin-top:4px">本機需已安裝並登入 Claude Code。預設 <code>claude</code>，找不到時可填完整路徑。</div>
                 </div>
                 <div class="ic-form-group">
                   <label class="ic-form-label">AI 模型配置（每功能可各自選來源＋模型）</label>
@@ -2091,20 +2091,20 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                       <select class="ic-form-input ic-model-select" id="ic-model-sentiment"></select>
                     </div>
                   </div>
-                  <div id="ic-model-disabled-hint" style="font-size:11px;color:var(--yellow);margin-top:4px">⚠ 來源設為「API計費」的功能需先填入 API Key</div>
+                  <div id="ic-model-disabled-hint" style="font-size:12px;color:var(--yellow);margin-top:4px">⚠ 來源設為「API計費」的功能需先填入 API Key</div>
                 </div>
                 <div class="ic-form-group">
                   <label class="ic-form-label">Token 用量追蹤</label>
                   <div id="ic-token-usage" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                     <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px">
-                      <div style="font-size:11px;color:var(--text2)">今日用量</div>
+                      <div style="font-size:12px;color:var(--text2)">今日用量</div>
                       <div style="font-size:18px;font-weight:700" id="ic-tokens-today">--</div>
-                      <div style="font-size:11px;color:var(--text2)" id="ic-cost-today">≈ $--</div>
+                      <div style="font-size:12px;color:var(--text2)" id="ic-cost-today">≈ $--</div>
                     </div>
                     <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px">
-                      <div style="font-size:11px;color:var(--text2)">本月累計</div>
+                      <div style="font-size:12px;color:var(--text2)">本月累計</div>
                       <div style="font-size:18px;font-weight:700" id="ic-tokens-month">--</div>
-                      <div style="font-size:11px;color:var(--text2)" id="ic-cost-month">≈ $--</div>
+                      <div style="font-size:12px;color:var(--text2)" id="ic-cost-month">≈ $--</div>
                     </div>
                   </div>
                 </div>
@@ -2120,7 +2120,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                            value="0.70" style="width:110px" oninput="icUpdateThresholdLabel(this.value)" onchange="icSaveNotifyConfig()">
                     <span id="ic-threshold-label" style="font-size:13px;font-weight:600;color:var(--blue);min-width:34px">70%</span>
                   </div>
-                  <div style="font-size:11px;color:var(--text2);margin-top:4px">推播管道請在主頁「設定」中配置。</div>
+                  <div style="font-size:12px;color:var(--text2);margin-top:4px">推播管道請在主頁「設定」中配置。</div>
                 </div>
                 <div style="font-size:12px;color:var(--text2);padding:4px 0 10px">
                   資訊來源管理請至側邊欄「📡 資料來源」頁面新增 / 刪除 / 抓取。
@@ -2605,11 +2605,11 @@ function renderWatchlistTable(rows) {
         case 'kdj':    td += `<td>${s.k_val?'K:'+s.k_val.toFixed(0)+' D:'+s.d_val.toFixed(0):'--'}</td>`; break;
         case 'boll': {
           const bu = s.boll_upper, bl = s.boll_lower;
-          td += `<td style="font-size:11px">${bu?bl.toFixed(0)+'~'+bu.toFixed(0):'--'}</td>`;
+          td += `<td style="font-size:12px">${bu?bl.toFixed(0)+'~'+bu.toFixed(0):'--'}</td>`;
           break;
         }
         case 'atr':    td += `<td>${s.atr?s.atr.toFixed(1):'--'}</td>`; break;
-        case 'high52': td += `<td style="font-size:11px">${s.low52?s.low52.toFixed(0)+'~'+s.high52.toFixed(0):'--'}</td>`; break;
+        case 'high52': td += `<td style="font-size:12px">${s.low52?s.low52.toFixed(0)+'~'+s.high52.toFixed(0):'--'}</td>`; break;
         default:       td += '<td>--</td>';
       }
     });
@@ -2711,7 +2711,7 @@ async function loadPositionsMini() {
       return `<div class="pos-row ${isDay?'day-row':'wave-row'}" onclick="showPage('pos')">
         <span class="pr-code">${p.name||''} (${p.code})</span>
         <span class="pr-type-badge ${isDay?'day':'wave'}">${p.trade_type}</span>
-        <span style="font-size:11px;color:var(--text2)">${p.shares}張 @ $${p.cost}</span>
+        <span style="font-size:12px;color:var(--text2)">${p.shares}張 @ $${p.cost}</span>
         <span class="pr-pnl"></span>
       </div>`;
     }).join('');
@@ -2771,7 +2771,7 @@ async function loadPositions() {
       const costTotal = p.cost * p.shares * lotMul;
       const mktVal = cur > 0 ? cur * p.shares * lotMul : 0;
       const fmt = (v) => v >= 1000 ? Math.round(v).toLocaleString() : v.toFixed(2);
-      const _dfltBadge = '<span style="font-size:10px;color:var(--text3);margin-left:3px">預設</span>';
+      const _dfltBadge = '<span style="font-size:12px;color:var(--text3);margin-left:3px">預設</span>';
       const slWave = parseFloat(_riskCfg.stop_loss_wave || '7') / 100;
       const slDisp = p.stop_loss
         ? sym + p.stop_loss
@@ -2780,7 +2780,7 @@ async function loadPositions() {
         ? sym + p.target_price
         : p.cost > 0 ? sym + (p.cost * 1.20).toFixed(2) + _dfltBadge : '--';
       return `<tr onclick="openChart('${p.code}')" title="點擊看K線">
-        <td><span class="pt-code">${(p.name||p.code).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')} (${p.code})</span>${p.lifecycle_stage&&p.lifecycle_stage!=='holding'?`<span style="font-size:10px;background:var(--bg2);padding:1px 4px;border-radius:3px;margin-left:4px">${{research:'📋研究',building:'🔨建倉',holding:'📦持有',reducing:'📉減碼',exiting:'🚪出場'}[p.lifecycle_stage]||p.lifecycle_stage}</span>`:''}</td>
+        <td><span class="pt-code">${(p.name||p.code).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')} (${p.code})</span>${p.lifecycle_stage&&p.lifecycle_stage!=='holding'?`<span style="font-size:12px;background:var(--bg2);padding:1px 4px;border-radius:3px;margin-left:4px">${{research:'📋研究',building:'🔨建倉',holding:'📦持有',reducing:'📉減碼',exiting:'🚪出場'}[p.lifecycle_stage]||p.lifecycle_stage}</span>`:''}</td>
         <td>${p.shares.toLocaleString()}</td>
         <td>${sym}${p.cost.toLocaleString()}</td>
         <td>${costTotal > 0 ? sym+fmt(costTotal) : '--'}</td>
@@ -2982,8 +2982,8 @@ async function loadChipData() {
     abEl.innerHTML = ab.length ? ab.map(s =>
       `<div class="squeeze-item" onclick="openChart('${s.code}')">
         <span class="wl-code">${s.code}</span>
-        <span style="font-size:11px;color:var(--red)">${s.day1.date}: ${s.day1.itrust_buy}張</span>
-        <span style="font-size:11px;color:var(--red)">${s.day2.date}: ${s.day2.itrust_buy}張</span>
+        <span style="font-size:12px;color:var(--red)">${s.day1.date}: ${s.day1.itrust_buy}張</span>
+        <span style="font-size:12px;color:var(--red)">${s.day2.date}: ${s.day2.itrust_buy}張</span>
         <span class="sq-break" style="background:var(--red-bg);color:var(--red);border-color:var(--red)">棄守</span>
       </div>`
     ).join('') : '<div class="empty-state">無棄守訊號</div>';
@@ -3055,7 +3055,7 @@ async function loadNewsBearish() {
     el.innerHTML = list.length ? list.map(s =>
       `<div class="squeeze-item" onclick="openChart('${s.code}')">
         <span class="wl-code">${s.code}</span>
-        <span style="font-size:11px;color:var(--red)">跌${Math.abs(s.change_pct).toFixed(1)}% 量比${s.vol_ratio.toFixed(1)}x</span>
+        <span style="font-size:12px;color:var(--red)">跌${Math.abs(s.change_pct).toFixed(1)}% 量比${s.vol_ratio.toFixed(1)}x</span>
         <span class="sq-break" style="background:var(--red-bg);color:var(--red);border-color:var(--red)">利多出盡</span>
       </div>`
     ).join('') : '<div class="empty-state">今日無利多不漲訊號</div>';
@@ -3092,7 +3092,7 @@ async function loadAnalysis() {
     const sigs = await fetch(API+'/api/signals?limit=30').then(r=>r.json());
     logBody.innerHTML = sigs.length ? sigs.map(s =>
       `<tr><td>${s.created_at?.slice(0,16)||''}</td><td>${s.code}</td>
-       <td><span class="sc-type sig-type-${s.signal_type}" style="padding:2px 6px;border-radius:3px;font-size:10px">${s.signal_type}</span></td>
+       <td><span class="sc-type sig-type-${s.signal_type}" style="padding:2px 6px;border-radius:3px;font-size:12px">${s.signal_type}</span></td>
        <td class="${s.direction==='BUY'?'up':'dn'}">${s.direction}</td>
        <td>$${s.price}</td><td style="color:var(--text3)">${s.detail||''}</td></tr>`
     ).join('') : '<tr><td colspan="6" class="empty-state">無記錄</td></tr>';
@@ -3454,13 +3454,13 @@ function loadBidAsk(code) {
   if (_baWs) { _baWs.close(); _baWs = null; }
 
   const tbody = document.getElementById('bidask-body');
-  tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:8px;font-size:11px">連線中…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:8px;font-size:12px">連線中…</td></tr>';
 
   const ws = new WebSocket(`ws://localhost:8765/ws/tick/${code}`);
   _baWs = ws;
 
   ws.onopen = () => {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:8px;font-size:11px">等待行情…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:8px;font-size:12px">等待行情…</td></tr>';
   };
 
   ws.onmessage = (evt) => {
@@ -3486,7 +3486,7 @@ function loadBidAsk(code) {
   };
 
   ws.onerror = () => {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:8px;font-size:11px">訂閱失敗</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:8px;font-size:12px">訂閱失敗</td></tr>';
   };
 
   ws.onclose = () => { _baWs = null; };
@@ -3823,7 +3823,7 @@ async function runAfterHoursReview() {
         signalMap[t.code].push(t.signal);
       });
 
-      let html = `<div style="font-size:11px;color:var(--text2);margin-bottom:8px">已掃描 ${d.scanned} 檔</div>`;
+      let html = `<div style="font-size:12px;color:var(--text2);margin-bottom:8px">已掃描 ${d.scanned} 檔</div>`;
       html += '<table class="wl-table" style="font-size:12px"><thead><tr>';
       html += '<th>代碼</th><th>收盤</th><th>漲跌%</th><th>MA5</th><th>MA20</th><th>MACD</th><th>量比</th><th>持倉損益</th><th>訊號</th>';
       html += '</tr></thead><tbody>';
@@ -3850,14 +3850,14 @@ async function runAfterHoursReview() {
         if (s.pnl_pct != null) {
           const pcls = s.pnl_pct >= 0 ? 'color:var(--green)' : 'color:var(--red)';
           pnlStr = `<span style="${pcls}">${s.pnl_pct >= 0 ? '+' : ''}${s.pnl_pct.toFixed(2)}%</span>`;
-          if (s.stop_loss_dist != null) pnlStr += `<br><span style="font-size:10px;color:var(--text2)">距停損${s.stop_loss_dist.toFixed(1)}%</span>`;
+          if (s.stop_loss_dist != null) pnlStr += `<br><span style="font-size:12px;color:var(--text2)">距停損${s.stop_loss_dist.toFixed(1)}%</span>`;
         }
 
         const sigs = signalMap[s.code] || [];
         const sigStr = sigs.length > 0
           ? sigs.map(sg => {
               const isBuy = sg.startsWith('BUY') || sg === 'LOW_BUY' || sg === 'LOCK_BUY' || sg.startsWith('SQUEEZE');
-              return `<span class="sig-badge ${isBuy?'buy':'sell'}" style="font-size:10px;padding:1px 5px;border-radius:3px">${sg}</span>`;
+              return `<span class="sig-badge ${isBuy?'buy':'sell'}" style="font-size:12px;padding:1px 5px;border-radius:3px">${sg}</span>`;
             }).join(' ')
           : '<span style="color:var(--text2)">--</span>';
 
@@ -3942,7 +3942,7 @@ async function runAfterHoursReviewUS() {
     } else {
       const signalMap = {};
       (d.triggered||[]).forEach(t => { if (!signalMap[t.code]) signalMap[t.code] = []; signalMap[t.code].push(t.signal); });
-      let html = `<div style="font-size:11px;color:var(--text2);margin-bottom:8px">已掃描 ${d.scanned} 檔</div>`;
+      let html = `<div style="font-size:12px;color:var(--text2);margin-bottom:8px">已掃描 ${d.scanned} 檔</div>`;
       html += '<table class="wl-table" style="font-size:12px"><thead><tr>';
       html += '<th>代碼</th><th>收盤</th><th>漲跌%</th><th>MA5</th><th>MA20</th><th>MACD</th><th>量比</th><th>持倉損益</th><th>訊號</th>';
       html += '</tr></thead><tbody>';
@@ -3962,10 +3962,10 @@ async function runAfterHoursReviewUS() {
         if (s.pnl_pct != null) {
           const pcls = s.pnl_pct >= 0 ? 'color:var(--green)' : 'color:var(--red)';
           pnlStr = `<span style="${pcls}">${s.pnl_pct >= 0 ? '+' : ''}${s.pnl_pct.toFixed(2)}%</span>`;
-          if (s.stop_loss_dist != null) pnlStr += `<br><span style="font-size:10px;color:var(--text2)">距停損${s.stop_loss_dist.toFixed(1)}%</span>`;
+          if (s.stop_loss_dist != null) pnlStr += `<br><span style="font-size:12px;color:var(--text2)">距停損${s.stop_loss_dist.toFixed(1)}%</span>`;
         }
         const sigs = signalMap[s.code] || [];
-        const sigStr = sigs.length > 0 ? sigs.map(sg => { const isBuy = sg.startsWith('BUY') || sg === 'LOW_BUY' || sg === 'LOCK_BUY' || sg.startsWith('SQUEEZE'); return `<span class="sig-badge ${isBuy?'buy':'sell'}" style="font-size:10px;padding:1px 5px;border-radius:3px">${sg}</span>`; }).join(' ') : '<span style="color:var(--text2)">--</span>';
+        const sigStr = sigs.length > 0 ? sigs.map(sg => { const isBuy = sg.startsWith('BUY') || sg === 'LOW_BUY' || sg === 'LOCK_BUY' || sg.startsWith('SQUEEZE'); return `<span class="sig-badge ${isBuy?'buy':'sell'}" style="font-size:12px;padding:1px 5px;border-radius:3px">${sg}</span>`; }).join(' ') : '<span style="color:var(--text2)">--</span>';
         html += `<tr onclick="openChart('${s.code}','US')" style="cursor:pointer">`;
         html += `<td style="font-weight:600">${s.code}</td>`;
         html += `<td class="${chgCls}">$${(s.close||0).toFixed(2)}</td>`;
@@ -4246,10 +4246,10 @@ function renderDatasources() {
           ? '<span class="ds-badge configured">已設定</span>'
           : '<span class="ds-badge unconfigured">未設定</span>')
         : '';
-      const mktBadge = `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--bg2);color:var(--text2)">${scopeLabel[s.market_scope]||s.market_scope}</span>`;
-      const icBadge = s.ic_used ? '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--blue);color:#fff;cursor:pointer" title="資訊中心分析正在使用此資料源" onclick="showPage(\'ic\')">📊 IC分析中</span>' : '';
+      const mktBadge = `<span style="font-size:12px;padding:1px 5px;border-radius:3px;background:var(--bg2);color:var(--text2)">${scopeLabel[s.market_scope]||s.market_scope}</span>`;
+      const icBadge = s.ic_used ? '<span style="font-size:12px;padding:1px 5px;border-radius:3px;background:var(--blue);color:#fff;cursor:pointer" title="資訊中心分析正在使用此資料源" onclick="showPage(\'ic\')">📊 IC分析中</span>' : '';
       const usageTags = s.usage.map(u => `<span>${u}</span>`).join('');
-      const docsLink = s.docs ? `<a href="${s.docs}" target="_blank" rel="noopener" style="color:var(--blue);font-size:11px">文件 ↗</a>` : '';
+      const docsLink = s.docs ? `<a href="${s.docs}" target="_blank" rel="noopener" style="color:var(--blue);font-size:12px">文件 ↗</a>` : '';
       html += `
         <div class="ds-card ${s.status}">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
@@ -4317,7 +4317,7 @@ function renderFeatureMap() {
       const dsHtml = (f.datasource_details||[]).map(d => {
         const icon = d.status==='active' ? (d.configured ? '🟢' : '🟡') : '⚪';
         const label = d.status==='active' ? (d.configured ? '已啟用' : '未設定') : '規劃中';
-        return `<div style="display:flex;align-items:center;gap:4px;font-size:11px;padding:2px 0"><span>${icon}</span><span style="color:var(--text1)">${d.name}</span><span style="color:var(--text3);font-size:10px">${label}</span></div>`;
+        return `<div style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0"><span>${icon}</span><span style="color:var(--text1)">${d.name}</span><span style="color:var(--text3);font-size:12px">${label}</span></div>`;
       }).join('');
       const allReady = (f.datasource_details||[]).every(d => d.status==='active' && d.configured);
       const someActive = (f.datasource_details||[]).some(d => d.status==='active');
@@ -4328,12 +4328,12 @@ function renderFeatureMap() {
           <span style="font-size:18px">${f.icon}</span>
           <div>
             <div class="ds-name" style="margin:0">${f.name}</div>
-            <div style="font-size:11px;color:var(--text2)">${f.description}</div>
+            <div style="font-size:12px;color:var(--text2)">${f.description}</div>
           </div>
-          <span style="margin-left:auto;font-size:10px;padding:2px 8px;border-radius:4px;background:var(--bg2);color:${statusColor};white-space:nowrap">${statusText}</span>
+          <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:4px;background:var(--bg2);color:${statusColor};white-space:nowrap">${statusText}</span>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px">
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">依賴資料源</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">依賴資料源</div>
           ${dsHtml}
         </div>
       </div>`;
@@ -4369,16 +4369,16 @@ function renderFormulaRegistry() {
     const catId = cat.replace(/[^a-zA-Z0-9]/g,'_');
     html += `<details class="formula-cat" open style="margin-bottom:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
       <summary style="padding:10px 14px;background:var(--bg2);cursor:pointer;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px">
-        <span>${cat}</span><span style="font-size:11px;color:var(--text3);font-weight:normal">${entries.length} 條公式</span>
+        <span>${cat}</span><span style="font-size:12px;color:var(--text3);font-weight:normal">${entries.length} 條公式</span>
       </summary>
       <div style="padding:8px">`;
     for (const f of entries) {
       const extBadges = Object.entries(f.external||{}).map(([k,v]) =>
-        `<span title="${v}" style="font-size:9px;padding:1px 6px;border-radius:3px;background:${extColor[k]||'var(--bg2)'};color:#fff;cursor:help;white-space:nowrap">${k}</span>`
+        `<span title="${v}" style="font-size:12px;padding:1px 6px;border-radius:3px;background:${extColor[k]||'var(--bg2)'};color:#fff;cursor:help;white-space:nowrap">${k}</span>`
       ).join(' ');
-      const stratLink = f.strategy_link ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--bg2);color:var(--text2);cursor:pointer" onclick="showPage('strategy');setTimeout(()=>showStratDetail('${f.strategy_link}'),200)">→ 策略頁</span>` : '';
+      const stratLink = f.strategy_link ? `<span style="font-size:12px;padding:1px 6px;border-radius:3px;background:var(--bg2);color:var(--text2);cursor:pointer" onclick="showPage('strategy');setTimeout(()=>showStratDetail('${f.strategy_link}'),200)">→ 策略頁</span>` : '';
       const scoringHtml = (f.scoring||[]).length ? `<div style="margin:6px 0">
-        <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
           ${f.scoring.map(s => `<tr><td style="padding:2px 6px;border-bottom:1px solid var(--border);color:var(--text2)">${s.condition}</td><td style="padding:2px 6px;border-bottom:1px solid var(--border);font-weight:600;white-space:nowrap;width:70px;text-align:right;color:${s.points.startsWith('+')?'var(--green)':s.points.startsWith('-')?'var(--red)':'var(--text1)'}">${s.points}</td></tr>`).join('')}
         </table></div>` : '';
       const paramsHtml = (f.params||[]).filter(p=>p.min!==null).length ? `<div style="margin-top:6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px">
@@ -4386,14 +4386,14 @@ function renderFormulaRegistry() {
           const edited = _formulaEdits[p.key] !== undefined;
           const val = edited ? _formulaEdits[p.key] : p.value;
           const changed = val !== p.default;
-          return `<div style="font-size:11px">
-            <label style="color:var(--text2);display:flex;justify-content:space-between"><span>${p.label}</span>${changed?`<span style="color:var(--yellow);font-size:9px">預設:${p.default}</span>`:''}</label>
+          return `<div style="font-size:12px">
+            <label style="color:var(--text2);display:flex;justify-content:space-between"><span>${p.label}</span>${changed?`<span style="color:var(--yellow);font-size:12px">預設:${p.default}</span>`:''}</label>
             <input type="number" value="${val}" min="${p.min}" max="${p.max}" step="${p.step}"
               style="width:100%;padding:4px 6px;border:1px solid ${changed?'var(--yellow)':'var(--border)'};border-radius:4px;background:var(--bg1);color:var(--text1);font-size:12px;margin-top:2px"
               onchange="formulaParamEdit('${p.key}',this.value,${p.default})">
           </div>`;
         }).join('')}
-      </div>` : (f.params||[]).filter(p=>p.min===null).length ? `<div style="margin-top:6px;font-size:11px;color:var(--text3)">
+      </div>` : (f.params||[]).filter(p=>p.min===null).length ? `<div style="margin-top:6px;font-size:12px;color:var(--text3)">
         ${f.params.filter(p=>p.min===null).map(p => `<span style="padding:2px 6px;background:var(--bg2);border-radius:3px;margin-right:4px">${p.label}: ${p.value}</span>`).join('')}
       </div>` : '';
       html += `<div style="padding:10px;margin-bottom:6px;border:1px solid var(--border);border-radius:6px;background:var(--bg1)">
@@ -4401,7 +4401,7 @@ function renderFormulaRegistry() {
           <span style="font-weight:600;font-size:13px">${f.name}</span>
           ${extBadges}${stratLink}
         </div>
-        <div style="font-family:monospace;font-size:11px;color:var(--blue);background:var(--bg2);padding:4px 8px;border-radius:4px;margin:4px 0;overflow-x:auto;white-space:nowrap">${f.formula}</div>
+        <div style="font-family:monospace;font-size:12px;color:var(--blue);background:var(--bg2);padding:4px 8px;border-radius:4px;margin:4px 0;overflow-x:auto;white-space:nowrap">${f.formula}</div>
         ${scoringHtml}${paramsHtml}
       </div>`;
     }
@@ -4410,9 +4410,9 @@ function renderFormulaRegistry() {
   const editCount = Object.keys(_formulaEdits).length;
   const toolbar = editCount ? `<div style="position:sticky;top:0;z-index:5;background:var(--bg1);border-bottom:1px solid var(--border);padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px;border-radius:6px">
     <span style="font-size:12px;color:var(--yellow)">✏️ 已修改 ${editCount} 個參數</span>
-    <button class="tf-btn" style="font-size:11px;background:var(--green);color:#fff;border:none" onclick="formulaSaveAll()">💾 儲存變更</button>
-    <button class="tf-btn" style="font-size:11px" onclick="formulaResetAll()">↺ 全部還原</button>
-    <button class="tf-btn" style="font-size:11px;background:var(--blue);color:#fff;border:none" onclick="formulaToBacktest()">📈 送入回測</button>
+    <button class="tf-btn" style="font-size:12px;background:var(--green);color:#fff;border:none" onclick="formulaSaveAll()">💾 儲存變更</button>
+    <button class="tf-btn" style="font-size:12px" onclick="formulaResetAll()">↺ 全部還原</button>
+    <button class="tf-btn" style="font-size:12px;background:var(--blue);color:#fff;border:none" onclick="formulaToBacktest()">📈 送入回測</button>
   </div>` : '';
   grid.innerHTML = toolbar + html;
 }
@@ -4542,7 +4542,7 @@ function renderStratList() {
 
   function cardHtml(s) {
     const cls = s.direction==='BUY'?'buy':'sell';
-    const fLink = s.formula_link ? `<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:var(--bg3);color:var(--text3)" title="關聯公式: ${s.formula_link}">📐</span>` : '';
+    const fLink = s.formula_link ? `<span style="font-size:12px;padding:1px 4px;border-radius:3px;background:var(--bg3);color:var(--text3)" title="關聯公式: ${s.formula_link}">📐</span>` : '';
     return `<div class="strat-card" id="sc-${s.id}" onclick="showStratDetail('${s.id}')">
       <div class="sc-head">
         <span class="sc-id ${cls}">${s.id}</span>
@@ -4557,11 +4557,11 @@ function renderStratList() {
 
   let html = '';
   if (builtin.length && _stratFilter !== 'custom') {
-    html += `<div style="font-size:11px;color:var(--text3);padding:6px 0 4px;border-bottom:1px solid var(--border);margin-bottom:6px">🔧 系統內建 (${builtin.length})</div>`;
+    html += `<div style="font-size:12px;color:var(--text3);padding:6px 0 4px;border-bottom:1px solid var(--border);margin-bottom:6px">🔧 系統內建 (${builtin.length})</div>`;
     html += builtin.map(cardHtml).join('');
   }
   if (custom.length && _stratFilter !== 'builtin') {
-    html += `<div style="font-size:11px;color:var(--text3);padding:10px 0 4px;border-bottom:1px solid var(--border);margin-bottom:6px">✏️ 自訂策略 (${custom.length})</div>`;
+    html += `<div style="font-size:12px;color:var(--text3);padding:10px 0 4px;border-bottom:1px solid var(--border);margin-bottom:6px">✏️ 自訂策略 (${custom.length})</div>`;
     html += custom.map(cardHtml).join('');
   }
   if (!html) html = '<div class="empty-state">無符合條件的策略</div>';
@@ -4583,15 +4583,15 @@ function showStratDetail(id) {
   if (sc) sc.classList.add('active');
 
   const cls = s.direction==='BUY'?'up':'dn';
-  const stype = (s.strat_type||'builtin') === 'custom' ? '<span style="font-size:10px;padding:2px 6px;border-radius:3px;background:#553300;color:#ffaa44">✏️ 自訂</span>' : '<span style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--bg3);color:var(--text3)">🔧 內建</span>';
-  const formulaBtn = s.formula_link ? `<button onclick="showPage('datasrc');setTimeout(()=>{switchDsView('formulas');setTimeout(()=>{const el=document.getElementById('fr-${s.formula_link}');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.outline='2px solid var(--blue)';setTimeout(()=>el.style.outline='',2000)}},300)},200)" style="margin-left:8px;padding:2px 8px;border:1px solid var(--blue);background:none;color:var(--blue);border-radius:4px;cursor:pointer;font-size:10px">📐 查看公式</button>` : '';
+  const stype = (s.strat_type||'builtin') === 'custom' ? '<span style="font-size:12px;padding:2px 6px;border-radius:3px;background:#553300;color:#ffaa44">✏️ 自訂</span>' : '<span style="font-size:12px;padding:2px 6px;border-radius:3px;background:var(--bg3);color:var(--text3)">🔧 內建</span>';
+  const formulaBtn = s.formula_link ? `<button onclick="showPage('datasrc');setTimeout(()=>{switchDsView('formulas');setTimeout(()=>{const el=document.getElementById('fr-${s.formula_link}');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.outline='2px solid var(--blue)';setTimeout(()=>el.style.outline='',2000)}},300)},200)" style="margin-left:8px;padding:2px 8px;border:1px solid var(--blue);background:none;color:var(--blue);border-radius:4px;cursor:pointer;font-size:12px">📐 查看公式</button>` : '';
   const detail = document.getElementById('strat-detail');
   detail.innerHTML = `
     <h3><span class="sc-id ${s.direction==='BUY'?'buy':'sell'}" style="font-size:13px;margin-right:8px">${s.id}</span>${s.name} ${stype}</h3>
     <div class="sd-section">
       <h4>方向</h4>
       <span class="${cls}" style="font-weight:700">${s.direction==='BUY'?'買進':'賣出'}</span>
-      <span style="color:var(--text3);margin-left:8px;font-size:11px">${s.timeframe}</span>
+      <span style="color:var(--text3);margin-left:8px;font-size:12px">${s.timeframe}</span>
       ${formulaBtn}
     </div>
     <div class="sd-section">
@@ -4604,14 +4604,14 @@ function showStratDetail(id) {
       ${(s.params||[]).map(p=>`<div class="sd-param">
         <label>${p.label}</label>
         <input type="number" id="sp-${s.id}-${p.key}" value="${p.value!=null?p.value:p.default}" min="${p.min}" max="${p.max}" step="${typeof p.default==='number'&&p.default%1!==0?'0.1':'1'}">
-        <span style="color:var(--text3);font-size:10px">${p.min}~${p.max}（預設 ${p.default}）</span>
+        <span style="color:var(--text3);font-size:12px">${p.min}~${p.max}（預設 ${p.default}）</span>
       </div>`).join('')}
-      ${(s.params||[]).length?`<button onclick="saveStratParams('${s.id}')" style="margin-top:8px;padding:4px 14px;border:1px solid var(--blue);background:none;color:var(--blue);border-radius:6px;cursor:pointer;font-size:12px">儲存參數</button><span id="sp-msg-${s.id}" style="margin-left:8px;font-size:11px;color:var(--green);display:none">已儲存</span>`:''}
+      ${(s.params||[]).length?`<button onclick="saveStratParams('${s.id}')" style="margin-top:8px;padding:4px 14px;border:1px solid var(--blue);background:none;color:var(--blue);border-radius:6px;cursor:pointer;font-size:12px">儲存參數</button><span id="sp-msg-${s.id}" style="margin-left:8px;font-size:12px;color:var(--green);display:none">已儲存</span>`:''}
     </div>
     <div class="sd-section">
       <h4>狀態</h4>
       <span style="color:${s.enabled?'var(--green)':'var(--text3)'};font-weight:600">${s.enabled?'✓ 啟用中':'✗ 已停用'}</span>
-      ${s.force_enabled?'<span style="color:var(--red);font-size:11px;margin-left:8px">保命機制，不可關閉</span>':''}
+      ${s.force_enabled?'<span style="color:var(--red);font-size:12px;margin-left:8px">保命機制，不可關閉</span>':''}
     </div>
   `;
 }
@@ -4675,8 +4675,8 @@ async function loadBacktestPage() {
   function _btGroup(title, color, icon, strats) {
     if (!strats.length) return '';
     return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px">
-      <div style="font-size:10px;font-weight:700;color:${color};margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">${icon} ${title}
-        <span style="font-size:9px;font-weight:400;color:var(--text3);margin-left:4px">${strats.length}</span>
+      <div style="font-size:12px;font-weight:700;color:${color};margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">${icon} ${title}
+        <span style="font-size:12px;font-weight:400;color:var(--text3);margin-left:4px">${strats.length}</span>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:4px">
         ${strats.map(s => {
@@ -4685,9 +4685,9 @@ async function loadBacktestPage() {
           return `<label style="display:inline-flex;align-items:center;gap:3px;background:var(--bg3);padding:2px 4px 2px 8px;border-radius:4px;transition:.15s;cursor:default" onmouseover="this.style.background='var(--bg4)'" onmouseout="this.style.background='var(--bg3)'"
             title="${tip.replace(/"/g,'&quot;')}">
           <input type="checkbox" value="${s.id}" ${s.enabled?'checked':''} class="bt-strat-cb" style="accent-color:${color};cursor:pointer">
-          <span style="color:${color};font-size:11px;font-weight:600">${s.id}</span>
-          <span style="font-size:9px;color:var(--text3);margin-left:-1px">${s.name?'('+s.name+')':''}</span>
-          <span style="font-size:9px;color:var(--blue);cursor:pointer;padding:0 2px" onclick="event.preventDefault();showPage('strategy');setTimeout(()=>showStratDetail('${s.id}'),200)" title="前往策略詳情">→</span>
+          <span style="color:${color};font-size:12px;font-weight:600">${s.id}</span>
+          <span style="font-size:12px;color:var(--text3);margin-left:-1px">${s.name?'('+s.name+')':''}</span>
+          <span style="font-size:12px;color:var(--blue);cursor:pointer;padding:0 2px" onclick="event.preventDefault();showPage('strategy');setTimeout(()=>showStratDetail('${s.id}'),200)" title="前往策略詳情">→</span>
         </label>`}).join('')}
       </div>
     </div>`;
@@ -4789,7 +4789,7 @@ function renderBacktestResult(result) {
     const cls = t.profit > 0 ? 'up' : 'dn';
     return `<tr>
       <td>${t.date}</td><td>${t.code}</td>
-      <td><span class="sc-type sig-type-${t.signal}" style="padding:1px 4px;border-radius:3px;font-size:10px">${t.signal}</span></td>
+      <td><span class="sc-type sig-type-${t.signal}" style="padding:1px 4px;border-radius:3px;font-size:12px">${t.signal}</span></td>
       <td class="${cls}">${t.action}</td>
       <td>$${t.price}</td><td>${t.shares}</td>
       <td class="${cls}">${t.profit>0?'+':''}${t.profit.toLocaleString()}</td>
@@ -5155,10 +5155,10 @@ async function tradeShowAnalytics() {
     }
     box.innerHTML = `<div class="card" style="padding:12px">
       <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:10px">
-        <div><span style="color:var(--text3);font-size:11px">總筆數</span><br><b>${a.total_records}</b></div>
-        <div><span style="color:var(--text3);font-size:11px">已實現損益 (${cur})</span><br><b style="color:${pnlColor}">${fmt(a.realized_pnl)}</b></div>
-        <div><span style="color:var(--text3);font-size:11px">總手續費 (${cur})</span><br><b>${fmt(a.total_commission)}</b></div>
-        <div><span style="color:var(--text3);font-size:11px">總交易稅 (${cur})</span><br><b>${fmt(a.total_tax)}</b></div>
+        <div><span style="color:var(--text3);font-size:12px">總筆數</span><br><b>${a.total_records}</b></div>
+        <div><span style="color:var(--text3);font-size:12px">已實現損益 (${cur})</span><br><b style="color:${pnlColor}">${fmt(a.realized_pnl)}</b></div>
+        <div><span style="color:var(--text3);font-size:12px">總手續費 (${cur})</span><br><b>${fmt(a.total_commission)}</b></div>
+        <div><span style="color:var(--text3);font-size:12px">總交易稅 (${cur})</span><br><b>${fmt(a.total_tax)}</b></div>
       </div>
       ${stockRows ? `<table class="wl-table" style="font-size:12px"><thead><tr>
         <th style="text-align:left">股票</th><th style="text-align:center">買入次</th><th style="text-align:center">賣出次</th>
@@ -5242,14 +5242,14 @@ function expertRenderSessions() {
     return `<div class="card" style="margin-bottom:8px;cursor:pointer;transition:border-color .2s" onclick="expertShowSession(${s.id})" onmouseenter="this.style.borderColor='var(--blue)'" onmouseleave="this.style.borderColor='var(--border)'">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span style="font-weight:600;font-size:13px">${s.title||'分析'}</span>
-        <span style="font-size:11px;color:var(--text3)">${horizonLabels[s.horizon]||s.horizon}</span>
+        <span style="font-size:12px;color:var(--text3)">${horizonLabels[s.horizon]||s.horizon}</span>
         ${status}
         ${consensus ? `<span class="${dirCls}" style="font-weight:700;font-size:13px">${dirLabel}</span>
-        <span style="font-size:11px;color:var(--text3)">信心${conf} ${agree}</span>` : ''}
-        <span style="margin-left:auto;font-size:11px;color:var(--text3)">${date}</span>
-        <span style="font-size:10px;color:var(--text3)">${s.trigger==='manual'?'手動':'⏰自動'}</span>
+        <span style="font-size:12px;color:var(--text3)">信心${conf} ${agree}</span>` : ''}
+        <span style="margin-left:auto;font-size:12px;color:var(--text3)">${date}</span>
+        <span style="font-size:12px;color:var(--text3)">${s.trigger==='manual'?'手動':'⏰自動'}</span>
       </div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">標的: ${targets} · ${(s.experts||[]).length}位專家 · ${s.rounds||1}輪</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px">標的: ${targets} · ${(s.experts||[]).length}位專家 · ${s.rounds||1}輪</div>
     </div>`;
   }).join('');
 }
@@ -5281,15 +5281,15 @@ async function expertShowSession(id) {
           <span class="${dirCls}" style="font-size:20px;font-weight:700">${dirLabel}</span>
           <span style="font-size:13px">信心度 <b>${(consensus.confidence*100).toFixed(0)}%</b></span>
           <span style="font-size:13px">共識度 <b>${(consensus.agreement*100).toFixed(0)}%</b></span>
-          <span style="font-size:11px;color:var(--text3)">投票: 多${votes.BULLISH?.toFixed(1)||0} / 空${votes.BEARISH?.toFixed(1)||0} / 中${votes.NEUTRAL?.toFixed(1)||0}</span>
+          <span style="font-size:12px;color:var(--text3)">投票: 多${votes.BULLISH?.toFixed(1)||0} / 空${votes.BEARISH?.toFixed(1)||0} / 中${votes.NEUTRAL?.toFixed(1)||0}</span>
         </div>
-        ${consensus.key_points?.length ? `<div style="margin-bottom:8px"><b style="font-size:11px;color:var(--text2)">重點摘要</b>${consensus.key_points.map(p=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--bg3)">• ${p}</div>`).join('')}</div>` : ''}
-        ${consensus.risk_warnings?.length ? `<div style="margin-bottom:8px"><b style="font-size:11px;color:var(--red)">⚠️ 風險警示</b>${consensus.risk_warnings.map(w=>`<div style="font-size:12px;color:var(--red);padding:2px 0">• ${w}</div>`).join('')}</div>` : ''}
-        ${consensus.strategy_suggestions?.length ? `<div style="margin-bottom:8px"><b style="font-size:11px;color:var(--blue)">策略建議</b>${consensus.strategy_suggestions.map(sg=>`<div style="font-size:12px;padding:2px 0">• ${sg}</div>`).join('')}</div>` : ''}
+        ${consensus.key_points?.length ? `<div style="margin-bottom:8px"><b style="font-size:12px;color:var(--text2)">重點摘要</b>${consensus.key_points.map(p=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--bg3)">• ${p}</div>`).join('')}</div>` : ''}
+        ${consensus.risk_warnings?.length ? `<div style="margin-bottom:8px"><b style="font-size:12px;color:var(--red)">⚠️ 風險警示</b>${consensus.risk_warnings.map(w=>`<div style="font-size:12px;color:var(--red);padding:2px 0">• ${w}</div>`).join('')}</div>` : ''}
+        ${consensus.strategy_suggestions?.length ? `<div style="margin-bottom:8px"><b style="font-size:12px;color:var(--blue)">策略建議</b>${consensus.strategy_suggestions.map(sg=>`<div style="font-size:12px;padding:2px 0">• ${sg}</div>`).join('')}</div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px">
           ${['short_term','medium_term','long_term'].map(k => {
             const labels = {short_term:'短期(1-3天)',medium_term:'中期(1-4週)',long_term:'長期(1-3月)'};
-            return outlook[k] ? `<div style="background:var(--bg3);border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text3);margin-bottom:4px">${labels[k]}</div><div style="font-size:12px">${outlook[k]}</div></div>` : '';
+            return outlook[k] ? `<div style="background:var(--bg3);border-radius:6px;padding:8px"><div style="font-size:12px;color:var(--text3);margin-bottom:4px">${labels[k]}</div><div style="font-size:12px">${outlook[k]}</div></div>` : '';
           }).join('')}
         </div>
       </div>`;
@@ -5336,17 +5336,17 @@ async function expertShowSession(id) {
             const opDir = op.direction==='BULLISH'?'📈偏多':op.direction==='BEARISH'?'📉偏空':'⚖️中性';
             const opCls = op.direction==='BULLISH'?'up':op.direction==='BEARISH'?'dn':'';
             const m = op._meta||{};
-            const metaLine = (m.input_tokens||m.elapsed_ms) ? `<div style="font-size:10px;color:var(--text3);margin-top:6px;border-top:1px solid var(--bg3);padding-top:4px">⏱${m.elapsed_ms?((m.elapsed_ms/1000).toFixed(1)+'s'):'?'} · 📥${m.input_tokens||0} 📤${m.output_tokens||0} tokens</div>` : '';
+            const metaLine = (m.input_tokens||m.elapsed_ms) ? `<div style="font-size:12px;color:var(--text3);margin-top:6px;border-top:1px solid var(--bg3);padding-top:4px">⏱${m.elapsed_ms?((m.elapsed_ms/1000).toFixed(1)+'s'):'?'} · 📥${m.input_tokens||0} 📤${m.output_tokens||0} tokens</div>` : '';
             return `<div class="card" style="border-left:3px solid ${op.expert_color||'var(--border)'}">
               <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
                 <span style="font-size:18px">${op.expert_icon||'?'}</span>
                 <span style="font-weight:600;font-size:13px">${op.expert_name}</span>
                 <span class="${opCls}" style="font-weight:700;font-size:12px;margin-left:auto">${opDir}</span>
-                <span style="font-size:11px;color:var(--text3)">${(op.confidence*100).toFixed(0)}%</span>
+                <span style="font-size:12px;color:var(--text3)">${(op.confidence*100).toFixed(0)}%</span>
               </div>
               ${(op.key_points||[]).map(kp=>`<div style="font-size:12px;padding:2px 0;color:var(--text2)">• ${kp}</div>`).join('')}
               ${metaLine}
-              <details style="margin-top:6px"><summary style="font-size:10px;color:var(--text3);cursor:pointer">完整回覆</summary><pre style="font-size:11px;white-space:pre-wrap;color:var(--text2);margin-top:4px;max-height:200px;overflow:auto">${(op._text||'').replace(/</g,'&lt;')}</pre></details>
+              <details style="margin-top:6px"><summary style="font-size:12px;color:var(--text3);cursor:pointer">完整回覆</summary><pre style="font-size:12px;white-space:pre-wrap;color:var(--text2);margin-top:4px;max-height:200px;overflow:auto">${(op._text||'').replace(/</g,'&lt;')}</pre></details>
             </div>`;
           }).join('')}
         </div>
@@ -5356,7 +5356,7 @@ async function expertShowSession(id) {
     detail.innerHTML = `${backBtn}
       <div style="margin-bottom:12px">
         <h3 style="font-size:15px;margin:0 0 4px">${s.title||'分析'}</h3>
-        <div style="font-size:11px;color:var(--text3)">
+        <div style="font-size:12px;color:var(--text3)">
           ${new Date(s.created_at).toLocaleString('zh-TW')} · ${horizonLabels[s.horizon]||s.horizon} · 標的: ${targets} · ${s.trigger==='manual'?'手動觸發':'⏰ 自動排程'}
           ${s.completed_at ? ` · 完成: ${new Date(s.completed_at).toLocaleString('zh-TW')}` : ''}
         </div>
@@ -5383,7 +5383,7 @@ function expertRenderRolePicks() {
       <span style="font-size:16px">${r.icon}</span>
       <div>
         <div style="font-size:12px;font-weight:600">${r.name}</div>
-        <div style="font-size:10px;color:var(--text3)">${r.perspective}</div>
+        <div style="font-size:12px;color:var(--text3)">${r.perspective}</div>
       </div>
     </label>
   `).join('');
@@ -5433,21 +5433,21 @@ function expertRenderSchedules() {
           <input type="checkbox" ${sc.enabled?'checked':''} onchange="expertToggleSchedule('${sc.id}',this.checked)" style="accent-color:var(--blue)">
           <span style="font-weight:600;font-size:13px">${sc.name}</span>
         </label>
-        <span style="font-size:11px;color:var(--text3)">${sc.description}</span>
+        <span style="font-size:12px;color:var(--text3)">${sc.description}</span>
         <span style="margin-left:auto;font-size:12px;font-weight:600;color:var(--blue)">${timeInfo}</span>
-        <span style="font-size:11px;padding:2px 6px;background:var(--bg3);border-radius:3px">${horizonLabels[sc.horizon]||sc.horizon}度</span>
-        <span style="font-size:11px;padding:2px 6px;background:var(--bg3);border-radius:3px">${sc.market_focus}</span>
+        <span style="font-size:12px;padding:2px 6px;background:var(--bg3);border-radius:3px">${horizonLabels[sc.horizon]||sc.horizon}度</span>
+        <span style="font-size:12px;padding:2px 6px;background:var(--bg3);border-radius:3px">${sc.market_focus}</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
-        <span style="font-size:11px;color:var(--text3)">參與專家:</span> ${experts}
+        <span style="font-size:12px;color:var(--text3)">參與專家:</span> ${experts}
         <div style="margin-left:auto;display:flex;gap:4px">
-          <input type="time" value="${sc.time}" onchange="expertUpdateSchedule('${sc.id}',{time:this.value})" style="padding:3px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:11px">
-          <select onchange="expertUpdateSchedule('${sc.id}',{market_focus:this.value})" style="padding:3px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:11px">
+          <input type="time" value="${sc.time}" onchange="expertUpdateSchedule('${sc.id}',{time:this.value})" style="padding:3px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px">
+          <select onchange="expertUpdateSchedule('${sc.id}',{market_focus:this.value})" style="padding:3px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px">
             <option value="ALL" ${sc.market_focus==='ALL'?'selected':''}>全部</option>
             <option value="TW" ${sc.market_focus==='TW'?'selected':''}>台股</option>
             <option value="US" ${sc.market_focus==='US'?'selected':''}>美股</option>
           </select>
-          <select onchange="expertUpdateSchedule('${sc.id}',{horizon:this.value})" style="padding:3px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:11px">
+          <select onchange="expertUpdateSchedule('${sc.id}',{horizon:this.value})" style="padding:3px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:12px">
             <option value="daily" ${sc.horizon==='daily'?'selected':''}>日</option>
             <option value="weekly" ${sc.horizon==='weekly'?'selected':''}>週</option>
             <option value="monthly" ${sc.horizon==='monthly'?'selected':''}>月</option>
@@ -5714,7 +5714,7 @@ async function icLoadSectorRotation() {
         </tr>`;
       }).join('')}</tbody>
     </table>
-    <div style="margin-top:10px;font-size:11px;color:var(--text2)">
+    <div style="margin-top:10px;font-size:12px;color:var(--text2)">
       排名依 1M 漲幅排序，RS vs SPY = 板塊 1M 報酬 − S&P500 1M 報酬。強勢(&gt;2%)／弱勢(&lt;-2%)／中性。快取 1 小時。
     </div>`;
   } catch(e) {
@@ -5756,11 +5756,11 @@ function icRecCard(r, currency) {
 
   // 板塊
   const sectorHtml = ind.SECTOR
-    ? `<div style="font-size:10px;color:var(--text2);margin:3px 0">📊 板塊：${ind.SECTOR.name} #${ind.SECTOR.rank} (${ind.SECTOR.momentum||'—'})</div>` : '';
+    ? `<div style="font-size:12px;color:var(--text2);margin:3px 0">📊 板塊：${ind.SECTOR.name} #${ind.SECTOR.rank} (${ind.SECTOR.momentum||'—'})</div>` : '';
 
   // 資料來源
   const srcHtml = (r.sources||[]).length
-    ? `<div style="font-size:10px;color:var(--text3);margin-top:4px">📎 ${r.sources.map(s=>s.name).join('、')}</div>` : '';
+    ? `<div style="font-size:12px;color:var(--text3);margin-top:4px">📎 ${r.sources.map(s=>s.name).join('、')}</div>` : '';
 
   return `<div class="ic-rec-card ${dir.toLowerCase()}-card">
     <div class="ic-rec-header">
@@ -5773,19 +5773,19 @@ function icRecCard(r, currency) {
         <div class="ic-score-bar-wrap"><div class="ic-score-bar" style="width:${scoreW};background:${scoreC}"></div></div>
       </div>
       <div style="text-align:right;min-width:60px">
-        <div style="font-size:10px;color:var(--text3)">信心度</div>
+        <div style="font-size:12px;color:var(--text3)">信心度</div>
         <div style="font-size:13px;font-weight:700;color:${confColor}">${confPct}%</div>
       </div>
       ${r.entry_price?`<div style="text-align:right;min-width:70px">
-        <div style="font-size:10px;color:var(--text3)">現價</div>
+        <div style="font-size:12px;color:var(--text3)">現價</div>
         <div style="font-size:13px;font-weight:600;color:var(--text)">${cur}${r.entry_price}</div>
       </div>`:''}
     </div>
-    ${techPills.length?`<div style="margin-bottom:4px"><span style="font-size:9px;color:var(--text3)">技術面</span>
-      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px">${techPills.map(t=>`<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:var(--bg3);color:var(--text2)">${t}</span>`).join('')}</div>
+    ${techPills.length?`<div style="margin-bottom:4px"><span style="font-size:12px;color:var(--text3)">技術面</span>
+      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px">${techPills.map(t=>`<span style="font-size:12px;padding:1px 6px;border-radius:8px;background:var(--bg3);color:var(--text2)">${t}</span>`).join('')}</div>
     </div>`:''}
-    ${fundPills.length?`<div style="margin-bottom:4px"><span style="font-size:9px;color:var(--text3)">基本面</span>
-      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px">${fundPills.map(t=>`<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:var(--bg3);color:var(--text2)">${t}</span>`).join('')}</div>
+    ${fundPills.length?`<div style="margin-bottom:4px"><span style="font-size:12px;color:var(--text3)">基本面</span>
+      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px">${fundPills.map(t=>`<span style="font-size:12px;padding:1px 6px;border-radius:8px;background:var(--bg3);color:var(--text2)">${t}</span>`).join('')}</div>
     </div>`:''}
     ${sectorHtml}
     ${(r.signals||[]).length?`<div class="ic-signals-wrap">
@@ -5800,12 +5800,12 @@ function icRecCard(r, currency) {
           </button>`
       }
     </div>
-    ${r.disclaimer?`<div style="font-size:10px;color:var(--text2);line-height:1.4;margin-top:4px">${r.disclaimer}</div>`:''}
+    ${r.disclaimer?`<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-top:4px">${r.disclaimer}</div>`:''}
     ${srcHtml}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
       <button class="ic-analyze-btn" style="background:var(--purple);color:#fff"
         onclick="icRunBacktest('${r.code}','${r.market}','${safeName}')">▶ 回測</button>
-      <span style="font-size:10px;color:var(--text2)">${(r.created_at||'').slice(0,16)}</span>
+      <span style="font-size:12px;color:var(--text2)">${(r.created_at||'').slice(0,16)}</span>
     </div>
   </div>`;
 }
@@ -5884,12 +5884,12 @@ async function icAnalyzeOne(code, market, btn) {
     const d = await r.json();
     const confPct = Math.round((d.confidence||0)*100);
     zone.innerHTML = `${d.confidence!=null?`<div style="display:flex;justify-content:space-between;margin-bottom:4px">
-      <span style="font-size:11px;color:var(--text2)">AI 信心度</span>
-      <span style="font-size:11px;color:var(--purple)">${confPct}%</span>
+      <span style="font-size:12px;color:var(--text2)">AI 信心度</span>
+      <span style="font-size:12px;color:var(--purple)">${confPct}%</span>
     </div>
     <div class="ic-conf-bar-wrap"><div class="ic-conf-bar" style="width:${confPct}%"></div></div>`:''}
     ${d.ai_analysis?`<div class="ic-ai-text" style="border-left:2px solid var(--purple);padding-left:10px;margin-top:6px">${icEscHtml(d.ai_analysis)}</div>`:'<div class="ic-empty-msg">無 AI 分析結果</div>'}
-    ${d.disclaimer?`<div style="font-size:10px;color:var(--text2);margin-top:5px;line-height:1.4">${d.disclaimer}</div>`:''}`;
+    ${d.disclaimer?`<div style="font-size:12px;color:var(--text2);margin-top:5px;line-height:1.4">${d.disclaimer}</div>`:''}`;
     const idx = _icRecsData.findIndex(x => x.code===code);
     if (idx>=0) _icRecsData[idx].ai_analysis = d.ai_analysis;
   } catch(e) {
@@ -5907,15 +5907,15 @@ function _icRenderGrouped(wrap, data, emptyMsg) {
   const univ = data.filter(r => r.rec_source === 'universe');
   let html = '';
   if (pos.length) {
-    html += `<div style="margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--green);background:rgba(63,185,80,.12);padding:2px 8px;border-radius:4px">📌 持倉中 (${pos.length})</span></div>
+    html += `<div style="margin-bottom:6px"><span style="font-size:12px;font-weight:700;color:var(--green);background:rgba(63,185,80,.12);padding:2px 8px;border-radius:4px">📌 持倉中 (${pos.length})</span></div>
     <div class="ic-grid-3" style="margin-bottom:16px">${pos.map(icRecCard).join('')}</div>`;
   }
   if (wl.length) {
-    html += `<div style="margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--blue);background:rgba(56,139,253,.12);padding:2px 8px;border-radius:4px">⭐ 自選股 (${wl.length})</span></div>
+    html += `<div style="margin-bottom:6px"><span style="font-size:12px;font-weight:700;color:var(--blue);background:rgba(56,139,253,.12);padding:2px 8px;border-radius:4px">⭐ 自選股 (${wl.length})</span></div>
     <div class="ic-grid-3" style="margin-bottom:16px">${wl.map(icRecCard).join('')}</div>`;
   }
   if (univ.length) {
-    html += `<div style="margin-bottom:6px"><span style="font-size:11px;font-weight:700;color:var(--yellow);background:rgba(210,153,34,.12);padding:2px 8px;border-radius:4px">🔍 市場精選 (${univ.length})</span></div>
+    html += `<div style="margin-bottom:6px"><span style="font-size:12px;font-weight:700;color:var(--yellow);background:rgba(210,153,34,.12);padding:2px 8px;border-radius:4px">🔍 市場精選 (${univ.length})</span></div>
     <div class="ic-grid-3">${univ.map(icRecCard).join('')}</div>`;
   }
   wrap.innerHTML = html;
@@ -5991,38 +5991,38 @@ function icIndicatorGrid(ind) {
   </div>`;
   if (ind.VOL) { const v=ind.VOL; html += `<div class="ic-card" style="padding:7px">
     <b>量能</b><br>RVOL: <span style="font-weight:600;color:${v.rvol>=1.5?'var(--red)':v.rvol<0.5?'var(--green)':'var(--text1)'}">${v.rvol}x</span>
-    ${v.vwap?` VWAP: ${v.vwap} <span style="font-size:11px;color:${v.vwap_dist_pct>0?'var(--red)':'var(--green)'}">(${v.vwap_dist_pct>0?'+':''}${v.vwap_dist_pct}%)</span>`:''}
+    ${v.vwap?` VWAP: ${v.vwap} <span style="font-size:12px;color:${v.vwap_dist_pct>0?'var(--red)':'var(--green)'}">(${v.vwap_dist_pct>0?'+':''}${v.vwap_dist_pct}%)</span>`:''}
   </div>`; }
   if (ind.divergence) html += `<div class="ic-card" style="padding:7px;border-left:3px solid ${ind.divergence==='top_divergence'?'var(--red)':'var(--green)'}">
     <b>量價背離</b><br>${ind.divergence==='top_divergence'?'⚠ 頂背離（價漲量縮）':'底背離（價跌量縮）'}
   </div>`;
   if (ind.FUND) { const f=ind.FUND; html += `<div class="ic-card" style="padding:7px">
     <b>基本面</b><br>${f.pe?'PE:'+f.pe+' ':''}${f.pb?'PB:'+f.pb+' ':''}${f.roe?'ROE:'+f.roe+'% ':''}${f.dy?'殖利率:'+f.dy+'%':''}
-    ${f.sector?'<br><span style="font-size:11px;color:var(--text2)">'+f.sector+'</span>':''}
+    ${f.sector?'<br><span style="font-size:12px;color:var(--text2)">'+f.sector+'</span>':''}
   </div>`; }
   if (ind.SECTOR) { const s=ind.SECTOR; html += `<div class="ic-card" style="padding:7px;border-left:3px solid ${s.momentum==='強勢'?'var(--red)':s.momentum==='弱勢'?'var(--green)':'var(--text2)'}">
     <b>板塊輪動</b><br>${s.name}(${s.etf}) #${s.rank}/11
     <span style="font-weight:600;color:${s.rs_vs_spy>0?'var(--red)':'var(--green)'}"> RS:${s.rs_vs_spy>0?'+':''}${s.rs_vs_spy}%</span>
-    <span style="font-size:11px"> 1M:${s.pct_1m>0?'+':''}${s.pct_1m}%</span>
+    <span style="font-size:12px"> 1M:${s.pct_1m>0?'+':''}${s.pct_1m}%</span>
   </div>`; }
   if (ind.ALPHA) { const a=ind.ALPHA; html += `<div class="ic-card" style="padding:7px">
     <b>Alpha因子</b><br>
-    <span style="font-size:11px">${a.mom_5d!=null?'Mom5:'+a.mom_5d+'% ':'' }${a.mom_20d!=null?'Mom20:'+a.mom_20d+'% ':''}${a.vol_ratio_5_20!=null?'量比:'+a.vol_ratio_5_20+'x ':''}${a.bias_20d!=null?'乖離:'+a.bias_20d+'% ':''}${a.price_pos_60d!=null?'位置:'+(a.price_pos_60d*100).toFixed(0)+'%':''}</span>
+    <span style="font-size:12px">${a.mom_5d!=null?'Mom5:'+a.mom_5d+'% ':'' }${a.mom_20d!=null?'Mom20:'+a.mom_20d+'% ':''}${a.vol_ratio_5_20!=null?'量比:'+a.vol_ratio_5_20+'x ':''}${a.bias_20d!=null?'乖離:'+a.bias_20d+'% ':''}${a.price_pos_60d!=null?'位置:'+(a.price_pos_60d*100).toFixed(0)+'%':''}</span>
   </div>`; }
   if (ind.SENTIMENT_COMPOSITE) { const sc=ind.SENTIMENT_COMPOSITE; html += `<div class="ic-card" style="padding:7px;border-left:3px solid ${sc.score>=60?'var(--red)':sc.score<=40?'var(--green)':'var(--text2)'}">
     <b>綜合情緒</b> <span style="font-weight:700;font-size:15px;color:${sc.score>=60?'var(--red)':sc.score<=40?'var(--green)':'var(--text1)'}">${sc.score}</span>/100
-    <br>${(sc.sources||[]).map(s=>'<span style="font-size:11px;color:var(--text2)">'+s.name+':'+s.score+'('+Math.round(s.weight*100)+'%)</span>').join(' ')}
+    <br>${(sc.sources||[]).map(s=>'<span style="font-size:12px;color:var(--text2)">'+s.name+':'+s.score+'('+Math.round(s.weight*100)+'%)</span>').join(' ')}
   </div>`; }
   if (ind.EVENT) { const ev=ind.EVENT; html += `<div class="ic-card" style="padding:7px;border-left:3px solid var(--blue)">
     <b>事件驅動</b><br>${ev.earnings?'財報: '+ev.earnings+' ':''}${ev.ex_dividend?'除息: '+ev.ex_dividend+' ':''}
-    ${ev.tags&&ev.tags.length?'<br>'+ev.tags.map(t=>'<span style="font-size:11px;background:var(--bg2);padding:1px 5px;border-radius:3px;margin:1px">'+t+'</span>').join(' '):''}
-    ${ev.news_count?'<span style="font-size:11px;color:var(--text2)"> ('+ev.news_count+'則新聞)</span>':''}
+    ${ev.tags&&ev.tags.length?'<br>'+ev.tags.map(t=>'<span style="font-size:12px;background:var(--bg2);padding:1px 5px;border-radius:3px;margin:1px">'+t+'</span>').join(' '):''}
+    ${ev.news_count?'<span style="font-size:12px;color:var(--text2)"> ('+ev.news_count+'則新聞)</span>':''}
   </div>`; }
   if (ind.sentiment_momentum) {
     const sm = ind.sentiment_momentum;
     html += `<div class="ic-card" style="padding:7px">
       <b>情緒動量</b><br>趨勢: <span style="font-weight:600;color:${sm.trend==='improving'?'var(--red)':sm.trend==='deteriorating'?'var(--green)':'var(--text2)'}">${sm.trend==='improving'?'▲改善中':sm.trend==='deteriorating'?'▼惡化中':'─穩定'}</span>
-      <span style="font-size:11px;color:var(--text2)"> Δ${sm.delta>0?'+':''}${sm.delta} (${sm.data_points}筆)</span>
+      <span style="font-size:12px;color:var(--text2)"> Δ${sm.delta>0?'+':''}${sm.delta} (${sm.data_points}筆)</span>
     </div>`;
   }
   return html;
@@ -6045,7 +6045,7 @@ function icSingleResultCard(d) {
     </div>
     <div>
       <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-        <span style="font-size:11px;color:var(--text2)">技術評分</span>
+        <span style="font-size:12px;color:var(--text2)">技術評分</span>
         <span style="font-size:12px;font-weight:700">${t.score||0}/100</span>
       </div>
       <div class="ic-score-bar-wrap">
@@ -6063,7 +6063,7 @@ function icSingleResultCard(d) {
       <button class="ic-analyze-btn" style="width:100%;background:var(--purple);color:#fff;padding:10px;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:8px"
         onclick="icSingleAI('${d.code}','${d.market}',this)">
         ✦ AI 深度解讀 💰
-        <span style="font-size:11px;opacity:0.7">（Claude 分析指標 + 知識庫）</span>
+        <span style="font-size:12px;opacity:0.7">（Claude 分析指標 + 知識庫）</span>
       </button>
     </div>
   </div>`;
@@ -6072,12 +6072,12 @@ function icSingleResultCard(d) {
 function icAiResultHtml(d) {
   const confPct = Math.round((d.confidence||0)*100);
   return `${d.confidence!=null?`<div style="display:flex;justify-content:space-between;margin-bottom:6px">
-    <span style="font-size:11px;color:var(--text2)">AI 信心度</span>
-    <span style="font-size:11px;color:var(--purple)">${confPct}%</span>
+    <span style="font-size:12px;color:var(--text2)">AI 信心度</span>
+    <span style="font-size:12px;color:var(--purple)">${confPct}%</span>
   </div>
   <div class="ic-conf-bar-wrap"><div class="ic-conf-bar" style="width:${confPct}%"></div></div>`:''}
   ${d.ai_analysis?`<div class="ic-ai-text" style="border-left:2px solid var(--purple);padding-left:10px;margin-top:8px;max-height:200px;overflow-y:auto">${icEscHtml(d.ai_analysis)}</div>`:'<div class="ic-empty-msg">無 AI 分析結果</div>'}
-  ${d.disclaimer?`<div style="font-size:10px;color:var(--text2);margin-top:5px;line-height:1.4">${d.disclaimer}</div>`:''}`;
+  ${d.disclaimer?`<div style="font-size:12px;color:var(--text2);margin-top:5px;line-height:1.4">${d.disclaimer}</div>`:''}`;
 }
 
 async function icSingleAI(code, market, btn) {
@@ -6116,8 +6116,8 @@ function icMultiResultTable(results, market) {
     const sigCnt = (r.signals||[]).length;
     const dirCls = r.direction==='BUY'?'ic-score-buy':r.direction==='SELL'?'ic-score-sell':'ic-score-hold';
     return `<tr onclick="icExpandRow(${i},'${market}')" style="cursor:pointer" class="ic-multi-row">
-      <td style="padding:8px 10px"><b>${r.code}</b> <span style="color:var(--text2);font-size:11px">${r.name||''}</span></td>
-      <td style="text-align:center;padding:8px 6px"><span class="ic-score-badge ${dirCls}" style="font-size:11px;padding:2px 8px">${r.direction}</span></td>
+      <td style="padding:8px 10px"><b>${r.code}</b> <span style="color:var(--text2);font-size:12px">${r.name||''}</span></td>
+      <td style="text-align:center;padding:8px 6px"><span class="ic-score-badge ${dirCls}" style="font-size:12px;padding:2px 8px">${r.direction}</span></td>
       <td style="text-align:center;padding:8px 6px;font-weight:600">${r.score||0}</td>
       <td style="text-align:center;padding:8px 6px;font-size:12px">${rsHtml}</td>
       <td style="text-align:center;padding:8px 6px;font-size:13px">${obv}</td>
@@ -6129,14 +6129,14 @@ function icMultiResultTable(results, market) {
   return `<div class="ic-card" style="padding:0;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="border-bottom:1px solid var(--border)">
-        <th style="text-align:left;padding:8px 10px;color:var(--text2);font-weight:400;font-size:11px">股票</th>
-        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:11px">方向</th>
-        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:11px">評分</th>
-        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:11px">RS</th>
-        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:11px">OBV</th>
-        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:11px">MFI</th>
-        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:11px">訊號</th>
-        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:11px">AI</th>
+        <th style="text-align:left;padding:8px 10px;color:var(--text2);font-weight:400;font-size:12px">股票</th>
+        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:12px">方向</th>
+        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:12px">評分</th>
+        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:12px">RS</th>
+        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:12px">OBV</th>
+        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:12px">MFI</th>
+        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:12px">訊號</th>
+        <th style="text-align:center;padding:8px 6px;color:var(--text2);font-weight:400;font-size:12px">AI</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
@@ -6274,7 +6274,7 @@ async function icLoadDataStats() {
       `<td style="padding:2px 8px;color:var(--text2)">${t.newest||'-'}</td></tr>`
     ).join('');
     el.innerHTML = `<div style="margin-bottom:4px">DB 大小：<b>${d.db_size_mb} MB</b></div>` +
-      `<table style="font-size:11px;border-collapse:collapse">` +
+      `<table style="font-size:12px;border-collapse:collapse">` +
       `<tr style="color:var(--text2)"><th style="text-align:left;padding:2px 8px 2px 0">資料表</th><th style="padding:2px 8px">筆數</th><th style="padding:2px 8px">最早</th><th style="padding:2px 8px">最新</th></tr>` +
       rows + `</table>`;
   } catch(e) { el.textContent = '載入失敗'; }
@@ -6506,7 +6506,7 @@ async function icLoadTwInstitutional() {
           ${_fmtVol(row.total)}
         </td>
         <td style="text-align:right;color:var(--text2);font-variant-numeric:tabular-nums">${_fmtVol(row.margin)}</td>
-        <td style="text-align:center;font-size:10px;color:var(--text3)">${(row.date||'').slice(5,10)}</td>
+        <td style="text-align:center;font-size:12px;color:var(--text3)">${(row.date||'').slice(5,10)}</td>
       </tr>`).join('')}</tbody>
     </table></div>`;
   } catch(e) {
@@ -6570,7 +6570,7 @@ async function icRunBacktest(code, market, name) {
         <thead><tr><th>日期</th><th>類型</th><th>訊號</th><th>價格</th><th>獲利</th></tr></thead>
         <tbody>${trades.map(t=>`<tr>
           <td>${(t.date||'').slice(0,10)}</td><td>${t.action||''}</td>
-          <td style="font-size:11px">${t.signal||''}</td><td>$${t.price||0}</td>
+          <td style="font-size:12px">${t.signal||''}</td><td>$${t.price||0}</td>
           <td class="${(t.pnl||0)>=0?'ic-up':'ic-down'}">${(t.pnl||0)>=0?'+':''}${((t.pnl||0)).toFixed(0)}</td>
         </tr>`).join('')}</tbody>
       </table>` : '';
@@ -6583,8 +6583,8 @@ async function icRunBacktest(code, market, name) {
         <div class="ic-bt-stat"><div class="ic-bt-stat-label">最大回撤</div><div class="ic-bt-stat-val ic-down">-${(sum.max_drawdown_pct||0).toFixed(1)}%</div></div>
         <div class="ic-bt-stat"><div class="ic-bt-stat-label">Sharpe</div><div class="ic-bt-stat-val">${(sum.sharpe||0).toFixed(2)}</div></div>
       </div>
-      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">回測期間：${start} ～ 今日</div>
-      <button class="ic-save-btn" style="margin:8px 0;font-size:11px" onclick="icRunWalkForward('${code}','${market}')">🔄 Walk-Forward 驗證</button>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">回測期間：${start} ～ 今日</div>
+      <button class="ic-save-btn" style="margin:8px 0;font-size:12px" onclick="icRunWalkForward('${code}','${market}')">🔄 Walk-Forward 驗證</button>
       <div id="ic-wf-result"></div>
       ${tradesHtml}`;
   } catch(e) {
@@ -6658,11 +6658,11 @@ async function icLoadOptions() {
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:250px"><div class="ic-section-title">Calls</div>
-        <table class="ic-sector-table" style="font-size:11px"><thead><tr><th>Strike</th><th>Bid</th><th>Ask</th><th>Vol</th><th>IV</th></tr></thead>
+        <table class="ic-sector-table" style="font-size:12px"><thead><tr><th>Strike</th><th>Bid</th><th>Ask</th><th>Vol</th><th>IV</th></tr></thead>
         <tbody>${(d.calls||[]).slice(0,8).map(c=>`<tr><td>${c.strike}</td><td>${c.bid||0}</td><td>${c.ask||0}</td><td>${c.volume||0}</td><td>${c.impliedVolatility?((c.impliedVolatility*100).toFixed(1)+'%'):'--'}</td></tr>`).join('')}</tbody></table>
       </div>
       <div style="flex:1;min-width:250px"><div class="ic-section-title">Puts</div>
-        <table class="ic-sector-table" style="font-size:11px"><thead><tr><th>Strike</th><th>Bid</th><th>Ask</th><th>Vol</th><th>IV</th></tr></thead>
+        <table class="ic-sector-table" style="font-size:12px"><thead><tr><th>Strike</th><th>Bid</th><th>Ask</th><th>Vol</th><th>IV</th></tr></thead>
         <tbody>${(d.puts||[]).slice(0,8).map(p=>`<tr><td>${p.strike}</td><td>${p.bid||0}</td><td>${p.ask||0}</td><td>${p.volume||0}</td><td>${p.impliedVolatility?((p.impliedVolatility*100).toFixed(1)+'%'):'--'}</td></tr>`).join('')}</tbody></table>
       </div>
     </div>`;
@@ -6683,7 +6683,7 @@ async function icLoadCrypto() {
         <span>7D: <span style="color:${d.ret_7d>=0?'var(--red)':'var(--green)'}; font-weight:600">${d.ret_7d>0?'+':''}${d.ret_7d}%</span></span>
         <span>30D: <span style="color:${d.ret_30d>=0?'var(--red)':'var(--green)'}; font-weight:600">${d.ret_30d>0?'+':''}${d.ret_30d}%</span></span>
         <span>RVOL: ${d.rvol}x</span>
-        <span style="font-size:11px;color:var(--text2)">Vol: $${(d.volume_24h/1e9).toFixed(1)}B</span>
+        <span style="font-size:12px;color:var(--text2)">Vol: $${(d.volume_24h/1e9).toFixed(1)}B</span>
       </div>
     </div>`;
   } catch(e){wrap.innerHTML='<div class="ic-empty-msg">載入失敗</div>';}
@@ -6711,7 +6711,7 @@ async function icRunWalkForward(code, market) {
         <span>過擬合比: ${s.overfit_ratio}x</span>
         <span>一致性: ${s.consistency?.toFixed(0)}%</span>
       </div>
-      <table class="ic-inst-table" style="margin-top:8px;font-size:11px">
+      <table class="ic-inst-table" style="margin-top:8px;font-size:12px">
         <thead><tr><th>窗口</th><th>訓練報酬</th><th>測試報酬</th><th>測試勝率</th></tr></thead>
         <tbody>${(d.windows||[]).map((w,i)=>`<tr>
           <td>${w.window.test_start}~${w.window.test_end}</td>
@@ -6789,7 +6789,7 @@ function icRenderHistory() {
       return `<tr>
         <td><b>${h.code}</b></td>
         <td style="color:var(--text2)">${h.name||''}</td>
-        <td><span style="font-size:10px;background:var(--bg3);padding:1px 5px;border-radius:3px">${h.market}</span></td>
+        <td><span style="font-size:12px;background:var(--bg3);padding:1px 5px;border-radius:3px">${h.market}</span></td>
         <td><span class="ic-score-badge ${icScoreClass(h.direction)}">${h.direction}</span></td>
         <td style="text-align:right">${h.score||0}</td>
         <td style="color:var(--purple);text-align:right">${Math.round((h.confidence||0.5)*100)}%</td>
@@ -6797,8 +6797,8 @@ function icRenderHistory() {
         <td style="text-align:right">${h.eval_price!=null?cur+h.eval_price.toFixed(2):'—'}</td>
         <td style="text-align:right">${pnl}</td>
         <td class="${oc[outcome]||'ic-outcome-pending'}">${ol[outcome]||outcome}</td>
-        <td style="font-size:10px;color:var(--text2)">${(h.created_at||'').slice(0,16)}</td>
-        <td style="font-size:10px;color:var(--text2)">${(h.eval_at||'').slice(0,16)||'—'}</td>
+        <td style="font-size:12px;color:var(--text2)">${(h.created_at||'').slice(0,16)}</td>
+        <td style="font-size:12px;color:var(--text2)">${(h.eval_at||'').slice(0,16)||'—'}</td>
       </tr>`;
     }).join('')}</tbody>
   </table></div>`;
@@ -6849,14 +6849,14 @@ function icRenderSysSources(sources) {
       const linked = (s.linked_datasources||[]);
       const linkedHtml = linked.length ? linked.map(d => {
         const icon = d.status==='active' ? (d.configured ? '🟢' : '🟡') : '⚪';
-        return `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--bg2);cursor:pointer;white-space:nowrap" title="${d.name} — ${d.status==='active'?(d.configured?'已啟用已設定':'已啟用未設定'):'規劃中'}" onclick="showPage('datasrc');loadDataSources()">${icon} ${d.name}</span>`;
-      }).join(' ') : '<span style="color:var(--text3);font-size:10px">本機</span>';
+        return `<span style="font-size:12px;padding:1px 5px;border-radius:3px;background:var(--bg2);cursor:pointer;white-space:nowrap" title="${d.name} — ${d.status==='active'?(d.configured?'已啟用已設定':'已啟用未設定'):'規劃中'}" onclick="showPage('datasrc');loadDataSources()">${icon} ${d.name}</span>`;
+      }).join(' ') : '<span style="color:var(--text3);font-size:12px">本機</span>';
       return `<tr>
       <td><span class="ic-src-badge ic-src-system">✦ ${s.name}</span></td>
       <td style="color:var(--text2)">${s.market}</td>
       <td style="color:var(--text2)">${s.type}</td>
-      <td style="color:var(--text2);font-size:11px">${s.description||''}</td>
-      <td style="font-size:11px">${linkedHtml}</td>
+      <td style="color:var(--text2);font-size:12px">${s.description||''}</td>
+      <td style="font-size:12px">${linkedHtml}</td>
       <td><span class="ic-src-badge ${s.reliability==='confirmed'?'ic-src-system':'ic-src-user'}">${s.reliability==='confirmed'?'確認':'參考'}</span></td>
     </tr>`;}).join('')}</tbody>
   </table>`;
@@ -6887,8 +6887,8 @@ function icRenderEntChips() {
   (_icAllUserSources||[]).forEach(s => (s.entities||[]).forEach(e => counts[e]=(counts[e]||0)+1));
   const ents = Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b));
   if (!ents.length) { box.innerHTML=''; return; }
-  box.innerHTML = '<span style="font-size:11px;color:var(--text3);align-self:center">標籤對焦：</span>' +
-    ents.map(e=>`<span class="ic-chip-toggle ${_icEntFilter===e?'active':''}" style="font-size:11px;padding:2px 8px" onclick="icFilterByEntity('${e.replace(/'/g,"\\'")}')">${icEscHtml(e)} <span style="color:var(--text3)">${counts[e]}</span></span>`).join('');
+  box.innerHTML = '<span style="font-size:12px;color:var(--text3);align-self:center">標籤對焦：</span>' +
+    ents.map(e=>`<span class="ic-chip-toggle ${_icEntFilter===e?'active':''}" style="font-size:12px;padding:2px 8px" onclick="icFilterByEntity('${e.replace(/'/g,"\\'")}')">${icEscHtml(e)} <span style="color:var(--text3)">${counts[e]}</span></span>`).join('');
 }
 
 function icSrcTypeChange() {
@@ -6926,10 +6926,10 @@ function icRenderUserSources(sources) {
       return `<tr style="${s.active?'':'opacity:.5'}">
       <td><span class="ic-src-badge ic-src-user">${icon} ${icEscHtml(s.name)}</span></td>
       <td style="color:var(--text2)">${s.market}</td>
-      <td style="font-size:11px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${srcCell}</td>
-      <td style="font-size:11px">${ents}</td>
+      <td style="font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${srcCell}</td>
+      <td style="font-size:12px">${ents}</td>
       <td>${chunkBadge}</td>
-      <td style="font-size:10px;color:var(--text2)">${s.last_fetched?(s.last_fetched||'').slice(5,16):'—'}</td>
+      <td style="font-size:12px;color:var(--text2)">${s.last_fetched?(s.last_fetched||'').slice(5,16):'—'}</td>
       <td style="display:flex;gap:4px">
         ${canFetch?`<button class="ic-analyze-btn" style="padding:3px 8px" id="ic-fetch-btn-${s.db_id}" onclick="icFetchOneSource(${s.db_id})" title="重新抓取並更新知識庫">抓取</button>`:''}
         <button class="ic-analyze-btn" style="background:var(--red);color:#fff;padding:3px 8px" onclick="icDeleteSource(${s.db_id})">刪除</button>
@@ -6979,8 +6979,8 @@ async function icLoadNewsCache() {
     wrap.innerHTML = data.map(n => `<div class="ic-card" style="margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         <span class="ic-src-badge ic-src-user">◈ ${n.name}</span>
-        <span style="font-size:10px;color:var(--text2)">${n.market} · ${n.type}</span>
-        <span style="font-size:10px;color:var(--text2);margin-left:auto">${(n.fetched_at||'').slice(0,16)}</span>
+        <span style="font-size:12px;color:var(--text2)">${n.market} · ${n.type}</span>
+        <span style="font-size:12px;color:var(--text2);margin-left:auto">${(n.fetched_at||'').slice(0,16)}</span>
       </div>
       <div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.5;background:var(--bg);border-radius:4px;padding:7px;max-height:110px;overflow-y:auto">${icEscHtml(n.content||'')}</div>
     </div>`).join('');
@@ -7054,7 +7054,7 @@ async function loadUSPositionsMini() {
       return `<div class="pos-row wave-row" onclick="openChart('${p.code}','US')">
         <span class="pr-code">${p.code}</span>
         <span class="pr-type-badge wave">美股</span>
-        <span style="font-size:11px;color:var(--text2)">${p.shares}股 @ $${p.cost}</span>
+        <span style="font-size:12px;color:var(--text2)">${p.shares}股 @ $${p.cost}</span>
         <span class="pr-pnl ${cls}">${pnl}</span>
       </div>`;
     }).join('');
@@ -7196,7 +7196,7 @@ async function iterLoadDetail(sid) {
           <td>${(r.winrate||0).toFixed(1)}%</td>
           <td style="color:var(--red)">${(r.max_drawdown||0).toFixed(1)}%</td>
           <td style="color:${impColor}">${r.improvement>0?'+':''}${(r.improvement||0).toFixed(3)}</td>
-          <td style="color:var(--text3);font-size:10px">${(r.created_at||'').substring(11,19)}</td>
+          <td style="color:var(--text3);font-size:12px">${(r.created_at||'').substring(11,19)}</td>
         </tr>`;
       }).join('');
 
@@ -7478,11 +7478,11 @@ async function sfLoadStrategies() {
       return `<div class="card" style="padding:12px;cursor:pointer" onclick="sfShowStrategy('${s.strategy_id}')">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div><span style="font-size:14px">${catIcon}</span> <b style="font-size:13px">${s.name}</b>
-            <span style="font-size:11px;color:var(--text3);margin-left:4px">${s.strategy_id}</span></div>
-          <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${statusColor};color:white;font-weight:600">${s.status}</span>
+            <span style="font-size:12px;color:var(--text3);margin-left:4px">${s.strategy_id}</span></div>
+          <span style="font-size:12px;padding:2px 6px;border-radius:4px;background:${statusColor};color:white;font-weight:600">${s.status}</span>
         </div>
-        <div style="font-size:11px;color:var(--text2);margin-top:4px">${s.description||'—'}</div>
-        <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;color:var(--text2)">
+        <div style="font-size:12px;color:var(--text2);margin-top:4px">${s.description||'—'}</div>
+        <div style="display:flex;gap:14px;margin-top:6px;font-size:12px;color:var(--text2)">
           <span>Sharpe <b style="color:var(--blue)">${(s.best_sharpe||0).toFixed(2)}</b></span>
           <span>勝率 <b>${(s.best_winrate||0).toFixed(1)}%</b></span>
           <span>MDD <b style="color:var(--sell)">${(s.best_max_dd||0).toFixed(1)}%</b></span>
@@ -7501,11 +7501,11 @@ async function sfShowStrategy(sid) {
     const el = document.getElementById('sf-strategies-grid');
     let html = `<div class="card" style="padding:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div><b style="font-size:14px">${s.name}</b> <span style="color:var(--text3);font-size:11px">${s.strategy_id} · v${s.version||1} · gen${s.generation||1}</span></div>
+        <div><b style="font-size:14px">${s.name}</b> <span style="color:var(--text3);font-size:12px">${s.strategy_id} · v${s.version||1} · gen${s.generation||1}</span></div>
         <div style="display:flex;gap:4px">
-          ${s.status==='testing'||s.status==='validated'?`<button class="tf-btn" onclick="sfPromote('${sid}')" style="font-size:11px">⬆️ 上線</button>`:''}
-          ${s.status!=='archived'?`<button class="tf-btn" onclick="sfArchive('${sid}')" style="font-size:11px">📦 封存</button>`:''}
-          <button class="tf-btn" onclick="sfLoadStrategies()" style="font-size:11px">← 返回</button>
+          ${s.status==='testing'||s.status==='validated'?`<button class="tf-btn" onclick="sfPromote('${sid}')" style="font-size:12px">⬆️ 上線</button>`:''}
+          ${s.status!=='archived'?`<button class="tf-btn" onclick="sfArchive('${sid}')" style="font-size:12px">📦 封存</button>`:''}
+          <button class="tf-btn" onclick="sfLoadStrategies()" style="font-size:12px">← 返回</button>
         </div>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${s.description||''}</div>
@@ -7517,11 +7517,11 @@ async function sfShowStrategy(sid) {
         <span>MDD: <b style="color:var(--sell)">${(s.best_max_dd||0).toFixed(1)}%</b></span>
       </div>
       <details style="margin-bottom:8px"><summary style="font-size:12px;cursor:pointer;color:var(--accent)">📝 策略程式碼</summary>
-        <pre style="background:var(--bg1);padding:10px;border-radius:6px;font-size:11px;overflow-x:auto;max-height:400px">${(s.code||'').replace(/</g,'&lt;')}</pre>
+        <pre style="background:var(--bg1);padding:10px;border-radius:6px;font-size:12px;overflow-x:auto;max-height:400px">${(s.code||'').replace(/</g,'&lt;')}</pre>
       </details>`;
     if (s.backtest_runs && s.backtest_runs.length) {
       html += `<div style="font-size:12px;font-weight:600;margin-bottom:4px">回測記錄 (${s.backtest_runs.length})</div>
-        <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
           <tr style="color:var(--text3)"><th style="text-align:left;padding:4px">日期</th><th>Sharpe</th><th>勝率</th><th>MDD</th><th>報酬</th><th>交易數</th></tr>
           ${s.backtest_runs.map(r => `<tr style="border-top:1px solid var(--border)">
             <td style="padding:4px">${(r.created_at||'').substring(0,16)}</td>
@@ -7561,10 +7561,10 @@ async function sfLoadKnowledge() {
     el.innerHTML = items.map(k => `<div class="card" style="padding:10px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div><span>${catIcon[k.category]||'📝'}</span> <b style="font-size:12px">${k.title}</b></div>
-        <span style="font-size:10px;color:var(--text3)">${k.category} · 信心 ${(k.confidence*100).toFixed(0)}% · ${k.evidence_count}次驗證</span>
+        <span style="font-size:12px;color:var(--text3)">${k.category} · 信心 ${(k.confidence*100).toFixed(0)}% · ${k.evidence_count}次驗證</span>
       </div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">${k.content||''}</div>
-      ${k.tags&&k.tags.length?`<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${k.tags.map(t=>`<span style="font-size:10px;padding:1px 5px;background:var(--bg2);border-radius:3px;color:var(--text3)">${t}</span>`).join('')}</div>`:''}
+      <div style="font-size:12px;color:var(--text2);margin-top:4px">${k.content||''}</div>
+      ${k.tags&&k.tags.length?`<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${k.tags.map(t=>`<span style="font-size:12px;padding:1px 5px;background:var(--bg2);border-radius:3px;color:var(--text3)">${t}</span>`).join('')}</div>`:''}
     </div>`).join('');
   } catch {}
 }
@@ -7579,8 +7579,8 @@ async function sfSearchKnowledge() {
     const el = document.getElementById('sf-knowledge-grid');
     if (!Array.isArray(items)||!items.length) { el.innerHTML='<div class="empty-state">無結果</div>'; return; }
     el.innerHTML = items.map(k => `<div class="card" style="padding:10px">
-      <div><b style="font-size:12px">${k.title}</b> <span style="font-size:10px;color:var(--text3)">${k.category}</span></div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">${k.content||''}</div>
+      <div><b style="font-size:12px">${k.title}</b> <span style="font-size:12px;color:var(--text3)">${k.category}</span></div>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px">${k.content||''}</div>
     </div>`).join('');
   } catch {}
 }
@@ -7590,8 +7590,8 @@ async function sfLoadLeaderboard() {
     const items = await fetch(API+'/api/sf/leaderboard').then(r=>r.json());
     const el = document.getElementById('sf-leaderboard');
     if (!Array.isArray(items)||!items.length) { el.innerHTML='<div class="empty-state">尚無排行資料</div>'; return; }
-    el.innerHTML = `<table style="width:100%;font-size:11px;border-collapse:collapse">
-      <tr style="color:var(--text3);font-size:10px"><th style="text-align:left;padding:6px">排名</th><th style="text-align:left">策略</th><th>方向</th><th>類別</th><th>狀態</th><th>Sharpe</th><th>勝率</th><th>報酬</th><th>MDD</th><th>WF一致</th><th>綜合分</th></tr>
+    el.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse">
+      <tr style="color:var(--text3);font-size:12px"><th style="text-align:left;padding:6px">排名</th><th style="text-align:left">策略</th><th>方向</th><th>類別</th><th>狀態</th><th>Sharpe</th><th>勝率</th><th>報酬</th><th>MDD</th><th>WF一致</th><th>綜合分</th></tr>
       ${items.map((s,i) => {
         const statusColor = {testing:'var(--yellow)',validated:'var(--green)',promoted:'var(--blue)'}[s.status]||'var(--text2)';
         return `<tr style="border-top:1px solid var(--border);cursor:pointer" onclick="sfSwitchTab('library');setTimeout(()=>sfShowStrategy('${s.strategy_id}'),200)">
@@ -7656,16 +7656,16 @@ async function _rhLoad() {
   for (const rpt of reports) {
     const isNew = !_rhLastViewed[rpt.id] || (_rhLastViewed[rpt.id] < (rpt.mtime || 0));
     const catLabel = _rhCatLabels[rpt.category] || rpt.category;
-    const statusBadge = rpt.status !== 'active' ? '<span style="background:var(--danger);color:#fff;padding:1px 6px;border-radius:4px;font-size:10px">' + rpt.status + '</span>' : '';
-    const newBadge = isNew ? '<span style="background:#e53e3e;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;margin-left:4px">NEW</span>' : '';
-    const tags = (rpt.tags||[]).map(function(t){return '<span style="background:var(--hover);padding:1px 6px;border-radius:4px;font-size:10px">' + t + '</span>';}).join(' ');
+    const statusBadge = rpt.status !== 'active' ? '<span style="background:var(--danger);color:#fff;padding:1px 6px;border-radius:4px;font-size:12px">' + rpt.status + '</span>' : '';
+    const newBadge = isNew ? '<span style="background:#e53e3e;color:#fff;padding:1px 6px;border-radius:4px;font-size:12px;margin-left:4px">NEW</span>' : '';
+    const tags = (rpt.tags||[]).map(function(t){return '<span style="background:var(--hover);padding:1px 6px;border-radius:4px;font-size:12px">' + t + '</span>';}).join(' ');
     const size = rpt.size ? (rpt.size/1024).toFixed(1) + 'KB' : '';
     html += '<div onclick="_rhOpen(\'' + rpt.id + '\')" style="padding:12px 16px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'var(--card-bg)\'">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center">';
     html += '<div style="font-weight:600">' + escHtml(rpt.title) + newBadge + statusBadge + '</div>';
     html += '<div style="font-size:12px;color:var(--text-dim)">' + rpt.date + ' &middot; ' + size + '</div></div>';
     html += '<div style="font-size:12px;color:var(--text-dim);margin-top:4px">';
-    html += '<span style="background:var(--blue);color:#fff;padding:1px 6px;border-radius:4px;font-size:10px">' + catLabel + '</span> ' + tags;
+    html += '<span style="background:var(--blue);color:#fff;padding:1px 6px;border-radius:4px;font-size:12px">' + catLabel + '</span> ' + tags;
     html += (rpt.summary ? ' &middot; ' + escHtml(rpt.summary) : '') + '</div></div>';
   }
   html += '</div>';
