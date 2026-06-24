@@ -1920,6 +1920,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
               <button class="ic-tab" data-page="quant" onclick="icNav(this)">
                 <span class="ic-icon">📊</span>量化工具
               </button>
+              <button class="ic-tab" data-page="sentiment" onclick="icNav(this)">
+                <span class="ic-icon">💬</span>情緒
+              </button>
               <button class="ic-tab" data-page="ai-recs" onclick="icNav(this)">
                 <span class="ic-icon">🤖</span>AI建議
               </button>
@@ -2038,6 +2041,24 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
                 <button class="ic-save-btn" style="margin:0" onclick="icLoadCrypto()">查詢</button>
               </div>
               <div id="ic-crypto-result"></div>
+            </div>
+
+            <!-- IC 情緒面板 -->
+            <div class="ic-page" id="ic-page-sentiment">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+                <input id="ic-sent-code" type="text" placeholder="代碼（如 2330 / AAPL）"
+                  style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;width:180px;text-transform:uppercase"
+                  onkeydown="if(event.key==='Enter')icLoadSentimentPanel()">
+                <select id="ic-sent-market"
+                  style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px">
+                  <option value="TW">台股</option>
+                  <option value="US">美股</option>
+                </select>
+                <button class="ic-save-btn" style="margin:0" onclick="icLoadSentimentPanel()">查詢情緒</button>
+              </div>
+              <div id="ic-sent-result">
+                <div class="ic-empty-msg">輸入代碼後查詢</div>
+              </div>
             </div>
 
             <!-- IC AI建議 -->
@@ -5942,10 +5963,134 @@ function icNav(el) {
   if (pg === 'sources')     icLoadSources();
   if (pg === 'sector-rot')  icLoadSectorRotation();
   if (pg === 'quant')       {}
+  if (pg === 'sentiment')   {}
 }
 function icToggleSidebar() {
   const el = document.getElementById('ic-sidebar');
   if (el) el.classList.toggle('expanded');
+}
+
+// ── IC 情緒面板 ──
+async function icLoadSentimentPanel() {
+  const code = (document.getElementById('ic-sent-code').value || '').trim().toUpperCase();
+  const market = document.getElementById('ic-sent-market').value;
+  const out = document.getElementById('ic-sent-result');
+  if (!code) { out.innerHTML = '<div class="ic-empty-msg">請輸入代碼</div>'; return; }
+  out.innerHTML = '<div class="ic-loading"><span class="ic-spinner"></span>查詢情緒資料中…</div>';
+  try {
+    const [hRes, sRes] = await Promise.all([
+      fetch(`/api/ic/sentiment-history/${code}`, { headers: { Authorization: 'Bearer ' + API_TOKEN } }),
+      fetch(`/api/ic/social-sentiment/${code}`,  { headers: { Authorization: 'Bearer ' + API_TOKEN } })
+    ]);
+    const h = hRes.ok ? await hRes.json() : null;
+    const s = sRes.ok ? await sRes.json() : null;
+    out.innerHTML = icSentimentHtml(code, market, h, s);
+  } catch(e) {
+    out.innerHTML = '<div class="ic-empty-msg">查詢失敗：' + e.message + '</div>';
+  }
+}
+
+function icSentimentHtml(code, market, h, s) {
+  const hasHistory = h && h.data_points > 0;
+  const hasSocial  = s && (s.news_count > 0 || s.sentiment_score != null);
+
+  if (!hasHistory && (!s || s.news_count === 0)) {
+    return `<div class="ic-empty-msg">【${code}】尚無情緒資料</div>`;
+  }
+
+  const dirColor = (d) => d === 'BUY' ? 'var(--up)' : d === 'SELL' ? 'var(--down)' : 'var(--flat)';
+  const scoreColor = (v) => v >= 70 ? 'var(--up)' : v >= 50 ? 'var(--warn)' : 'var(--down)';
+  const trendLabel = { improving: '上升 ↑', stable: '持平 →', declining: '下降 ↓' };
+  const trendColor = { improving: 'var(--up)', stable: 'var(--flat)', declining: 'var(--down)' };
+  const dirLabel   = { BUY: '多 ▲', SELL: '空 ▼', HOLD: '觀望 —' };
+
+  let kpiHtml = '';
+  if (hasHistory) {
+    const score  = h.latest_score;
+    const delta  = h.delta;
+    const deltaStr = (delta >= 0 ? '+' : '') + delta.toFixed(1);
+    const latestDir = h.history[h.history.length - 1]?.direction || 'HOLD';
+    const trend = h.trend || 'stable';
+    kpiHtml = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">
+        <div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
+          <div style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">情緒分數</div>
+          <div style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:${scoreColor(score)};line-height:1">${score.toFixed(0)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">較前次 <span style="color:${delta>=0?'var(--up)':'var(--down)';}">${deltaStr}</span></div>
+        </div>
+        <div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
+          <div style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">最新方向</div>
+          <div style="font-size:20px;font-weight:700;color:${dirColor(latestDir)};line-height:1.2">${dirLabel[latestDir] || latestDir}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">${h.data_points} 筆歷史</div>
+        </div>
+        <div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
+          <div style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">趨勢</div>
+          <div style="font-size:20px;font-weight:700;color:${trendColor[trend]||'var(--flat)'};line-height:1.2">${trendLabel[trend]||trend}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">均變動 ${h.avg_delta>=0?'+':''}${h.avg_delta.toFixed(2)}</div>
+        </div>
+      </div>`;
+  }
+
+  let sparkHtml = '';
+  if (hasHistory && h.history.length >= 2) {
+    const pts = h.history;
+    const scores = pts.map(p => p.score);
+    const mn = Math.min(...scores), mx = Math.max(...scores);
+    const range = mx - mn || 1;
+    const W = 300, H = 60, pad = 8;
+    const x = (i) => pad + (i / (pts.length - 1)) * (W - pad * 2);
+    const y = (v) => H - pad - ((v - mn) / range) * (H - pad * 2);
+    const pathD = pts.map((p, i) => (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ',' + y(p.score).toFixed(1)).join(' ');
+    const lastDir = pts[pts.length-1].direction;
+    const lineCol = lastDir === 'BUY' ? '#2ea043' : lastDir === 'SELL' ? '#f85149' : '#6e7681';
+    sparkHtml = `
+      <div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:16px;overflow-x:auto">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">情緒分數走勢（${pts[0].date} → ${pts[pts.length-1].date}）</div>
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible">
+          <polyline points="${pts.map((p,i)=>x(i).toFixed(1)+','+y(p.score).toFixed(1)).join(' ')}" fill="none" stroke="${lineCol}" stroke-width="2" stroke-linejoin="round"/>
+          ${pts.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.score).toFixed(1)}" r="3" fill="${dirColor(p.direction)}" stroke="var(--bg1)" stroke-width="1"/>`).join('')}
+        </svg>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-top:4px">
+          ${pts.map(p=>`<span>${p.date.slice(5)}</span>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  let socialHtml = '';
+  if (hasSocial) {
+    const total = (s.positive + s.negative + s.neutral) || 1;
+    const posW = Math.round((s.positive / total) * 100);
+    const negW = Math.round((s.negative / total) * 100);
+    const neuW = 100 - posW - negW;
+    const headlines = s.headlines && s.headlines.length > 0
+      ? `<div style="margin-top:12px"><div style="font-size:12px;color:var(--text2);margin-bottom:6px">最新標題</div>
+          ${s.headlines.slice(0,5).map(h=>`<div style="font-size:13px;color:var(--text1);padding:4px 0;border-bottom:1px solid var(--border)">${h}</div>`).join('')}</div>`
+      : '<div style="font-size:12px;color:var(--text2);margin-top:8px">尚無新聞標題</div>';
+    socialHtml = `
+      <div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:16px">
+        <div style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">社群 / 新聞情緒 <span style="font-weight:normal;text-transform:none">（${s.source||''}）</span></div>
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <span style="font-size:13px;color:var(--text1)">新聞數：<strong>${s.news_count}</strong></span>
+          <span style="font-size:13px;color:var(--up)">正面：${s.positive}</span>
+          <span style="font-size:13px;color:var(--down)">負面：${s.negative}</span>
+          <span style="font-size:13px;color:var(--flat)">中性：${s.neutral}</span>
+        </div>
+        <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bg3)">
+          ${posW > 0 ? `<div style="width:${posW}%;background:var(--up)"></div>` : ''}
+          ${negW > 0 ? `<div style="width:${negW}%;background:var(--down)"></div>` : ''}
+          ${neuW > 0 ? `<div style="width:${neuW}%;background:var(--flat)"></div>` : ''}
+        </div>
+        ${headlines}
+      </div>`;
+  }
+
+  return `
+    <div style="font-size:15px;font-weight:600;color:var(--text0);margin-bottom:14px">
+      ${code} <span style="font-size:13px;color:var(--text2);font-weight:normal">${market}</span>
+    </div>
+    ${kpiHtml}${sparkHtml}${socialHtml}
+    ${!hasHistory ? '<div class="ic-empty-msg">無歷史情緒分數記錄</div>' : ''}
+  `;
 }
 async function icInitPage() {
   if (_icInited) return;
