@@ -9683,6 +9683,13 @@ def _ic_ensure_sentiment_table():
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY(code, date)
     )""")
+    # R-SENT 歷史快照：補欄位（冪等，舊 DB 自動 migrate）
+    cols = {r[1] for r in con.execute("PRAGMA table_info(ic_sentiment_history)").fetchall()}
+    if "source" not in cols:
+        con.execute("ALTER TABLE ic_sentiment_history ADD COLUMN source TEXT DEFAULT 'ic_scan'")
+    if "trend" not in cols:
+        con.execute("ALTER TABLE ic_sentiment_history ADD COLUMN trend TEXT")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_sent_hist_date ON ic_sentiment_history(date)")
     con.commit()
     con.close()
 
@@ -9724,6 +9731,143 @@ def _ic_get_sentiment_momentum(code: str, lookback: int = 7) -> dict:
         "trend": trend,
         "data_points": len(scores),
         "history": [{"date": r[0], "score": r[1], "direction": r[2]} for r in rows],
+    }
+
+# ── R-SENT：情緒分數每日落地（純資料管線，與策略脫鉤）──────────
+def _snapshot_sentiment_daily() -> dict:
+    """每日情緒快照：讀全 watchlist + 持倉個股的 live 情緒分數（_ic_score_stock），
+    upsert 進 ic_sentiment_history（PK=(code,date)，同日重跑覆蓋當日，冪等）。
+    回傳寫入統計。純資料：不碰 base-rate / 策略邏輯。
+    A7 情緒逆向回測之前置——每晚落地，未來才有歷史時間序列可餵。"""
+    _ic_ensure_sentiment_table()
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # 收集 watchlist + 持倉（去重；market 缺漏時用 _detect_market 推斷）
+    con = db(); cur = con.cursor()
+    cur.execute("SELECT DISTINCT code, name, market FROM watchlist")
+    wl = cur.fetchall()
+    cur.execute("SELECT DISTINCT code, name, market FROM positions WHERE status='open' OR status IS NULL")
+    pos = cur.fetchall()
+    con.close()
+
+    seen = {}
+    for c, n, m in wl:
+        if c:
+            seen[c] = (c, n, m or _detect_market(c))
+    for c, n, m in pos:
+        if c and c not in seen:
+            seen[c] = (c, n, _detect_market(c))
+
+    try:
+        macro = _fetch_macro_data()
+    except Exception:
+        macro = {}
+
+    written, skipped, failed = 0, 0, 0
+    errors = []
+    for code, name, mkt in seen.values():
+        try:
+            tech = _ic_score_stock(code, mkt)
+            if not tech:
+                skipped += 1            # 資料不足（<30 根 K）→ 略過，不寫空值
+                continue
+            score     = tech.get("score")
+            direction = tech.get("direction", "")
+            try:
+                sources    = _ic_detect_sources(code, mkt)
+                confidence = _ic_calc_confidence(tech, sources, macro)
+            except Exception:
+                confidence = None
+            # trend：以既有歷史動量計（近似，含/不含今日皆可接受，僅為便利欄位）
+            try:
+                mom   = _ic_get_sentiment_momentum(code, lookback=7)
+                trend = mom.get("trend", "") if mom else ""
+            except Exception:
+                trend = ""
+            con2 = db()
+            con2.execute(
+                "INSERT OR REPLACE INTO ic_sentiment_history"
+                "(code,market,date,score,direction,confidence,source,trend) "
+                "VALUES(?,?,?,?,?,?,?,?)",
+                (code, mkt, today, score, direction, confidence, "daily_snapshot", trend),
+            )
+            con2.commit(); con2.close()
+            written += 1
+        except Exception as e:
+            failed += 1
+            if len(errors) < 10:
+                errors.append(f"{code}: {e}")
+
+    result = {"date": today, "total": len(seen),
+              "written": written, "skipped": skipped, "failed": failed}
+    if errors:
+        result["errors"] = errors
+    print(f"[情緒快照] {today} 寫入 {written}/{len(seen)} (skip {skipped}, fail {failed})")
+    return result
+
+
+_sentiment_snapshot_next: str = ""
+
+def _sentiment_snapshot_scheduler_loop():
+    """每交易日 14:30（TW 收盤後、rec 掃描完）落地全 watchlist+持倉的情緒分數歷史。
+    可由 risk_config key='sentiment_snapshot_enabled' 設 '0' 關閉。"""
+    global _sentiment_snapshot_next
+    time.sleep(150)  # 啟動後稍候，待其他初始化完成
+    while True:
+        try:
+            con = db(); cur = con.cursor()
+            cur.execute("SELECT value FROM risk_config WHERE key='sentiment_snapshot_enabled'")
+            row = cur.fetchone(); con.close()
+            if row and row[0] == "0":
+                time.sleep(600); continue
+        except Exception:
+            time.sleep(300); continue
+        try:
+            now = datetime.now()
+            target = now.replace(hour=14, minute=30, second=0, microsecond=0)
+            if now >= target:
+                target += timedelta(days=1)
+            while target.weekday() >= 5:          # 跳過週六/日
+                target += timedelta(days=1)
+            _sentiment_snapshot_next = target.strftime("%Y-%m-%d %H:%M")
+            sleep_secs = max(1, (target - datetime.now()).total_seconds())
+            time.sleep(sleep_secs)
+            if datetime.now().weekday() >= 5:
+                continue
+            res = _snapshot_sentiment_daily()
+            print(f"[情緒快照排程] 完成：{res}")
+        except Exception as e:
+            print(f"[情緒快照排程] 失敗: {e}")
+            time.sleep(300)
+
+threading.Thread(target=_sentiment_snapshot_scheduler_loop,
+                 daemon=True, name="sentiment-snapshot-scheduler").start()
+
+@app.post("/api/sentiment/snapshot")
+def sentiment_snapshot_manual(_: None = Depends(require_token)):
+    """手動觸發一次每日情緒快照落地（require_token）。冪等：同日重跑覆蓋當日。
+    供 cockpit 今晚立即落地一次驗證用。"""
+    res = _snapshot_sentiment_daily()
+    return {"ok": True, **res}
+
+@app.get("/api/sentiment/snapshot-status")
+def sentiment_snapshot_status():
+    """情緒快照排程狀態 + 已落地統計（無需 token，供監看）。"""
+    _ic_ensure_sentiment_table()
+    con = db(); cur = con.cursor()
+    cur.execute("SELECT value FROM risk_config WHERE key='sentiment_snapshot_enabled'")
+    row = cur.fetchone()
+    cur.execute("SELECT COUNT(*), COUNT(DISTINCT code), MIN(date), MAX(date) "
+                "FROM ic_sentiment_history WHERE source='daily_snapshot'")
+    cnt, codes, mn, mx = cur.fetchone()
+    con.close()
+    return {
+        "enabled": (row[0] if row else "1") == "1",
+        "next_run": _sentiment_snapshot_next,
+        "snapshot_rows": cnt or 0,
+        "distinct_codes": codes or 0,
+        "earliest_date": mn,
+        "latest_date": mx,
     }
 
 # ── 基本面數據 ────────────────────────────────────
