@@ -895,7 +895,7 @@ def kbars_warm_up():
     _warm_up_kbars_for_market("TW", tw_cands)
     return {"total": len(tw_cands), "data": tw_cands, "results": tw_cands, "message": f"K線補齊完成（{len(tw_cands)} 檔台股）"}
 
-@app.get("/api/kbars/{code:path}")
+@app.get("/api/kbars/{code}")
 def kbars(code: str, tf: str = "D", days: int = 0, limit: int = 0, start_date: str = "", end_date: str = ""):
     """
     tf: "5" 5分K / "60" 60分K / "D" 日K

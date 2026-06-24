@@ -3734,7 +3734,8 @@ function loadBidAsk(code) {
   const tbody = document.getElementById('bidask-body');
   tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:8px;font-size:12px">連線中…</td></tr>';
 
-  const ws = new WebSocket(`ws://localhost:8765/ws/tick/${code}`);
+  const _wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${_wsProto}//${location.host}/ws/tick/${code}`);
   _baWs = ws;
 
   ws.onopen = () => {
@@ -3918,6 +3919,7 @@ async function reloadChartMarkers() {
       stratMarkers = await fetch(API+'/api/kbars/'+currentCode+'/strategy-markers?strategies='+stratIds.join(','))
         .then(r => r.json());
     } catch {}
+    if (!Array.isArray(stratMarkers)) stratMarkers = [];  // 子請求失敗/回非陣列時不炸整張圖
   }
   const macdMarkers = (_kd.markers||[]).map(m => {
     let c = m.color || '';
@@ -4736,7 +4738,8 @@ function startChartTick(code) {
   stopChartTick();
   _outsideCount = 0; _largeCount = 0;
   if (!chartsInited || !_kd) return;
-  const ws = new WebSocket(`ws://localhost:8765/ws/tick/${code}`);
+  const _wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${_wsProto}//${location.host}/ws/tick/${code}`);
   _chartWs = ws;
 
   ws.onmessage = (evt) => {

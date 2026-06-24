@@ -70,4 +70,17 @@
 4. P3 設定頁 PII gate（安全）
 
 > 修完一律**回 ngrok 複驗**才算完成（鐵律第 14 條）。
+
+---
+
+## 2026-06-24 修復與複驗結果（cockpit，從 ngrok 真實入口）
+
+| 項 | 判定 | 結果 |
+|---|---|---|
+| **BUG-1 K線路由遮蔽** | ✅ 真 bug，**已修+複驗** | backend.py:898 `{code:path}`→`{code}`；index.html 加 `if(!Array.isArray(stratMarkers)) stratMarkers=[]` 防呆。重啟後 curl：strategy-markers `404→200`、indicators 恢復 200、kbars 主端點與指數 `^TWII` 仍 200。ngrok 複驗：**K線圖完整渲染**（蠟燭+MA+買賣標記+量能），開高低量有值（開2395/高2415/低2385/量46430K），無 console error。 |
+| **BUG-2 五檔 WS 寫死** | ✅ 真 bug，**已修+複驗** | index.html 兩處 `ws://localhost:8765` → `${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws/tick/`。ngrok 複驗：「訂閱失敗」→「**等待行情…**」（WSS 連上；盤後無 tick 正常）。 |
+| **P2 集中度 bar** | ❌ **非 bug（誤判撤銷）** | DOM 實測：`.conc-bar` 寬度依比例（91%/52%/32%/16%）、顏色正確解析（orange `#ffa657`/accent `#58a6ff`/green `#3fb950`）。原判斷來自低解析深色截圖誤讀，核實後撤銷，不改 code。 |
+| **P3 設定頁 PII** | ❌ **非漏洞（誤判撤銷）** | `GET /api/risk-config` 本來就有 `Depends(require_token)`。匿名 curl → **403**；瀏覽器看得到是因 localStorage 已存 token（等於已登入）。token/password 另遮 `***`。端點已保護，撤銷，不改 code。 |
+
+**心得**：4 項裡 2 真 2 誤判。守紀律「核實才動手」避免了對正確的 code（集中度 bar、設定 gate）做沒必要的改動（churn）。真修法只動 1 行後端 + 3 行前端。
 </content>
