@@ -9524,6 +9524,37 @@ def _get_benchmark_closes(market: str) -> list:
     _RS_BENCH_TS = time.time()
     return closes
 
+# ── base-rate beta 濾網用：回測全窗 {date: close} 對照表 (R4) ──
+_BENCH_MAP_CACHE: dict = {}
+_BENCH_MAP_TS: dict = {}
+_BENCH_MAP_TTL = 1800  # 30min，沿用 RS benchmark 快取週期
+
+def _get_benchmark_close_map(market: str, start: str, end: str) -> dict:
+    """回測全窗的 {date(YYYY-MM-DD): close} 字典（US=SPY, TW=^TWII），供 base-rate
+    逐筆超額對齊持有期。用 auto_adjust=False 取「價格收盤」以與個股價格報酬對齊（公平比
+    曝險期間 alpha vs beta，不混入指數股息）。30min 快取，key=market:start:end。"""
+    key = f"{market}:{start}:{end}"
+    now = time.time()
+    if key in _BENCH_MAP_CACHE and now - _BENCH_MAP_TS.get(key, 0) < _BENCH_MAP_TTL:
+        return _BENCH_MAP_CACHE[key]
+    sym = "SPY" if market == "US" else "^TWII"
+    out = {}
+    try:
+        import yfinance as yf
+        hist = yf.Ticker(sym).history(start=start, end=end, interval="1d", auto_adjust=False)
+        if not hist.empty and "Close" in hist:
+            for idx, cl in hist["Close"].items():
+                if cl is None or cl != cl:
+                    continue
+                out[idx.strftime("%Y-%m-%d")] = float(cl)
+    except Exception as e:
+        print(f"[base-rate] benchmark map fetch failed ({sym} {start}~{end}): {e}", flush=True)
+        out = {}
+    _BENCH_MAP_CACHE[key] = out
+    _BENCH_MAP_TS[key] = now
+    print(f"[base-rate] benchmark map {sym}: {len(out)} days ({start}~{end})", flush=True)
+    return out
+
 def _calc_relative_strength(stock_closes: list, bench_closes: list) -> dict:
     """多週期相對強弱：1W(5日)/1M(21日)/3M(63日)"""
     rs = {}
@@ -12824,9 +12855,16 @@ def get_regime_history(market: str = "TW", start: str = "2020-01-01", end: str =
 # ══════════════════════════════════════════════════
 
 _BASE_RATE_THRESHOLDS = {
-    "min_N": 30,
-    "ci_lower_gt": 50,
+    # 正期望值閘（取代舊勝率 CI>50 語義；勝率降為族別分類）
+    "min_N": 30,            # 有理論
+    "min_N_no_theory": 50,  # 無理論（本批 12 策略皆有理論，預設走 30）
+    "avg_ret_ci_lower_gt": 0.0,   # 取代 ci_lower_gt:50；改用 avg_return 95%CI 下界 > 0
     "min_pl": 1.2,
+    # beta 濾網（S-03+，ALPHA 升級關）
+    "subperiod_pos_frac_min": 0.60,
+    "subperiod_min_trades": 5,
+    "subperiod_min_buckets": 3,
+    "excess_ci_lower_gt": 0.0,
 }
 
 _BASE_RATE_JOBS: dict = {}  # job_id -> {status, progress, total, rows, errors, cancelled, ...}
@@ -12842,14 +12880,15 @@ _BASE_RATE_BUY_IMPL = [
 
 
 def _net_return_pct(buy_price: float, sell_price: float, mkt: str, discount: float) -> float:
-    """單筆交易扣成本後報酬%（台股含手續費+證交稅，美股 0）"""
+    """單筆交易扣成本後報酬%（台股含手續費+證交稅；美股套買賣兩邊滑價 US_SLIPPAGE_PCT，
+    與投組引擎 7608/7632 一致，否則正EV閘對美股失真 — R0）"""
     if mkt == "TW":
         cr = TW_COMMISSION * discount
         buy_cost = buy_price * (1 + cr)
         proceeds = sell_price * (1 - cr - TW_TAX)
     else:
-        buy_cost = buy_price
-        proceeds = sell_price
+        buy_cost = buy_price * (1 + US_SLIPPAGE_PCT)
+        proceeds = sell_price * (1 - US_SLIPPAGE_PCT)
     return (proceeds - buy_cost) / buy_cost * 100 if buy_cost else 0.0
 
 
@@ -13030,8 +13069,9 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
     """
     import numpy as np
     all_dates, bar_data = preloaded
+    bench_map = _get_benchmark_close_map(mkt, start, end)  # R4：逐筆超額對照表
 
-    strat_trades = {sid: [] for sid in buy_ids}  # sid -> list of (exit_date, net_ret%)
+    strat_trades = {sid: [] for sid in buy_ids}  # sid -> list of (entry_date, exit_date, net_ret%)
 
     for ci, code in enumerate(codes):
         if should_cancel and should_cancel():
@@ -13047,20 +13087,22 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
             open_until = -1
             for i in range(f["n"]):
                 if trig[i] and i > open_until and oexit[i] >= 0 and oret[i] == oret[i]:
-                    strat_trades[sid].append((dates_c[oexit[i]], float(oret[i])))
+                    strat_trades[sid].append((dates_c[i], dates_c[oexit[i]], float(oret[i])))
                     open_until = oexit[i]
 
     # 彙總
     out = {}
     for sid in buy_ids:
-        trades = strat_trades[sid]
-        rets = [t[1] for t in trades]
+        trades = strat_trades[sid]  # list of (entry_date, exit_date, net_ret%)
+        rets = [t[2] for t in trades]
         n_tr = len(rets)
         summary = {"total_trades": n_tr, "ci_n_trades": n_tr, "market": mkt}
         if n_tr == 0:
             summary.update({"win_rate_pct": 0, "avg_trade_return_pct": 0,
                             "win_rate_ci95": [None, None], "avg_return_ci95": [None, None],
-                            "profit_loss_ratio": 0, "sharpe_ratio": 0, "max_drawdown_pct": 0})
+                            "profit_loss_ratio": 0, "sharpe_ratio": 0, "max_drawdown_pct": 0,
+                            "subperiod_pos": "0/0", "subperiod_frac": None, "subperiod_buckets": 0,
+                            "excess_avg": None, "excess_ci95": [None, None], "excess_n": 0})
             out[sid] = summary
             continue
 
@@ -13091,13 +13133,44 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
             ar_ci = [round(br[lo], 2), round(br[hi], 2)]
 
         # max drawdown：依出場日序列等權連乘
-        trades_sorted = sorted(trades, key=lambda t: t[0])
+        trades_sorted = sorted(trades, key=lambda t: t[1])  # 依 exit_date
         eq = 1.0; peak = 1.0; max_dd = 0.0
-        for _, r in trades_sorted:
-            eq *= (1 + r / 100)
+        for t in trades_sorted:
+            eq *= (1 + t[2] / 100)
             peak = max(peak, eq)
             dd = (peak - eq) / peak * 100
             max_dd = max(max_dd, dd)
+
+        # ── beta 濾網原料 (R3) ──
+        # (A) 子期間：按 entry_date 年份分桶，每桶 ≥ subperiod_min_trades 才計分
+        min_bt = _BASE_RATE_THRESHOLDS["subperiod_min_trades"]
+        year_rets: dict = {}
+        for t in trades:
+            year_rets.setdefault(t[0][:4], []).append(t[2])
+        qualified = [rs for rs in year_rets.values() if len(rs) >= min_bt]
+        n_qual = len(qualified)
+        n_pos = sum(1 for rs in qualified if (sum(rs) / len(rs)) > 0)
+        subperiod_pos = f"{n_pos}/{n_qual}"
+        subperiod_frac = round(n_pos / n_qual, 2) if n_qual else None
+
+        # (B) 逐筆對齊持有期超額 vs 基準（進場日→出場日同期間指數報酬）
+        excess = []
+        for t in trades:
+            be, bx = bench_map.get(t[0]), bench_map.get(t[1])
+            if be and bx and be > 0:
+                excess.append(t[2] - (bx / be - 1) * 100)
+        excess_n = len(excess)
+        excess_avg = round(sum(excess) / excess_n, 2) if excess_n else None
+        excess_ci = [None, None]
+        if excess_n >= 5:
+            import random
+            be_boot = []
+            for _ in range(1000):
+                idx = [random.randint(0, excess_n - 1) for __ in range(excess_n)]
+                be_boot.append(sum(excess[k] for k in idx) / excess_n)
+            be_boot.sort()
+            lo, hi = int(1000 * 0.025), int(1000 * 0.975)
+            excess_ci = [round(be_boot[lo], 2), round(be_boot[hi], 2)]
 
         summary.update({
             "win_rate_pct": round(win_rate, 1),
@@ -13107,13 +13180,25 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
             "profit_loss_ratio": round(pl_ratio, 2),
             "sharpe_ratio": round(sharpe, 2),
             "max_drawdown_pct": round(max_dd, 2),
+            "subperiod_pos": subperiod_pos,
+            "subperiod_frac": subperiod_frac,
+            "subperiod_buckets": n_qual,
+            "excess_avg": excess_avg,
+            "excess_ci95": excess_ci,
+            "excess_n": excess_n,
         })
         out[sid] = summary
     return out
 
 
 def _extract_row(s: dict, mkt: str, buy_strat: str) -> dict:
-    """從 backtest summary 萃取 base-rate row"""
+    """從 backtest summary 萃取 base-rate row。
+    三級 status（由 AIF 拍板，R2）：
+      FAIL         — 未過正期望值閘（N / 報酬CI下界 / P/L 任一不過）
+      POSITIVE_EV  — 過正EV閘但 beta 濾網未過或無法評估（可交易，帶 beta 疑慮）
+      ALPHA        — 過正EV閘 + 過 beta 濾網（真 alpha keeper）；pass==ALPHA。
+    勝率不再決定通過，僅作族別分類（均值回歸型 / 趨勢型）。"""
+    T = _BASE_RATE_THRESHOLDS
     n_trades = s.get("ci_n_trades", s.get("total_trades", 0))
     win_rate = s.get("win_rate_pct", s.get("win_rate", 0))
     wr_ci = s.get("win_rate_ci95", [None, None])
@@ -13122,19 +13207,66 @@ def _extract_row(s: dict, mkt: str, buy_strat: str) -> dict:
     pl_ratio = s.get("profit_loss_ratio", s.get("pl_ratio", 0))
     max_dd = s.get("max_drawdown_pct", s.get("max_drawdown", 0))
     sharpe = s.get("sharpe_ratio", s.get("sharpe", 0))
+    # beta 濾網原料（來自引擎彙總）
+    subperiod_pos     = s.get("subperiod_pos", "0/0")
+    subperiod_frac    = s.get("subperiod_frac")
+    subperiod_buckets = s.get("subperiod_buckets", 0)
+    excess_avg        = s.get("excess_avg")
+    excess_ci         = s.get("excess_ci95", [None, None]) or [None, None]
+    excess_n          = s.get("excess_n", 0)
 
-    ci_lower = wr_ci[0] if wr_ci[0] is not None else 0
-    passed = (n_trades >= _BASE_RATE_THRESHOLDS["min_N"]
-              and ci_lower > _BASE_RATE_THRESHOLDS["ci_lower_gt"]
-              and (pl_ratio or 0) >= _BASE_RATE_THRESHOLDS["min_pl"])
+    # ── 族別分類（勝率 CI 下界 > 50 → 均值回歸型；否則趨勢型）；不決定通過 ──
+    wr_lo = wr_ci[0] if wr_ci[0] is not None else 0
+    family = "均值回歸型" if wr_lo > 50 else "趨勢型"
 
-    reason_parts = []
-    if n_trades < _BASE_RATE_THRESHOLDS["min_N"]:
-        reason_parts.append(f"N={n_trades}<{_BASE_RATE_THRESHOLDS['min_N']}")
-    if ci_lower <= _BASE_RATE_THRESHOLDS["ci_lower_gt"]:
-        reason_parts.append(f"CI下界{ci_lower}≤{_BASE_RATE_THRESHOLDS['ci_lower_gt']}")
-    if (pl_ratio or 0) < _BASE_RATE_THRESHOLDS["min_pl"]:
-        reason_parts.append(f"PL={pl_ratio}<{_BASE_RATE_THRESHOLDS['min_pl']}")
+    # ── 第一關：正期望值閘（avg_return 95%CI 下界 > 0 且 P/L ≥ 1.2 且 N 足） ──
+    ar_lo = ar_ci[0] if ar_ci[0] is not None else None
+    ev_fail = []
+    if n_trades < T["min_N"]:
+        ev_fail.append(f"N={n_trades}<{T['min_N']}")
+    if ar_lo is None or ar_lo <= T["avg_ret_ci_lower_gt"]:
+        ev_fail.append(f"報酬CI下界{ar_lo if ar_lo is not None else 'NA'}≤{T['avg_ret_ci_lower_gt']}")
+    if (pl_ratio or 0) < T["min_pl"]:
+        ev_fail.append(f"PL={pl_ratio}<{T['min_pl']}")
+    positive_ev = not ev_fail
+
+    # ── 第二關：beta 濾網（子期間穩定 + 超額報酬，兩項皆過才 PASS） ──
+    sub_insufficient = subperiod_buckets < T["subperiod_min_buckets"]
+    exc_insufficient = excess_n < 5 or excess_ci[0] is None
+    sub_ok = subperiod_frac is not None and subperiod_frac >= T["subperiod_pos_frac_min"]
+    exc_ok = excess_ci[0] is not None and excess_ci[0] > T["excess_ci_lower_gt"]
+    if sub_insufficient or exc_insufficient:
+        beta_filter = "INSUFFICIENT"
+    else:
+        beta_filter = "PASS" if (sub_ok and exc_ok) else "FAIL"
+
+    # ── 三級 status ──
+    if not positive_ev:
+        status = "FAIL"
+    elif beta_filter == "PASS":
+        status = "ALPHA"
+    else:
+        status = "POSITIVE_EV"
+    passed = (status == "ALPHA")
+
+    # ── reason ──
+    if status == "FAIL":
+        reason = "; ".join(ev_fail)
+    elif status == "ALPHA":
+        reason = "ALPHA：過正EV+beta濾網"
+    else:  # POSITIVE_EV
+        bp = []
+        if beta_filter == "INSUFFICIENT":
+            if sub_insufficient:
+                bp.append(f"子期間合格桶{subperiod_buckets}<{T['subperiod_min_buckets']}")
+            if exc_insufficient:
+                bp.append(f"超額樣本{excess_n}<5")
+        else:
+            if not sub_ok:
+                bp.append(f"子期間僅{subperiod_pos}正<{int(T['subperiod_pos_frac_min']*100)}%")
+            if not exc_ok:
+                bp.append(f"超額CI下界{excess_ci[0]}≤0")
+        reason = "可交易(beta疑慮)：" + ("; ".join(bp) if bp else "未過beta濾網")
 
     return {
         "market": mkt, "strategy": buy_strat,
@@ -13146,8 +13278,15 @@ def _extract_row(s: dict, mkt: str, buy_strat: str) -> dict:
         "pl_ratio": round(pl_ratio, 2) if pl_ratio else 0,
         "max_dd": round(max_dd, 1) if max_dd else 0,
         "sharpe": round(sharpe, 2) if sharpe else 0,
+        "family": family,
+        "subperiod_pos": subperiod_pos,
+        "subperiod_frac": subperiod_frac,
+        "excess_avg": excess_avg,
+        "excess_ci95": excess_ci,
+        "beta_filter": beta_filter,
+        "status": status,
         "pass": passed,
-        "reason": "PASS" if passed else "; ".join(reason_parts),
+        "reason": reason,
     }
 
 
@@ -13225,7 +13364,7 @@ def _base_rate_worker(job_id: str, markets: list, buy_ids: list, sell_ids: list,
             rows.append(row)
             progress += 1
             job["progress"] = progress
-            print(f"[base-rate] {mkt}/{buy_strat}: N={row['N']} WR={row['win_rate']}% {'PASS' if row['pass'] else 'FAIL'}", flush=True)
+            print(f"[base-rate] {mkt}/{buy_strat}: N={row['N']} WR={row['win_rate']}% retCI={row['avg_return_ci95']} beta={row['beta_filter']} → {row['status']}", flush=True)
 
     job["progress"] = progress
     job["current"] = ""

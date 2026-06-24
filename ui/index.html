@@ -5900,6 +5900,14 @@ function brSetMsg(msg, type) {
   el.style.display = msg ? '' : 'none';
 }
 
+function brStatusBadge(st) {
+  if (st === 'ALPHA')
+    return `<span title="過正EV閘 + 過 beta 濾網（真 alpha keeper）" style="display:inline-block;padding:2px 8px;background:var(--green);color:#08130c;border-radius:3px;font-size:11px;font-weight:700;font-family:ui-monospace,monospace">ALPHA</span>`;
+  if (st === 'POSITIVE_EV')
+    return `<span title="過正EV閘但 beta 濾網未過/無法評估（可交易，帶 beta 疑慮）" style="display:inline-block;padding:2px 8px;background:rgba(210,153,34,0.16);color:var(--yellow);border:1px solid var(--yellow);border-radius:3px;font-size:11px;font-weight:600;font-family:ui-monospace,monospace">POSITIVE_EV</span>`;
+  return `<span title="未過正期望值閘" style="display:inline-block;padding:2px 8px;background:var(--bg3);color:var(--text3);border:1px solid var(--border);border-radius:3px;font-size:11px;font-family:ui-monospace,monospace">FAIL</span>`;
+}
+
 function brRender(rows, meta) {
   const el = document.getElementById('br-table-wrap');
   if (!el) return;
@@ -5909,57 +5917,73 @@ function brRender(rows, meta) {
   const runAt     = meta.run_at ? new Date(meta.run_at).toLocaleString('zh-TW') : '';
   const histFrom  = meta.history_from || '';
   const sellLabel = (meta.sell_strategies || []).join(' + ');
-  const passCount = rows.filter(r => r.pass).length;
+  // 向後相容：舊資料無 status 時用 r.pass 推回
+  const stOf = r => r.status || (r.pass ? 'ALPHA' : 'FAIL');
+  const cAlpha = rows.filter(r => stOf(r) === 'ALPHA').length;
+  const cPos   = rows.filter(r => stOf(r) === 'POSITIVE_EV').length;
+  const cFail  = rows.length - cAlpha - cPos;
 
+  const ord = { ALPHA: 0, POSITIVE_EV: 1, FAIL: 2 };
   const sorted = [...rows].sort((a, b) => {
-    if (a.pass !== b.pass) return a.pass ? -1 : 1;
-    return b.win_rate - a.win_rate;
+    const oa = ord[stOf(a)] ?? 3, ob = ord[stOf(b)] ?? 3;
+    if (oa !== ob) return oa - ob;
+    return (b.avg_return || 0) - (a.avg_return || 0);  // 同級內按平均報酬降冪
   });
+
+  const ci = a => (a && a[0] != null && a[1] != null) ? `[${a[0].toFixed(1)}, ${a[1].toFixed(1)}]` : '—';
 
   const metaBar = `<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;font-size:12px;color:var(--text3);margin-bottom:12px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
     <span>計算時間：${runAt}</span><span>歷史起始：${histFrom}</span>
     <span>出場：${sellLabel}</span>
-    <span>N≥${thr.min_N||30} | CI下界&gt;${thr.ci_lower_gt||50}% | P/L≥${thr.min_pl||1.2}</span>
-    <span style="font-weight:600;color:${passCount > 0 ? 'var(--green)' : 'var(--text2)'}">通過 ${passCount}/${rows.length}</span>
+    <span title="通過分級：先過正EV閘(可交易)，再過 beta 濾網才升 ALPHA">N≥${thr.min_N||30} ｜ 報酬CI下界&gt;${thr.avg_ret_ci_lower_gt!=null?thr.avg_ret_ci_lower_gt:0} ｜ P/L≥${thr.min_pl||1.2} ｜ +beta濾網=ALPHA</span>
+    <span style="margin-left:auto;display:flex;gap:12px;font-weight:600;font-variant-numeric:tabular-nums">
+      <span style="color:var(--green)">ALPHA ${cAlpha}</span>
+      <span style="color:var(--yellow)">POSITIVE_EV ${cPos}</span>
+      <span style="color:var(--text3)">FAIL ${cFail}</span>
+    </span>
   </div>`;
 
   const tbody = sorted.map(r => {
-    const rowStyle  = r.pass ? 'background:rgba(63,185,80,0.06)' : r.win_rate_ci95[0] > 45 ? 'background:rgba(210,153,34,0.05)' : '';
+    const st        = stOf(r);
+    const rowStyle  = st === 'ALPHA' ? 'background:rgba(63,185,80,0.07)' : st === 'POSITIVE_EV' ? 'background:rgba(210,153,34,0.05)' : '';
     const wrColor   = r.win_rate >= 55 ? 'var(--green)' : r.win_rate >= 50 ? 'var(--yellow)' : 'var(--text)';
     const retColor  = r.avg_return > 0 ? 'var(--green)' : r.avg_return < 0 ? 'var(--red)' : 'var(--text)';
-    const passBadge = r.pass
-      ? `<span style="display:inline-block;padding:2px 8px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-d);border-radius:3px;font-size:11px;font-weight:600;font-family:ui-monospace,monospace">PASS</span>`
-      : `<span style="display:inline-block;padding:2px 8px;background:var(--bg3);color:var(--text3);border:1px solid var(--border);border-radius:3px;font-size:11px;font-family:ui-monospace,monospace">FAIL</span>`;
+    // beta 濾網兩欄
+    const subFrac   = r.subperiod_frac;
+    const subColor  = subFrac == null ? 'var(--text3)' : subFrac >= (thr.subperiod_pos_frac_min||0.6) ? 'var(--green)' : 'var(--text2)';
+    const subTxt    = r.beta_filter === 'INSUFFICIENT' && (r.subperiod_pos === '0/0' || subFrac == null) ? '桶不足' : (r.subperiod_pos || '—');
+    const excLo     = (r.excess_ci95 && r.excess_ci95[0] != null) ? r.excess_ci95[0] : null;
+    const excColor  = excLo == null ? 'var(--text3)' : excLo > 0 ? 'var(--green)' : 'var(--red)';
+    const excTxt    = (r.excess_avg == null)
+      ? '<span style="color:var(--text3)">樣本不足</span>'
+      : `<span style="color:${excColor}">${r.excess_avg >= 0 ? '+' : ''}${r.excess_avg.toFixed(1)}%</span> <span style="color:var(--text3);font-size:11px">${ci(r.excess_ci95)}</span>`;
     return `<tr style="${rowStyle}">
       <td style="padding:7px 10px;font-family:ui-monospace,monospace;font-size:12px;color:var(--blue);white-space:nowrap">${r.strategy}</td>
       <td style="padding:7px 10px;font-size:13px">${r.market}</td>
-      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${r.N.toLocaleString()}</td>
-      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;color:${wrColor}">${r.win_rate.toFixed(1)}%</td>
-      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--text2);white-space:nowrap">[${r.win_rate_ci95[0].toFixed(1)}, ${r.win_rate_ci95[1].toFixed(1)}]</td>
-      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:${retColor}">${r.avg_return >= 0 ? '+' : ''}${r.avg_return.toFixed(1)}%</td>
-      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--text2);white-space:nowrap">[${r.avg_return_ci95[0].toFixed(1)}, ${r.avg_return_ci95[1].toFixed(1)}]</td>
-      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${r.pl_ratio.toFixed(2)}</td>
-      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:var(--text2)">${r.sharpe.toFixed(2)}</td>
-      <td style="padding:7px 10px;text-align:center">${passBadge}</td>
-      <td style="padding:7px 10px;font-size:12px;color:var(--text3);max-width:200px">${r.reason || ''}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--text2);white-space:nowrap">${r.family || '—'}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${(r.N||0).toLocaleString()}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;color:${wrColor}">${(r.win_rate||0).toFixed(1)}%</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--text2);white-space:nowrap">${ci(r.win_rate_ci95)}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:${retColor}">${(r.avg_return||0) >= 0 ? '+' : ''}${(r.avg_return||0).toFixed(1)}%</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--text2);white-space:nowrap">${ci(r.avg_return_ci95)}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${(r.pl_ratio||0).toFixed(2)}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:${subColor};white-space:nowrap">${subTxt}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${excTxt}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:var(--text2)">${(r.sharpe||0).toFixed(2)}</td>
+      <td style="padding:7px 10px;text-align:center">${brStatusBadge(st)}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--text3);max-width:220px">${r.reason || ''}</td>
     </tr>`;
   }).join('');
 
+  const th = (label, align, nowrap) => `<th style="padding:8px 10px;text-align:${align};font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)${nowrap ? ';white-space:nowrap' : ''}">${label}</th>`;
   el.innerHTML = metaBar + `<div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)">
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead style="position:sticky;top:0;background:var(--bg3);z-index:1">
         <tr>
-          <th style="padding:8px 10px;text-align:left;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">策略</th>
-          <th style="padding:8px 10px;text-align:left;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">市場</th>
-          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">N</th>
-          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">勝率</th>
-          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">95% CI</th>
-          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">平均報酬</th>
-          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">報酬 CI</th>
-          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">P/L</th>
-          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">Sharpe</th>
-          <th style="padding:8px 10px;text-align:center;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">結果</th>
-          <th style="padding:8px 10px;text-align:left;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">未通過原因</th>
+          ${th('策略','left',true)}${th('市場','left',false)}${th('族別','left',true)}${th('N','right',false)}
+          ${th('勝率','right',true)}${th('勝率 CI','right',true)}${th('平均報酬','right',true)}${th('報酬 CI','right',true)}
+          ${th('P/L','right',false)}${th('子期間','right',true)}${th('超額報酬','right',true)}${th('Sharpe','right',false)}
+          ${th('狀態','center',false)}${th('原因','left',false)}
         </tr>
       </thead>
       <tbody>${tbody}</tbody>
