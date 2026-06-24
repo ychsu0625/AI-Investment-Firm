@@ -383,6 +383,24 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .lock-btn.lock{background:var(--red-d);color:var(--red)}
 .lock-btn.unlock{background:var(--green-d);color:var(--green)}
 
+/* G-05: Market Regime Card */
+#regime-card{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.regime-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px}
+.regime-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.regime-mkt-label{font-size:12px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.regime-badge{padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:.3px;border:1px solid currentColor}
+.regime-badge.TREND_UP{color:#3fb950;background:rgba(63,185,80,.12)}
+.regime-badge.MEAN_REVERT{color:#d29922;background:rgba(210,153,34,.12)}
+.regime-badge.RISK_OFF{color:#ffa657;background:rgba(255,166,87,.12)}
+.regime-badge.CRISIS{color:#f85149;background:rgba(248,81,73,.12)}
+.regime-name{font-size:12px;color:var(--text2);margin-left:auto}
+.regime-metrics{display:grid;grid-template-columns:1fr 1fr;gap:3px 16px}
+.regime-metric{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:2px 0}
+.regime-metric-label{color:var(--text3)}
+.regime-metric-val{font-variant-numeric:tabular-nums;font-weight:600;color:var(--text)}
+.regime-footer{font-size:12px;color:var(--text3);margin-top:6px;text-align:right}
+@media(max-width:600px){#regime-card{grid-template-columns:1fr}}
+
 /* ── 風控設定 ── */
 .settings-form{max-width:500px}
 .sf-group{margin-bottom:20px}
@@ -697,6 +715,38 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           <div class="macro-chip"><span class="mc-label">US10Y</span><span class="mc-val" id="mc-us10y">--</span></div>
           <div class="macro-chip"><span class="mc-label">ES期貨</span><span class="mc-val" id="mc-es">--</span></div>
           <div class="macro-chip"><span class="mc-label">加權指數</span><span class="mc-val" id="mc-twii">--</span></div>
+        </div>
+
+        <!-- G-05: Market Regime Card -->
+        <div id="regime-card">
+          <div class="regime-panel">
+            <div class="regime-header">
+              <span class="regime-mkt-label">TW 台股</span>
+              <span class="regime-badge" id="regime-badge-tw">--</span>
+              <span class="regime-name" id="regime-name-tw"></span>
+            </div>
+            <div class="regime-metrics">
+              <div class="regime-metric"><span class="regime-metric-label">VIX</span><span class="regime-metric-val" id="r-tw-vix">--</span></div>
+              <div class="regime-metric"><span class="regime-metric-label">ATR 比</span><span class="regime-metric-val" id="r-tw-atr">--</span></div>
+              <div class="regime-metric"><span class="regime-metric-label">偏離 MA20</span><span class="regime-metric-val" id="r-tw-dev">--</span></div>
+              <div class="regime-metric"><span class="regime-metric-label">今日漲跌</span><span class="regime-metric-val" id="r-tw-chg">--</span></div>
+            </div>
+            <div class="regime-footer" id="regime-date-tw"></div>
+          </div>
+          <div class="regime-panel">
+            <div class="regime-header">
+              <span class="regime-mkt-label">US 美股</span>
+              <span class="regime-badge" id="regime-badge-us">--</span>
+              <span class="regime-name" id="regime-name-us"></span>
+            </div>
+            <div class="regime-metrics">
+              <div class="regime-metric"><span class="regime-metric-label">VIX</span><span class="regime-metric-val" id="r-us-vix">--</span></div>
+              <div class="regime-metric"><span class="regime-metric-label">ATR 比</span><span class="regime-metric-val" id="r-us-atr">--</span></div>
+              <div class="regime-metric"><span class="regime-metric-label">偏離 MA20</span><span class="regime-metric-val" id="r-us-dev">--</span></div>
+              <div class="regime-metric"><span class="regime-metric-label">今日漲跌</span><span class="regime-metric-val" id="r-us-chg">--</span></div>
+            </div>
+            <div class="regime-footer" id="regime-date-us"></div>
+          </div>
         </div>
 
         <!-- TW 台股區塊 -->
@@ -3712,6 +3762,7 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
   loadWatchlist();
   loadPositionsMini();
   loadSignals();
+  loadRegimeCard();
 })();
 
 window.addEventListener('resize', () => { if (chartsInited) resizeCharts(); });
@@ -4863,6 +4914,31 @@ function switchMarket(mkt) {
   document.getElementById('home-us').style.display = mkt==='US' ? '' : 'none';
   if (mkt==='US') { loadUSIndices(); loadUSWatchlist(); loadUSPositionsMini(); loadUSSignals(); }
   else { loadWatchlist(); loadPositionsMini(); loadSignals(); }
+}
+
+// G-05: 4-regime environment card
+const _REGIME_ZH = {TREND_UP:'趨勢上行', MEAN_REVERT:'震盪回歸', RISK_OFF:'風險規避', CRISIS:'危機模式'};
+async function loadRegimeCard() {
+  async function fillPanel(mkt, sfx) {
+    try {
+      const d = await fetch(API + '/api/regime?market=' + mkt, {headers: authHeaders()}).then(r => r.json());
+      const badge = document.getElementById('regime-badge-' + sfx);
+      badge.textContent = d.regime || '--';
+      badge.className = 'regime-badge ' + (d.regime || '');
+      document.getElementById('regime-name-' + sfx).textContent = _REGIME_ZH[d.regime] || '';
+      const inp = d.inputs || {};
+      document.getElementById('r-' + sfx + '-vix').textContent = inp.vix != null ? inp.vix.toFixed(1) : '--';
+      document.getElementById('r-' + sfx + '-atr').textContent = inp.atr_ratio != null ? inp.atr_ratio.toFixed(3) : '--';
+      const devPct = inp.deviation_from_ma20 != null ? inp.deviation_from_ma20 * 100 : null;
+      document.getElementById('r-' + sfx + '-dev').textContent = devPct != null ? (devPct >= 0 ? '+' : '') + devPct.toFixed(1) + '%' : '--';
+      const chg = inp.daily_change_pct;
+      const chgEl = document.getElementById('r-' + sfx + '-chg');
+      chgEl.textContent = chg != null ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '--';
+      chgEl.style.color = chg > 0 ? 'var(--green)' : chg < 0 ? 'var(--red)' : '';
+      document.getElementById('regime-date-' + sfx).textContent = d.date ? '更新：' + d.date : '';
+    } catch {}
+  }
+  Promise.all([fillPanel('TW', 'tw'), fillPanel('US', 'us')]);
 }
 
 async function loadUSSignals() {
