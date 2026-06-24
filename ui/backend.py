@@ -9525,19 +9525,22 @@ def _get_benchmark_closes(market: str) -> list:
     return closes
 
 # ── base-rate beta 濾網用：回測全窗 {date: close} 對照表 (R4) ──
-_BENCH_MAP_CACHE: dict = {}
+# 公平基準（§三E）：逐筆超額可選 ^TWII(市值加權,預設) / 等權 universe / 0050，
+# 脫離市值加權 ^TWII 的台積電(>30%權重)偏誤，回答「中小型策略是不是被偏誤尺冤殺」。
+_BENCH_MAP_CACHE: dict = {}    # key = "<sym>:<start>:<end>" → {date: close}
 _BENCH_MAP_TS: dict = {}
 _BENCH_MAP_TTL = 1800  # 30min，沿用 RS benchmark 快取週期
+_EW_MIN_STOCKS = 10    # 等權基準：當日有效股 < 此數則該日報酬視為 0（暖身/稀疏防呆，§三E）
+_BENCHMARK_WHITELIST = ("twii", "equal_weight", "0050")  # run_base_rate benchmark 白名單
 
-def _get_benchmark_close_map(market: str, start: str, end: str) -> dict:
-    """回測全窗的 {date(YYYY-MM-DD): close} 字典（US=SPY, TW=^TWII），供 base-rate
-    逐筆超額對齊持有期。用 auto_adjust=False 取「價格收盤」以與個股價格報酬對齊（公平比
-    曝險期間 alpha vs beta，不混入指數股息）。30min 快取，key=market:start:end。"""
-    key = f"{market}:{start}:{end}"
+def _fetch_index_close_map(sym: str, start: str, end: str) -> dict:
+    """抓任一指數/ETF 的 {date(YYYY-MM-DD): close} 字典（auto_adjust=False 取「價格收盤」，
+    與個股價格報酬對齊、不混入指數股息）。30min 快取，key=sym:start:end。
+    供公平基準 0050 與既有 ^TWII/SPY 共用同一條取數路徑。"""
+    key = f"{sym}:{start}:{end}"
     now = time.time()
     if key in _BENCH_MAP_CACHE and now - _BENCH_MAP_TS.get(key, 0) < _BENCH_MAP_TTL:
         return _BENCH_MAP_CACHE[key]
-    sym = "SPY" if market == "US" else "^TWII"
     out = {}
     try:
         import yfinance as yf
@@ -9548,12 +9551,55 @@ def _get_benchmark_close_map(market: str, start: str, end: str) -> dict:
                     continue
                 out[idx.strftime("%Y-%m-%d")] = float(cl)
     except Exception as e:
-        print(f"[base-rate] benchmark map fetch failed ({sym} {start}~{end}): {e}", flush=True)
+        print(f"[base-rate] index map fetch failed ({sym} {start}~{end}): {e}", flush=True)
         out = {}
     _BENCH_MAP_CACHE[key] = out
     _BENCH_MAP_TS[key] = now
-    print(f"[base-rate] benchmark map {sym}: {len(out)} days ({start}~{end})", flush=True)
+    print(f"[base-rate] index map {sym}: {len(out)} days ({start}~{end})", flush=True)
     return out
+
+def _get_benchmark_close_map(market: str, start: str, end: str) -> dict:
+    """回測全窗的 {date(YYYY-MM-DD): close} 字典（US=SPY, TW=^TWII），供 base-rate
+    逐筆超額對齊持有期 + 橫斷面相對/殘差因子。用「價格收盤」與個股價格報酬對齊（公平比
+    曝險期間 alpha vs beta，不混入指數股息）。預設市值加權基準，行為與既往一致（零回歸）。"""
+    sym = "SPY" if market == "US" else "^TWII"
+    return _fetch_index_close_map(sym, start, end)
+
+def _equal_weight_bench_map(codes: list, all_dates: list, bar_data: dict) -> dict:
+    """等權 universe 公平基準（§三E，脫離市值加權 ^TWII 的台積電偏誤）：每個交易日對
+    「當日與前一交易日皆有報價」的個股取『等權平均日報酬』（每日重平衡），累乘成淨值序列。
+    回傳 {date: 累積淨值}，與 _get_benchmark_close_map 同口徑（價格報酬、gross，逐筆超額
+    用 NAV[exit]/NAV[entry]-1）。零新數據源：純由既有載入的 bar_data 計算。
+    防呆：close 為 None/NaN/≤0 不計入當日；當日有效股 < _EW_MIN_STOCKS 則該日報酬視為 0
+    （淨值持平，不以稀疏暖身期污染基準）。"""
+    if not all_dates:
+        return {}
+    level = 1.0
+    nav = {all_dates[0]: level}
+    prev = all_dates[0]
+    for d in all_dates[1:]:
+        rets = []
+        for code in codes:
+            b0 = bar_data.get((code, prev))
+            b1 = bar_data.get((code, d))
+            if not b0 or not b1:
+                continue
+            c0 = b0.get("close"); c1 = b1.get("close")
+            if c0 is None or c1 is None or c0 != c0 or c1 != c1 or c0 <= 0 or c1 <= 0:
+                continue
+            rets.append(c1 / c0 - 1.0)
+        if len(rets) >= _EW_MIN_STOCKS:
+            level *= (1.0 + sum(rets) / len(rets))   # 等權日報酬累乘
+        nav[d] = level
+        prev = d
+    return nav
+
+def _benchmark_label(benchmark: str) -> str:
+    """公平基準的顯示標籤（job 層級，metaBar/矩陣標題用）。"""
+    return {
+        "equal_weight": "等權 universe（每日重平衡）",
+        "0050": "0050 ETF（台股；美股退回 SPY）",
+    }.get((benchmark or "twii").lower(), "市值加權（^TWII / SPY）")
 
 def _calc_relative_strength(stock_closes: list, bench_closes: list) -> dict:
     """多週期相對強弱：1W(5日)/1M(21日)/3M(63日)"""
@@ -13158,7 +13204,8 @@ def _emit_trades(sid: str, trig, f: dict, rank_map, thresh: float, dst: list):
 def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
                            buy_ids: list, preloaded: tuple,
                            progress_cb=None, should_cancel=None,
-                           cs_top_k: float = _CS_DEFAULT_K, cs_overlay_factor: str = None) -> dict:
+                           cs_top_k: float = _CS_DEFAULT_K, cs_overlay_factor: str = None,
+                           benchmark: str = "twii") -> dict:
     """
     trade-level 事件研究：每股算一次 outcome 表+指標，各進場策略只查表統計。
     回傳 {strategy: summary_dict}，summary 欄位對齊 _extract_row 期望。
@@ -13170,7 +13217,22 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
     """
     import numpy as np
     all_dates, bar_data = preloaded
-    bench_map = _get_benchmark_close_map(mkt, start, end)  # R4：逐筆超額對照表
+    bench_map = _get_benchmark_close_map(mkt, start, end)  # CS 相對/殘差因子訊號用（^TWII/SPY，不變）
+
+    # ── 公平基準（§三E）：逐筆超額（ALPHA 閘）的對照表，可選 twii/equal_weight/0050 ──
+    # 注意：訊號定義(rel_str/resid_mom) 仍對 ^TWII，只有「ALPHA 閘的逐筆超額」換基準，
+    # 以隔離測「閘基準是否偏誤」。benchmark='twii' 時 excess_bench_map 即 bench_map（零回歸）。
+    _bench = (benchmark or "twii").lower()
+    if _bench == "equal_weight":
+        excess_bench_map = _equal_weight_bench_map(codes, all_dates, bar_data)
+        print(f"[base-rate] {mkt}: excess benchmark = 等權 universe ({len(excess_bench_map)} days)", flush=True)
+    elif _bench == "0050" and mkt == "TW":
+        _m0050 = _fetch_index_close_map("0050.TW", start, end)
+        excess_bench_map = _m0050 if _m0050 else bench_map
+        print(f"[base-rate] {mkt}: excess benchmark = 0050.TW "
+              f"({len(excess_bench_map)} days{'' if _m0050 else ', 抓取失敗→退回市值加權'})", flush=True)
+    else:
+        excess_bench_map = bench_map  # twii 預設（或 0050 在非 TW 市場 → 退回該市場指數）
 
     strat_trades = {sid: [] for sid in buy_ids}  # sid -> list of (entry_date, exit_date, net_ret%)
     cs_ids = [s for s in buy_ids if s in _BASE_RATE_CS_STRATS]
@@ -13317,7 +13379,7 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
         excess = []
         down_excess = []   # §5.3 下行超額子測試：僅 2022 空頭桶（entry 年份）的逐筆超額
         for t in trades:
-            be, bx = bench_map.get(t[0]), bench_map.get(t[1])
+            be, bx = excess_bench_map.get(t[0]), excess_bench_map.get(t[1])
             if be and bx and be > 0:
                 e = t[2] - (bx / be - 1) * 100
                 excess.append(e)
@@ -13483,7 +13545,8 @@ def _extract_row(s: dict, mkt: str, buy_strat: str) -> dict:
 
 
 def _base_rate_worker(job_id: str, markets: list, buy_ids: list, sell_ids: list, start: str, end: str,
-                      cs_top_k: float = _CS_DEFAULT_K, cs_overlay_factor: str = None):
+                      cs_top_k: float = _CS_DEFAULT_K, cs_overlay_factor: str = None,
+                      benchmark: str = "twii"):
     """compute-once: 每個市場只載入一次資料，所有策略共用同一份 bar_data"""
     job = _BASE_RATE_JOBS[job_id]
     rows = []
@@ -13542,6 +13605,7 @@ def _base_rate_worker(job_id: str, markets: list, buy_ids: list, sell_ids: list,
                 mkt, codes, start, end, buy_ids, preloaded,
                 progress_cb=_prog, should_cancel=lambda: job.get("cancelled"),
                 cs_top_k=cs_top_k, cs_overlay_factor=cs_overlay_factor,
+                benchmark=benchmark,
             )
         except Exception as e:
             import traceback; traceback.print_exc()
@@ -13589,18 +13653,23 @@ def run_base_rate(config: dict):
     cs_overlay_factor = config.get("cs_overlay_factor")  # None 或 raw_mom/rel_str/resid_mom
     if cs_overlay_factor not in (None, "raw_mom", "rel_str", "resid_mom"):
         cs_overlay_factor = None
+    # 公平基準（§三E）：ALPHA 閘逐筆超額對照基準。白名單外一律退回 twii（市值加權，現況）。
+    benchmark = str(config.get("benchmark", "twii")).lower()
+    if benchmark not in _BENCHMARK_WHITELIST:
+        benchmark = "twii"
 
     job_id = secrets.token_hex(8)
     _BASE_RATE_JOBS[job_id] = {
         "status": "starting", "progress": 0, "total": 0, "current": "",
         "rows": [], "errors": None, "cancelled": False,
         "config": {"markets": markets, "buy_strategies": buy_ids, "sell_strategies": sell_ids,
-                   "start": start, "end": end, "cs_top_k": cs_top_k, "cs_overlay_factor": cs_overlay_factor},
+                   "start": start, "end": end, "cs_top_k": cs_top_k, "cs_overlay_factor": cs_overlay_factor,
+                   "benchmark": benchmark},
         "started_at": datetime.now().isoformat(), "completed_at": None,
     }
 
     threading.Thread(target=_base_rate_worker,
-                     args=(job_id, markets, buy_ids, sell_ids, start, end, cs_top_k, cs_overlay_factor),
+                     args=(job_id, markets, buy_ids, sell_ids, start, end, cs_top_k, cs_overlay_factor, benchmark),
                      daemon=True).start()
     return {"ok": True, "job_id": job_id, "message": f"Base rate job started: {len(buy_ids)} strategies × {len(markets)} markets. Poll GET /api/backtest/base-rate/{job_id} for progress."}
 
@@ -13639,6 +13708,8 @@ def get_base_rate_status(job_id: str):
         resp["history_from"] = job["config"]["start"]
         resp["cs_top_k"] = job["config"].get("cs_top_k")
         resp["cs_overlay_factor"] = job["config"].get("cs_overlay_factor")
+        resp["benchmark"] = job["config"].get("benchmark", "twii")
+        resp["benchmark_label"] = _benchmark_label(resp["benchmark"])
     return resp
 
 

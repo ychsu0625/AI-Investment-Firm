@@ -1881,6 +1881,12 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
               <div>
                 <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">歷史起始</div>
                 <input type="date" id="br-start" value="2022-01-01" style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);font-size:13px">
+                <div style="margin-top:12px;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:4px" title="ALPHA 閘逐筆超額的對照基準。市值加權 ^TWII 台積電權重>30%，對中小型策略是高門檻；等權為公平對照（§三E）">公平基準（ALPHA 閘）</div>
+                <select id="br-benchmark" style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);font-size:13px;width:100%;max-width:220px">
+                  <option value="twii" selected>市值加權 ^TWII（預設）</option>
+                  <option value="equal_weight">等權 universe（公平基準）</option>
+                  <option value="0050">0050 ETF（台股）</option>
+                </select>
                 <div style="margin-top:12px;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:4px">出場策略（固定）</div>
                 <div style="font-size:12px;color:var(--text3);font-family:ui-monospace,monospace;letter-spacing:.3px">EXIT_C + EXIT_D</div>
               </div>
@@ -5829,6 +5835,11 @@ function brCsTopK() {
   return (isFinite(v) && v > 0) ? Math.min(v, 100) / 100 : 0.20;
 }
 
+// 公平基準（§三E）：ALPHA 閘逐筆超額對照基準（twii 預設 / equal_weight / 0050）
+function brBenchmark() {
+  return (document.getElementById('br-benchmark') || {}).value || 'twii';
+}
+
 async function brStart(payload, runMsg) {
   brClearPoll();
   brSetState('running');
@@ -5858,7 +5869,7 @@ async function brSubmit() {
   if (!markets.length) { brSetMsg('請至少選一個市場', 'warn'); return; }
   if (!buys.length)    { brSetMsg('請至少選一個進場策略', 'warn'); return; }
 
-  brStart({markets, buy_strategies: buys, sell_strategies: ['EXIT_C', 'EXIT_D'], start, cs_top_k: brCsTopK()});
+  brStart({markets, buy_strategies: buys, sell_strategies: ['EXIT_C', 'EXIT_D'], start, cs_top_k: brCsTopK(), benchmark: brBenchmark()});
 }
 
 // H-A1 對照實驗：絕對 vs 相對 vs 殘差 三版同跑（§5.2），驗證 beta→alpha 機制
@@ -5870,7 +5881,7 @@ async function brRunA1() {
     markets,
     buy_strategies: ['A1_RAW', 'A1_REL', 'A1_RESID'],
     sell_strategies: ['EXIT_C', 'EXIT_D'],
-    start, cs_top_k: brCsTopK()
+    start, cs_top_k: brCsTopK(), benchmark: brBenchmark()
   }, 'A1 對照實驗計算中…（殘差動量需滾動回歸，較久）');
 }
 
@@ -5975,6 +5986,7 @@ function brRender(rows, meta) {
   const metaBar = `<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;font-size:12px;color:var(--text3);margin-bottom:12px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
     <span>計算時間：${runAt}</span><span>歷史起始：${histFrom}</span>
     <span>出場：${sellLabel}</span>
+    <span title="ALPHA 閘逐筆超額的對照基準（§三E 公平基準）。等權=脫離市值加權 ^TWII 台積電偏誤的公平對照" style="color:${(meta.benchmark&&meta.benchmark!=='twii')?'var(--blue)':'var(--text3)'}">基準=${meta.benchmark_label || '市值加權（^TWII / SPY）'}</span>
     <span title="通過分級：先過正EV閘(可交易)，再過 beta 濾網才升 ALPHA">N≥${thr.min_N||30} ｜ 報酬CI下界&gt;${thr.avg_ret_ci_lower_gt!=null?thr.avg_ret_ci_lower_gt:0} ｜ P/L≥${thr.min_pl||1.2} ｜ +beta濾網=ALPHA</span>
     <span title="§5.3 補強：2022超額=空頭桶逐筆超額(防禦型 alpha 應為正)；IR=超額/超額波動(資訊比率)">＋2022超額/IR（防誤殺防禦型）</span>
     <span style="margin-left:auto;display:flex;gap:12px;font-weight:600;font-variant-numeric:tabular-nums">
