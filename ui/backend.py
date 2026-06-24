@@ -6620,7 +6620,7 @@ def _apply_params_to_config(params: dict):
             if s["id"] == sid and "params" in s:
                 for p in s["params"]:
                     if p["key"] == key:
-                        p["default"] = val
+                        p["value"] = val
                         break
 
 def _read_current_params(strategy_ids: list) -> dict:
@@ -6628,7 +6628,7 @@ def _read_current_params(strategy_ids: list) -> dict:
     for s in STRATEGIES:
         if s["id"] in strategy_ids and "params" in s:
             for p in s["params"]:
-                params[f"{s['id']}.{p['key']}"] = p["default"]
+                params[f"{s['id']}.{p['key']}"] = p.get("value", p["default"])
     return params
 
 def _run_backtest_with_params(params: dict, base_config: dict) -> dict:
