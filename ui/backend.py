@@ -13393,7 +13393,7 @@ if __name__ == "__main__":
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
     mode = "Simulation" if SIMULATION else "PRODUCTION"
-    print(f"[Smart Monitor v2.0] http://localhost:8765  [{mode}]")
+    print(f"[Smart Monitor v4 (v2.0 base)] http://localhost:8766  [{mode}]")
     print(f"[Security] API Token: {_API_TOKEN}")
     print(f"[Security] Token file: {_TOKEN_FILE}")
     print(f"[Security] Bound to 127.0.0.1 (localhost only)")
@@ -13404,4 +13404,4 @@ if __name__ == "__main__":
         print("[Startup] Shioaji ready.", flush=True)
     except Exception as e:
         print(f"[Startup] Shioaji login failed (non-fatal): {e}", flush=True)
-    uvicorn.run(app, host="127.0.0.1", port=8765, reload=False)
+    uvicorn.run(app, host="127.0.0.1", port=8766, reload=False)

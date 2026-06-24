@@ -2238,9 +2238,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 // 自動偵測 API 基底：本機用 localhost，ngrok 用當前 origin
-const API = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-  ? 'http://localhost:8765'
-  : location.origin;
+const API = location.origin;
 let _apiToken = '';  // 從後端取得的 API Token（每次啟動重新產生）
 
 /** 回傳含 X-API-Token 的 headers 物件，用於所有高危變更端點 */
