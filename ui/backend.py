@@ -6916,7 +6916,7 @@ def _iteration_controller(sid: int):
                     round_result = {"sharpe": s.get("sharpe_ratio", 0), "winrate": s.get("win_rate_pct", 0),
                                     "max_dd": s.get("max_drawdown_pct", 0), "return_pct": s.get("total_return_pct", 0),
                                     "trades": s.get("total_trades", 0)}
-                else:
+                elif "ai" in layers:
                     layer = "ai"
                     bt = _run_backtest_with_params(best_params, base_config)
                     total_runs += 1
@@ -6930,6 +6930,10 @@ def _iteration_controller(sid: int):
                     round_result = {"sharpe": s.get("sharpe_ratio", 0), "winrate": s.get("win_rate_pct", 0),
                                     "max_dd": s.get("max_drawdown_pct", 0), "return_pct": s.get("total_return_pct", 0),
                                     "trades": s.get("total_trades", 0), "ai_analysis": ai_result}
+                else:
+                    # G-17: 沒有可再優化的層（如只選 grid），grid 跑完即收斂，不再無條件跑 AI 輪次
+                    _iter_log(sid, f"layers={layers} 無更多可優化層，於 Round {round_num} 收斂結束")
+                    break
 
             cur_sharpe = round_result.get("sharpe", 0)
             improvement = cur_sharpe - best_sharpe if best_sharpe > -999 else 0
