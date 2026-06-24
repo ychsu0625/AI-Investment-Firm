@@ -5979,8 +5979,8 @@ async function icLoadSentimentPanel() {
   out.innerHTML = '<div class="ic-loading"><span class="ic-spinner"></span>查詢情緒資料中…</div>';
   try {
     const [hRes, sRes] = await Promise.all([
-      fetch(`/api/ic/sentiment-history/${code}`, { headers: { Authorization: 'Bearer ' + API_TOKEN } }),
-      fetch(`/api/ic/social-sentiment/${code}`,  { headers: { Authorization: 'Bearer ' + API_TOKEN } })
+      fetch(`/api/ic/sentiment-history/${code}`, { headers: authHeaders() }),
+      fetch(`/api/ic/social-sentiment/${code}`,  { headers: authHeaders() })
     ]);
     const h = hRes.ok ? await hRes.json() : null;
     const s = sRes.ok ? await sRes.json() : null;
