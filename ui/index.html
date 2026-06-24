@@ -580,6 +580,21 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .ic-bt-stat{background:var(--bg);border-radius:6px;padding:9px;text-align:center}
 .ic-bt-stat-label{font-size:12px;color:var(--text2);margin-bottom:3px}
 .ic-bt-stat-val{font-size:15px;font-weight:700}
+/* ── concentration panel ── */
+.conc-kpi-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.conc-kpi{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;flex:1;min-width:140px}
+.conc-kpi .ck-label{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
+.conc-kpi .ck-value{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.conc-kpi .ck-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.conc-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+.conc-table th{background:var(--bg1);color:var(--text3);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;padding:8px 12px;text-align:right;border-bottom:2px solid var(--border);white-space:nowrap}
+.conc-table th:first-child,.conc-table th:nth-child(2){text-align:left}
+.conc-table tbody tr{transition:background .1s}
+.conc-table tbody tr:hover{background:var(--bg3)}
+.conc-table tbody td{padding:8px 12px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid rgba(255,255,255,.04);white-space:nowrap}
+.conc-table tbody td:first-child,.conc-table tbody td:nth-child(2){text-align:left}
+.conc-bar-wrap{width:80px;height:6px;background:var(--bg4);border-radius:3px;display:inline-block;vertical-align:middle}
+.conc-bar{height:100%;border-radius:3px;transition:width .3s}
 </style>
 </head>
 <body>
@@ -973,6 +988,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
           <button id="btn-undo" onclick="undoAction()" disabled title="復原上一步" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:14px">↩ 復原</button>
           <button id="btn-redo" onclick="redoAction()" disabled title="重做下一步" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:14px">↪ 重做</button>
         </div>
+        <div id="conc-panel" style="margin-bottom:12px"></div>
         <div id="pos-grid" class="pos-grid"><div class="loading">載入持倉資料中…</div></div>
       </div>
 
@@ -2498,7 +2514,7 @@ function showPage(name) {
     if (currentMarket==='US') { loadUSIndices(); loadUSWatchlist(); loadUSPositionsMini(); loadUSSignals(); }
     else { loadWatchlist(); loadPositionsMini(); loadSignals(); }
   }
-  if (name === 'pos')      { loadPositions(); }
+  if (name === 'pos')      { loadPositions(); loadConcentrationPanel(); }
   if (name === 'analysis') { loadAnalysis(); }
   if (name === 'macro')    { loadMacroPage(); }
   if (name === 'settings') { loadRiskConfig(); }
@@ -2955,6 +2971,89 @@ async function loadPositions() {
 
     grid.innerHTML = html;
   } catch { grid.innerHTML='<div class="loading">無法載入持倉</div>'; }
+}
+
+async function loadConcentrationPanel() {
+  const panel = document.getElementById('conc-panel');
+  if (!panel) return;
+  try {
+    const d = await fetch(API + '/api/portfolio/concentration', {headers: authHeaders()}).then(r => r.json());
+    const LIMIT = 20;
+    const maxSingle = d.max_single_stock || {};
+    const maxPct = maxSingle.weight_pct || 0;
+    const maxColor = maxPct > LIMIT ? 'var(--orange)' : 'var(--green)';
+    const maxIcon = maxPct > LIMIT ? '⚠' : '✓';
+    const top3Sum = (d.data || []).slice(0, 3).reduce((s, x) => s + x.weight_pct, 0);
+    const top3Codes = (d.data || []).slice(0, 3).map(x => x.code).join(' / ');
+    const alertCount = (d.data || []).filter(x => x.alert).length;
+    const twPct = d.by_market?.TW || 0;
+    const usPct = d.by_market?.US || 0;
+    const totalM = d.total_market_value ? (d.total_market_value / 1e6).toFixed(2) : '--';
+
+    const kpiWarn = alertCount > 0
+      ? `<div class="conc-kpi" style="border-color:var(--orange)">
+          <div class="ck-label" style="color:var(--orange)">風控警示</div>
+          <div class="ck-value" style="color:var(--orange)">${alertCount} 檔</div>
+          <div class="ck-sub">超過單檔 ${LIMIT}% 上限</div>
+        </div>` : '';
+
+    const rows = (d.data || []).slice(0, 10).map((item, i) => {
+      const barColor = item.alert ? 'var(--orange)' : item.weight_pct > 10 ? 'var(--accent)' : 'var(--green)';
+      const barW = Math.min(Math.round(item.weight_pct / 35 * 100), 100);
+      const statusHtml = item.alert
+        ? `<span style="color:var(--orange);font-size:12px">⚠ ${item.alert}</span>`
+        : `<span style="color:var(--green);font-size:12px">✓ 正常</span>`;
+      return `<tr>
+        <td style="color:var(--text3)">${i + 1}</td>
+        <td><span style="font-weight:700;color:var(--text)">${item.code}</span> <span style="color:var(--text2);font-size:12px">${item.name || ''}</span></td>
+        <td>${item.market === 'US' ? '🇺🇸' : '🇹🇼'}</td>
+        <td style="font-weight:600">${item.weight_pct.toFixed(2)}%</td>
+        <td><span class="conc-bar-wrap"><span class="conc-bar" style="width:${barW}%;background:${barColor}"></span></span></td>
+        <td>${statusHtml}</td>
+      </tr>`;
+    }).join('');
+
+    panel.innerHTML = `<div class="conc-kpi-row">
+      <div class="conc-kpi">
+        <div class="ck-label">最大單一部位</div>
+        <div class="ck-value" style="color:${maxColor}">${maxPct.toFixed(1)}%</div>
+        <div class="ck-sub">${maxSingle.code || '--'} &nbsp;·&nbsp; 上限 ${LIMIT}% &nbsp;${maxIcon} ${maxPct > LIMIT ? '超標' : '正常'}</div>
+      </div>
+      <div class="conc-kpi">
+        <div class="ck-label">前三大集中度</div>
+        <div class="ck-value">${top3Sum.toFixed(1)}%</div>
+        <div class="ck-sub">${top3Codes}</div>
+      </div>
+      <div class="conc-kpi">
+        <div class="ck-label">市場分佈</div>
+        <div class="ck-value">🇹🇼 ${twPct.toFixed(0)}%</div>
+        <div class="ck-sub">🇺🇸 美股 ${usPct.toFixed(0)}%</div>
+      </div>
+      ${kpiWarn}
+    </div>
+    <div style="background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:13px;font-weight:600;color:var(--text)">部位集中度</span>
+        <span style="font-size:12px;color:var(--text3)">${(d.data||[]).length} 檔持倉 &nbsp;·&nbsp; 總市值 NT$${totalM}M</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="conc-table">
+          <thead><tr>
+            <th style="text-align:left;width:32px">#</th>
+            <th style="text-align:left">股票</th>
+            <th style="text-align:left">市場</th>
+            <th>佔比</th>
+            <th>集中度</th>
+            <th>狀態</th>
+          </tr></thead>
+          <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">無持倉資料</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+  } catch(e) {
+    const panel = document.getElementById('conc-panel');
+    if (panel) panel.innerHTML = `<div style="color:var(--text2);font-size:13px;padding:8px 0;background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px">集中度資料載入失敗</div>`;
+  }
 }
 
 function updatePosSlider(el, id, code, cost) {
