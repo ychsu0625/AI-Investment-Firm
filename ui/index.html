@@ -1733,6 +1733,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
             <button class="tf-btn" onclick="expertSwitchTab('new',this)">🚀 新建分析</button>
             <button class="tf-btn" onclick="expertSwitchTab('schedule',this)">⏰ 排程設定</button>
             <button class="tf-btn" onclick="expertSwitchTab('config',this)">⚙️ 專家設定</button>
+            <button class="tf-btn" onclick="expertSwitchTab('baserate',this)">📊 Universe 回測</button>
           </div>
         </div>
 
@@ -1817,6 +1818,61 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
             <button onclick="expertSaveConfig()" style="margin-top:12px;padding:6px 18px;border:1px solid var(--blue);background:none;color:var(--blue);border-radius:6px;cursor:pointer;font-size:12px">💾 儲存設定</button>
             <span id="expert-cfg-msg" style="margin-left:8px;font-size:12px;color:var(--green);display:none">已儲存</span>
           </div>
+        </div>
+
+        <!-- Universe 回測矩陣 (G-06) -->
+        <div id="expert-tab-baserate" style="display:none">
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">V-02 Universe 回測矩陣 — Base Rate (L1)</div>
+            <div style="display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:start">
+              <div>
+                <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">市場</div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" class="br-mkt-chk" value="TW" checked style="width:14px;height:14px;accent-color:var(--blue)"> 🇹🇼 台股</label>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" class="br-mkt-chk" value="US" style="width:14px;height:14px;accent-color:var(--blue)"> 🇺🇸 美股</label>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">歷史起始</div>
+                <input type="date" id="br-start" value="2022-01-01" style="padding:6px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);font-size:13px">
+                <div style="margin-top:12px;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:4px">出場策略（固定）</div>
+                <div style="font-size:12px;color:var(--text3);font-family:ui-monospace,monospace;letter-spacing:.3px">EXIT_C + EXIT_D</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;padding-top:20px">
+                <button id="br-btn-run" onclick="brSubmit()" style="padding:8px 24px;background:var(--blue-d);color:#fff;border:none;border-radius:var(--r);cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;transition:.15s">▶ 開始計算</button>
+                <button id="br-btn-cancel" onclick="brCancel()" style="display:none;padding:6px 24px;background:none;color:var(--text2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;font-size:12px">✕ 取消</button>
+              </div>
+            </div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                <span style="font-size:12px;color:var(--text2);font-weight:600">進場策略（12 項）</span>
+                <button onclick="brSelectAll(true)" style="font-size:11px;padding:2px 8px;background:none;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer;transition:.15s">全選</button>
+                <button onclick="brSelectAll(false)" style="font-size:11px;padding:2px 8px;background:none;border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer;transition:.15s">清除</button>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="BUY_A" checked style="accent-color:var(--blue)"> BUY_A 假跌破</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="BUY_B" checked style="accent-color:var(--blue)"> BUY_B 主力量價</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="LOW_BUY" checked style="accent-color:var(--blue)"> LOW_BUY 年線超跌</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="SQUEEZE_BREAK" checked style="accent-color:var(--blue)"> SQUEEZE_BREAK 籌碼擠壓</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="KD_CROSS" checked style="accent-color:var(--blue)"> KD_CROSS KD金叉</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="MACD_CROSS" checked style="accent-color:var(--blue)"> MACD_CROSS MACD金叉</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="RSI_EXTREME" checked style="accent-color:var(--blue)"> RSI_EXTREME RSI超賣</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="MA_ALIGN" checked style="accent-color:var(--blue)"> MA_ALIGN 均線多頭</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="DONCHIAN_BREAK" checked style="accent-color:var(--blue)"> DONCHIAN_BREAK 唐奇安</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="MA_PULLBACK" checked style="accent-color:var(--blue)"> MA_PULLBACK 均線回測</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="BB_SQUEEZE" checked style="accent-color:var(--blue)"> BB_SQUEEZE 布林收縮</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="VOL_BREAKOUT" checked style="accent-color:var(--blue)"> VOL_BREAKOUT 量能突破</label>
+              </div>
+            </div>
+          </div>
+          <div id="br-progress-wrap" style="display:none;margin-bottom:12px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
+            <div style="height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-bottom:8px">
+              <div id="br-prog-bar" style="height:100%;background:var(--blue);width:0%;transition:width .4s ease"></div>
+            </div>
+            <div id="br-prog-txt" style="font-size:12px;color:var(--text2)">計算中…</div>
+          </div>
+          <div id="br-msg" style="display:none;font-size:13px;margin-bottom:10px;padding:8px 12px;border-radius:var(--r)"></div>
+          <div id="br-table-wrap"></div>
         </div>
       </div>
 
@@ -5289,7 +5345,7 @@ async function expertInitPage() {
 
 function expertSwitchTab(tab, btn) {
   _expertCurrentTab = tab;
-  ['sessions','new','schedule','config'].forEach(t => {
+  ['sessions','new','schedule','config','baserate'].forEach(t => {
     const el = document.getElementById('expert-tab-'+t);
     if (el) el.style.display = t===tab ? '' : 'none';
   });
@@ -5562,6 +5618,175 @@ async function expertSaveConfig() {
   setTimeout(()=>msg.style.display='none', 2000);
 }
 
+
+// ── BASE-RATE Universe 回測矩陣 (G-06) ───────────────────
+
+let _brJobId = null;
+let _brPollTimer = null;
+
+function brSelectAll(checked) {
+  document.querySelectorAll('.br-strat-chk').forEach(c => c.checked = checked);
+}
+
+async function brSubmit() {
+  const markets = Array.from(document.querySelectorAll('.br-mkt-chk:checked')).map(c => c.value);
+  const buys    = Array.from(document.querySelectorAll('.br-strat-chk:checked')).map(c => c.value);
+  const start   = document.getElementById('br-start').value || '2022-01-01';
+
+  if (!markets.length) { brSetMsg('請至少選一個市場', 'warn'); return; }
+  if (!buys.length)    { brSetMsg('請至少選一個進場策略', 'warn'); return; }
+
+  brClearPoll();
+  brSetState('running');
+  brSetProgress(0, 0, '提交中…');
+  brSetMsg('', '');
+
+  try {
+    const res = await fetch(API + '/api/backtest/base-rate', {
+      method: 'POST',
+      headers: authHeaders({'Content-Type': 'application/json'}),
+      body: JSON.stringify({markets, buy_strategies: buys, sell_strategies: ['EXIT_C', 'EXIT_D'], start})
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    _brJobId = data.job_id;
+    _brPollTimer = setInterval(() => brPoll(_brJobId), 2500);
+  } catch(e) {
+    brSetState('idle');
+    brSetMsg('提交失敗: ' + e.message, 'error');
+  }
+}
+
+async function brPoll(jobId) {
+  try {
+    const res = await fetch(API + '/api/backtest/base-rate/' + jobId, { headers: authHeaders() });
+    if (!res.ok) { brClearPoll(); brSetState('idle'); brSetMsg('查詢失敗', 'error'); return; }
+    const data = await res.json();
+    if (data.status === 'running') {
+      brSetProgress(data.progress || 0, data.total || 0, data.current || '');
+    } else if (data.status === 'done') {
+      brClearPoll();
+      brSetState('done');
+      brSetProgress(data.total, data.total, '計算完成');
+      brRender(data.rows || [], data);
+    } else if (data.status === 'error' || data.status === 'cancelled') {
+      brClearPoll();
+      brSetState('idle');
+      brSetMsg(data.status === 'cancelled' ? '已取消' : ('計算錯誤: ' + (data.error || '')),
+               data.status === 'cancelled' ? 'warn' : 'error');
+    }
+  } catch(e) { /* keep polling */ }
+}
+
+async function brCancel() {
+  if (!_brJobId) return;
+  brClearPoll();
+  const jid = _brJobId;
+  _brJobId = null;
+  try { await fetch(API + '/api/backtest/base-rate/' + jid + '/cancel', { method: 'POST', headers: authHeaders() }); } catch(e) {}
+  brSetState('idle');
+  brSetMsg('已取消', 'warn');
+}
+
+function brClearPoll() {
+  if (_brPollTimer) { clearInterval(_brPollTimer); _brPollTimer = null; }
+}
+
+function brSetState(state) {
+  const btnRun   = document.getElementById('br-btn-run');
+  const btnCancel = document.getElementById('br-btn-cancel');
+  const progWrap  = document.getElementById('br-progress-wrap');
+  if (!btnRun) return;
+  const running = state === 'running';
+  btnRun.disabled    = running;
+  btnRun.textContent = running ? '⏳ 計算中…' : '▶ 開始計算';
+  btnCancel.style.display = running ? '' : 'none';
+  progWrap.style.display  = state === 'idle' ? 'none' : '';
+}
+
+function brSetProgress(done, total, current) {
+  const bar = document.getElementById('br-prog-bar');
+  const txt = document.getElementById('br-prog-txt');
+  if (!bar) return;
+  const pct = total > 0 ? Math.round(done / total * 100) : 0;
+  bar.style.width = pct + '%';
+  if (txt) txt.textContent = total > 0 ? `${done}/${total} — ${current}` : (current || '計算中…');
+}
+
+function brSetMsg(msg, type) {
+  const el = document.getElementById('br-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color   = type === 'error' ? 'var(--red)' : type === 'warn' ? 'var(--yellow)' : 'var(--green)';
+  el.style.display = msg ? '' : 'none';
+}
+
+function brRender(rows, meta) {
+  const el = document.getElementById('br-table-wrap');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = '<div class="empty-state">無回測資料</div>'; return; }
+
+  const thr       = meta.thresholds || {};
+  const runAt     = meta.run_at ? new Date(meta.run_at).toLocaleString('zh-TW') : '';
+  const histFrom  = meta.history_from || '';
+  const sellLabel = (meta.sell_strategies || []).join(' + ');
+  const passCount = rows.filter(r => r.pass).length;
+
+  const sorted = [...rows].sort((a, b) => {
+    if (a.pass !== b.pass) return a.pass ? -1 : 1;
+    return b.win_rate - a.win_rate;
+  });
+
+  const metaBar = `<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;font-size:12px;color:var(--text3);margin-bottom:12px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
+    <span>計算時間：${runAt}</span><span>歷史起始：${histFrom}</span>
+    <span>出場：${sellLabel}</span>
+    <span>N≥${thr.min_N||30} | CI下界&gt;${thr.ci_lower_gt||50}% | P/L≥${thr.min_pl||1.2}</span>
+    <span style="font-weight:600;color:${passCount > 0 ? 'var(--green)' : 'var(--text2)'}">通過 ${passCount}/${rows.length}</span>
+  </div>`;
+
+  const tbody = sorted.map(r => {
+    const rowStyle  = r.pass ? 'background:rgba(63,185,80,0.06)' : r.win_rate_ci95[0] > 45 ? 'background:rgba(210,153,34,0.05)' : '';
+    const wrColor   = r.win_rate >= 55 ? 'var(--green)' : r.win_rate >= 50 ? 'var(--yellow)' : 'var(--text)';
+    const retColor  = r.avg_return > 0 ? 'var(--green)' : r.avg_return < 0 ? 'var(--red)' : 'var(--text)';
+    const passBadge = r.pass
+      ? `<span style="display:inline-block;padding:2px 8px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-d);border-radius:3px;font-size:11px;font-weight:600;font-family:ui-monospace,monospace">PASS</span>`
+      : `<span style="display:inline-block;padding:2px 8px;background:var(--bg3);color:var(--text3);border:1px solid var(--border);border-radius:3px;font-size:11px;font-family:ui-monospace,monospace">FAIL</span>`;
+    return `<tr style="${rowStyle}">
+      <td style="padding:7px 10px;font-family:ui-monospace,monospace;font-size:12px;color:var(--blue);white-space:nowrap">${r.strategy}</td>
+      <td style="padding:7px 10px;font-size:13px">${r.market}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${r.N.toLocaleString()}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;color:${wrColor}">${r.win_rate.toFixed(1)}%</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--text2);white-space:nowrap">[${r.win_rate_ci95[0].toFixed(1)}, ${r.win_rate_ci95[1].toFixed(1)}]</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:${retColor}">${r.avg_return >= 0 ? '+' : ''}${r.avg_return.toFixed(1)}%</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--text2);white-space:nowrap">[${r.avg_return_ci95[0].toFixed(1)}, ${r.avg_return_ci95[1].toFixed(1)}]</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${r.pl_ratio.toFixed(2)}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:var(--text2)">${r.sharpe.toFixed(2)}</td>
+      <td style="padding:7px 10px;text-align:center">${passBadge}</td>
+      <td style="padding:7px 10px;font-size:12px;color:var(--text3);max-width:200px">${r.reason || ''}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = metaBar + `<div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead style="position:sticky;top:0;background:var(--bg3);z-index:1">
+        <tr>
+          <th style="padding:8px 10px;text-align:left;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">策略</th>
+          <th style="padding:8px 10px;text-align:left;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">市場</th>
+          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">N</th>
+          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">勝率</th>
+          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">95% CI</th>
+          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">平均報酬</th>
+          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">報酬 CI</th>
+          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">P/L</th>
+          <th style="padding:8px 10px;text-align:right;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">Sharpe</th>
+          <th style="padding:8px 10px;text-align:center;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">結果</th>
+          <th style="padding:8px 10px;text-align:left;font-size:12px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border)">未通過原因</th>
+        </tr>
+      </thead>
+      <tbody>${tbody}</tbody>
+    </table>
+  </div>`;
+}
 
 // ══════════════════════════════════════════════════
 // 資訊中心 (IC) 內嵌模組
