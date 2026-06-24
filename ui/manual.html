@@ -27,185 +27,72 @@ body {
   color: var(--text);
   font-family: -apple-system, 'Segoe UI', 'Noto Sans TC', sans-serif;
   font-size: 15px;
-  line-height: 1.7;
+  line-height: 1.8;
 }
 
 /* ── Layout ── */
-.manual-wrap {
-  display: flex;
-  min-height: 100vh;
-}
+.manual-wrap { display: flex; min-height: 100vh; }
 .sidebar {
-  position: fixed;
-  top: 0; left: 0;
-  width: 260px;
-  height: 100vh;
+  position: fixed; top: 0; left: 0;
+  width: 260px; height: 100vh;
   background: var(--bg1);
   border-right: 1px solid var(--border);
-  overflow-y: auto;
-  padding: 20px 0;
-  z-index: 10;
+  overflow-y: auto; padding: 20px 0; z-index: 10;
 }
 .sidebar::-webkit-scrollbar { width: 4px; }
 .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-.main {
-  margin-left: 260px;
-  flex: 1;
-  padding: 40px 50px 80px;
-  max-width: 900px;
-}
+.main { margin-left: 260px; flex: 1; padding: 40px 50px 90px; max-width: 920px; }
 
 /* ── Sidebar ── */
 .sidebar-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--blue);
-  padding: 0 20px 16px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 12px;
+  font-size: 14px; font-weight: 700; color: var(--blue);
+  padding: 0 20px 16px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
 }
 .sidebar a {
-  display: block;
-  padding: 6px 20px;
-  color: var(--text2);
-  text-decoration: none;
-  font-size: 13px;
-  transition: all .15s;
+  display: block; padding: 6px 20px; color: var(--text2);
+  text-decoration: none; font-size: 13px; transition: all .15s;
   border-left: 2px solid transparent;
 }
-.sidebar a:hover {
-  color: var(--text);
-  background: var(--bg2);
-  border-left-color: var(--blue);
-}
-.sidebar a.sub {
-  padding-left: 36px;
-  font-size: 12px;
-}
+.sidebar a:hover { color: var(--text); background: var(--bg2); border-left-color: var(--blue); }
+.sidebar a.sub { padding-left: 36px; font-size: 12px; }
 
 /* ── Typography ── */
-h1 {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 8px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid var(--blue);
-}
-.version {
-  font-size: 13px;
-  color: var(--text2);
-  margin-bottom: 30px;
-}
-h2 {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--blue);
-  margin-top: 48px;
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-}
-h3 {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text);
-  margin-top: 28px;
-  margin-bottom: 10px;
-}
-h4 {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--purple);
-  margin-top: 20px;
-  margin-bottom: 8px;
-}
+h1 { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 8px; padding-bottom: 12px; border-bottom: 2px solid var(--blue); }
+.version { font-size: 13px; color: var(--text2); margin-bottom: 24px; }
+.lead { font-size: 16px; color: var(--text); background: var(--bg1); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 30px; }
+h2 { font-size: 22px; font-weight: 700; color: var(--blue); margin-top: 48px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 17px; font-weight: 600; color: var(--text); margin-top: 28px; margin-bottom: 10px; }
+h4 { font-size: 15px; font-weight: 600; color: var(--purple); margin-top: 20px; margin-bottom: 8px; }
 p { margin-bottom: 12px; }
 ul, ol { margin: 8px 0 16px 24px; }
-li { margin-bottom: 5px; }
+li { margin-bottom: 6px; }
 strong { color: var(--text); }
-code {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 13px;
-  font-family: 'Cascadia Code', 'Fira Code', monospace;
-  color: var(--orange);
-}
-hr {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: 36px 0;
-}
+.plain { color: var(--green); font-weight:600; }
+code { background: var(--bg2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; font-size: 13px; font-family: 'Cascadia Code', 'Fira Code', monospace; color: var(--orange); }
+hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
 
 /* ── Tables ── */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 12px 0 20px;
-  font-size: 14px;
-}
-th {
-  background: var(--bg2);
-  color: var(--blue);
-  font-weight: 600;
-  text-align: left;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-}
-td {
-  padding: 7px 12px;
-  border: 1px solid var(--border);
-  vertical-align: top;
-}
+table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 14px; }
+th { background: var(--bg2); color: var(--blue); font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid var(--border); }
+td { padding: 7px 12px; border: 1px solid var(--border); vertical-align: top; }
 tr:nth-child(even) td { background: var(--bg1); }
 
 /* ── Info Boxes ── */
-.info-box {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--blue);
-  border-radius: 6px;
-  padding: 14px 18px;
-  margin: 14px 0;
-  font-size: 14px;
-}
-.info-box.warn {
-  border-left-color: var(--yellow);
-}
-.info-box.danger {
-  border-left-color: var(--red);
-  background: #1f0e0e;
-}
-.info-box .label {
-  font-weight: 700;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  margin-bottom: 4px;
-}
+.info-box { background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--blue); border-radius: 6px; padding: 14px 18px; margin: 14px 0; font-size: 14px; }
+.info-box.warn { border-left-color: var(--yellow); }
+.info-box.danger { border-left-color: var(--red); background: #1f0e0e; }
+.info-box.tip { border-left-color: var(--green); background:#0d1f15; }
+.info-box .label { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; color: var(--blue); }
 .info-box.warn .label { color: var(--yellow); }
 .info-box.danger .label { color: var(--red); }
-.info-box .label { color: var(--blue); }
+.info-box.tip .label { color: var(--green); }
 
-/* ── Nav Icons ── */
-.nav-icon {
-  display: inline-block;
-  width: 22px;
-  text-align: center;
-  margin-right: 4px;
-}
+/* ── Nav Icons / Zone ── */
+.nav-icon { display: inline-block; width: 22px; text-align: center; margin-right: 4px; }
+.zone-tag { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:6px; background:var(--bg3); color:var(--blue); border:1px solid var(--border); margin-right:8px; vertical-align:middle; }
 
 /* ── Badge ── */
-.badge {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  vertical-align: middle;
-}
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; vertical-align: middle; }
 .badge-red { background: #1f0e0e; color: var(--red); border: 1px solid var(--red); }
 .badge-green { background: #0d2118; color: var(--green); border: 1px solid var(--green); }
 .badge-yellow { background: #1e1a0d; color: var(--yellow); border: 1px solid var(--yellow); }
@@ -213,75 +100,18 @@ tr:nth-child(even) td { background: var(--bg1); }
 .badge-purple { background: #12102a; color: var(--purple); border: 1px solid var(--purple); }
 
 /* ── Flow cards ── */
-.flow-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
-  margin: 14px 0 20px;
-}
-.flow-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
-}
-.flow-card h4 {
-  margin-top: 0;
-  font-size: 14px;
-  color: var(--blue);
-}
-.flow-card ol {
-  margin: 8px 0 0 18px;
-  font-size: 13px;
-}
+.flow-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin: 14px 0 20px; }
+.flow-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.flow-card h4 { margin-top: 0; font-size: 14px; color: var(--blue); }
+.flow-card ol { margin: 8px 0 0 18px; font-size: 13px; }
 .flow-card li { margin-bottom: 4px; }
 
 /* ── Back to top ── */
-.back-top {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 40px;
-  height: 40px;
-  background: var(--blue);
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  font-size: 18px;
-  cursor: pointer;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,.4);
-  z-index: 100;
-}
+.back-top { position: fixed; bottom: 24px; right: 24px; width: 40px; height: 40px; background: var(--blue); color: #fff; border: none; border-radius: 50%; font-size: 18px; cursor: pointer; display: none; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,.4); z-index: 100; }
 .back-top.show { display: flex; }
 
-/* ── Go-to-app link ── */
-.goto-app {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--green);
-  background: rgba(63,185,80,.1);
-  border: 1px solid rgba(63,185,80,.3);
-  padding: 2px 10px;
-  border-radius: 12px;
-  cursor: pointer;
-  text-decoration: none;
-  margin-left: 8px;
-  vertical-align: middle;
-  transition: all .15s;
-}
-.goto-app:hover { background: rgba(63,185,80,.2); color: #fff; }
-.goto-app.hidden { display: none; }
-
 /* ── Responsive ── */
-@media (max-width: 900px) {
-  .sidebar { display: none; }
-  .main { margin-left: 0; padding: 20px; }
-}
+@media (max-width: 900px) { .sidebar { display: none; } .main { margin-left: 0; padding: 20px; } }
 </style>
 </head>
 <body>
@@ -289,598 +119,344 @@ tr:nth-child(even) td { background: var(--bg1); }
 <div class="manual-wrap">
   <!-- ════ SIDEBAR ════ -->
   <nav class="sidebar">
-    <div class="sidebar-title">📖 使用手冊 v2.0</div>
-    <a href="#s1"><span class="nav-icon">🏗</span>系統概觀</a>
-    <a href="#s2"><span class="nav-icon">🏠</span>首頁（總覽）</a>
-    <a href="#s3"><span class="nav-icon">📈</span>K線圖表</a>
-    <a href="#s4"><span class="nav-icon">💼</span>持倉管理</a>
-    <a href="#s5"><span class="nav-icon">📝</span>交易紀錄</a>
-    <a href="#s6"><span class="nav-icon">📊</span>盤後分析</a>
-    <a href="#s7"><span class="nav-icon">🛡</span>風控中心</a>
-    <a href="#s8"><span class="nav-icon">🔍</span>系統透視</a>
-    <a href="#s9"><span class="nav-icon">⭐</span>策略管理</a>
-    <a href="#s10"><span class="nav-icon">⏱</span>回測引擎</a>
-    <a href="#s11"><span class="nav-icon">🧠</span>專家委員會</a>
-    <a href="#s12"><span class="nav-icon">🤖</span>資訊中心</a>
-    <a href="#s12-ai" class="sub">AI建議</a>
-    <a href="#s12-hist" class="sub">歷史推薦</a>
-    <a href="#s12-src" class="sub">資料來源</a>
-    <a href="#s13"><span class="nav-icon">⚙️</span>系統設定</a>
-    <a href="#s14"><span class="nav-icon">🔒</span>安全機制</a>
-    <a href="#appendix"><span class="nav-icon">📋</span>快速流程</a>
+    <div class="sidebar-title">📖 使用手冊 v4</div>
+    <a href="#start"><span class="nav-icon">🚀</span>開始之前（必看）</a>
+    <a href="#what"><span class="nav-icon">💡</span>這個系統在幫我們做什麼</a>
+    <a href="#layout"><span class="nav-icon">🧭</span>畫面長怎樣</a>
+    <a href="#colors"><span class="nav-icon">🎨</span>顏色與數字怎麼看</a>
+    <a href="#z1"><span class="nav-icon">🚖</span>第一區・駕駛艙</a>
+    <a href="#z1-home" class="sub">總覽（每天先看）</a>
+    <a href="#z1-risk" class="sub">風控</a>
+    <a href="#z2"><span class="nav-icon">🔬</span>第二區・研究台</a>
+    <a href="#z2-k" class="sub">K線</a>
+    <a href="#z2-after" class="sub">盤後</a>
+    <a href="#z2-ic" class="sub">資訊中心</a>
+    <a href="#z3"><span class="nav-icon">🧠</span>第三區・決策引擎</a>
+    <a href="#z4"><span class="nav-icon">🧪</span>第四區・驗證台</a>
+    <a href="#z5"><span class="nav-icon">💼</span>第五區・投資組合</a>
+    <a href="#z6"><span class="nav-icon">⚙️</span>第六區・系統</a>
+    <a href="#safety"><span class="nav-icon">🛡</span>保命機制（很重要）</a>
+    <a href="#glossary"><span class="nav-icon">📕</span>名詞小辭典</a>
+    <a href="#daily"><span class="nav-icon">📋</span>老婆的每日三步驟</a>
+    <a href="#faq"><span class="nav-icon">❓</span>常見問題</a>
   </nav>
 
   <!-- ════ MAIN CONTENT ════ -->
   <main class="main">
 
     <h1>智慧投顧監控系統 — 使用手冊</h1>
-    <div class="version">版本 v2.0 ｜ 2026-06-21 ｜ 存取：<code>http://localhost:8765</code> 或 ngrok 公開網址</div>
+    <div class="version">版本 v4 ｜ 更新：2026-06-24 ｜ 這份手冊用「白話」寫，沒有金融背景也看得懂。</div>
 
-    <!-- ═══════════ 1. 系統概觀 ═══════════ -->
-    <h2 id="s1">1. 系統概觀</h2>
-
-    <h3>1.1 架構</h3>
-    <table>
-      <tr><th>層級</th><th>技術</th></tr>
-      <tr><td>後端</td><td>FastAPI（Python）+ SQLite（<code>monitor.db</code>）</td></tr>
-      <tr><td>前端</td><td>單頁應用（SPA），內嵌於 <code>index.html</code></td></tr>
-      <tr><td>台股行情</td><td>永豐金 Shioaji API（即時行情 + 歷史 K 線）</td></tr>
-      <tr><td>美股行情</td><td>yfinance（延遲行情）</td></tr>
-      <tr><td>AI 分析</td><td>Claude API（訂閱制零費用 或 API 計費）</td></tr>
-    </table>
-
-    <h3>1.2 畫面配置</h3>
-    <ul>
-      <li><strong>頂部標題列</strong>：系統名稱、市場切換（TW/US）、風控等級 badge、搜尋框</li>
-      <li><strong>左側導航列</strong>：12 個主頁面按鈕（垂直排列）</li>
-      <li><strong>主內容區</strong>：佔滿右側空間</li>
-      <li><strong>底部緊急列</strong>：EXIT_D 停損警示（紅色，出現時不可關閉）</li>
-    </ul>
-
-    <h3>1.3 市場切換</h3>
-    <p>頂部標題列有 <span class="badge badge-blue">TW 台股</span> / <span class="badge badge-purple">US 美股</span> 切換按鈕：</p>
-    <ul>
-      <li>切換後，首頁自選股、訊號、持倉皆連動</li>
-      <li>K 線圖搜尋欄位也切換對應市場</li>
-      <li>某些功能（如籌碼分析）僅限台股</li>
-    </ul>
-
-    <hr>
-
-    <!-- ═══════════ 2. 首頁 ═══════════ -->
-    <h2 id="s2">2. 首頁（總覽）<a class="goto-app" onclick="gotoApp('home')">前往操作 →</a></h2>
-    <p>導航：點擊左側 🏠 圖示</p>
-
-    <h3>2.1 總經指標列</h3>
-    <p>頁面頂部橫列顯示五項即時總經指標：VIX（恐慌指數）、DXY（美元指數）、US10Y（10年美債）、ES 期貨、加權指數</p>
-
-    <h3>2.2 今日系統訊號</h3>
-    <ul>
-      <li>顯示今日觸發的所有買賣訊號</li>
-      <li><strong>手動掃描</strong>：強制掃描所有自選股訊號</li>
-      <li><strong>盤後回顧</strong>：掃描盤後籌碼與收盤資料</li>
-      <li><strong>補齊 K 線</strong>：將 K 線快取補到最新</li>
-    </ul>
-
-    <h3>2.3 自選股清單</h3>
-    <table>
-      <tr><th>操作</th><th>說明</th></tr>
-      <tr><td><strong>+ 新增</strong></td><td>輸入股票代碼加入自選</td></tr>
-      <tr><td><strong>⚙ 指標</strong></td><td>展開指標面板，勾選要顯示的欄位（現價、漲跌%、RSI、MACD、KD 等 14 種）</td></tr>
-      <tr><td><strong>點擊個股</strong></td><td>跳轉至 K 線頁</td></tr>
-      <tr><td><strong>❌ 刪除</strong></td><td>將該股從自選移除</td></tr>
-    </table>
-
-    <h3>2.4 持倉快覽</h3>
-    <p>以卡片形式顯示目前持有部位（代碼、名稱、損益%、現價），點擊跳轉至持倉管理頁。</p>
-
-    <h3>2.5 美股區塊</h3>
-    <p>切換至美股時顯示：美股大盤指數（SPY、QQQ、DIA 等）、美股訊號、自選股、持倉。</p>
-
-    <hr>
-
-    <!-- ═══════════ 3. K線 ═══════════ -->
-    <h2 id="s3">3. K線圖表<a class="goto-app" onclick="gotoApp('chart')">前往操作 →</a></h2>
-    <p>導航：點擊左側 📈 圖示，或在首頁點擊任一個股</p>
-
-    <h3>3.1 搜尋與選股</h3>
-    <p>上方搜尋欄輸入代碼（例：<code>2330</code>、<code>AAPL</code>），自動載入 K 線圖 + 五檔報價 + 策略標記。</p>
-
-    <h3>3.2 時間週期</h3>
-    <p>三個按鈕切換：<span class="badge badge-blue">5分</span> <span class="badge badge-blue">60分</span> <span class="badge badge-blue">日K</span></p>
-
-    <h3>3.3 技術指標開關</h3>
-    <table>
-      <tr><th>Toggle</th><th>說明</th></tr>
-      <tr><td>量能</td><td>成交量柱</td></tr>
-      <tr><td>MACD</td><td>MACD 指標面板</td></tr>
-      <tr><td>年線(G1)</td><td>240 日均線</td></tr>
-      <tr><td>MA5 / MA10 / MA20 / MA60</td><td>各條均線</td></tr>
-      <tr><td>交易</td><td>交易紀錄標記（買↑賣↓）</td></tr>
-    </table>
-
-    <h3>3.4 策略標記面板</h3>
-    <ul>
-      <li>點擊 <strong>📋 策略標記</strong> 展開</li>
-      <li>顯示各訊號在圖上的標記</li>
-      <li><strong>⟳ 同步系統</strong>：當策略設定變更後，重新同步標記</li>
-    </ul>
-
-    <h3>3.5 右側面板</h3>
-    <ol>
-      <li><strong>五檔委託</strong>：即時 bid/ask 五檔報價表</li>
-      <li><strong>快速下單</strong>：選擇波段單/當沖單、輸入價格與張數、調整停損滑桿（3%~10%）、買入/賣出</li>
-      <li><strong>停損規則</strong>：顯示當前停損設定說明</li>
-    </ol>
-
-    <h3>3.6 NLP 新聞提示</h3>
-    <p>當有重大新聞影響持股時，圖表上方出現提示條，顯示新聞標題及影響方向。</p>
-
-    <hr>
-
-    <!-- ═══════════ 4. 持倉 ═══════════ -->
-    <h2 id="s4">4. 持倉管理<a class="goto-app" onclick="gotoApp('pos')">前往操作 →</a></h2>
-    <p>導航：點擊左側 💼 圖示</p>
-
-    <h3>4.1 持倉總覽</h3>
-    <p>以卡片 grid 顯示所有持倉，每張卡片含：股票代碼、名稱、進場價、現價、損益%、持有張數、市值。</p>
-
-    <h3>4.2 新增持倉</h3>
-    <p>點擊 <strong>新增持倉</strong> → 彈出 modal → 填入代碼、名稱、張數、成本價 → 確認後自動加入自選股。</p>
-
-    <h3>4.3 編輯 / 刪除</h3>
-    <ul>
-      <li>點擊卡片上的編輯圖示 → 彈出編輯 modal → 可修改張數、成本價等</li>
-      <li>支援 <strong>↩ 復原</strong> / <strong>↪ 重做</strong></li>
-    </ul>
-
-    <hr>
-
-    <!-- ═══════════ 5. 交易紀錄 ═══════════ -->
-    <h2 id="s5">5. 交易紀錄<a class="goto-app" onclick="gotoApp('trade')">前往操作 →</a></h2>
-    <p>導航：點擊左側 ➕ 圖示</p>
-
-    <h3>5.1 市場分頁</h3>
-    <p>上方兩個 tab：<span class="badge badge-blue">🇹🇼 台股</span> <span class="badge badge-purple">🇺🇸 美股</span></p>
-    <ul>
-      <li>台股顯示 NT$、單位「張」</li>
-      <li>美股顯示 US$、單位「股」</li>
-    </ul>
-
-    <h3>5.2 新增交易</h3>
-    <p>點擊 <strong>新增交易</strong> → 彈出 modal：</p>
-    <table>
-      <tr><th>欄位</th><th>說明</th></tr>
-      <tr><td>股票代碼</td><td>輸入代碼</td></tr>
-      <tr><td>股票名稱</td><td>自動帶入或手填</td></tr>
-      <tr><td>買/賣</td><td>下拉選 BUY 或 SELL</td></tr>
-      <tr><td>日期</td><td>預設今天，可回溯修改</td></tr>
-      <tr><td>張數/股數</td><td>數量</td></tr>
-      <tr><td>成交價</td><td>成交均價</td></tr>
-      <tr><td>▼ 交易成本設定</td><td>展開可調整手續費率(0.1425%)、折扣(60%)、交易稅(0.3%)</td></tr>
-      <tr><td>備註</td><td>選填</td></tr>
-    </table>
-
-    <div class="info-box">
-      <div class="label">費用自動計算</div>
-      台股手續費 = 成交金額 × 0.001425 × (1 − 折扣)<br>
-      交易稅 = 成交金額 × 0.003（僅賣出時收取）<br>
-      台股成交金額 = 價格 × 張數 × 1000
+    <div class="lead">
+      👋 這份手冊是寫給<strong>每天會打開來看的人</strong>看的。<br>
+      你不需要懂程式、也不需要是投資高手。看不懂某個專有名詞時，直接翻到最後面的
+      <a href="#glossary" style="color:var(--green)">📕 名詞小辭典</a> 查就好。
     </div>
 
-    <h3>5.3 持倉同步</h3>
-    <ul>
-      <li><strong>買入（BUY）</strong>：自動在持倉新增或加碼（加權平均成本）</li>
-      <li><strong>賣出（SELL）</strong>：自動減少或平倉持倉</li>
-    </ul>
+    <!-- ═══════════ 開始之前 ═══════════ -->
+    <h2 id="start">🚀 開始之前（必看）</h2>
 
-    <h3>5.4 匯入持倉</h3>
-    <p>點擊 <strong>📥 匯入持倉</strong> 將所有現有持倉自動建立為 BUY 記錄（日期：2026-06-01）。首次進入空白頁面時也會自動提示匯入。</p>
-
-    <h3>5.5 編輯 / 刪除</h3>
-    <ul>
-      <li>點擊記錄上的編輯按鈕 → 彈出 modal → 可修改日期、價格、張數</li>
-      <li>刪除記錄（不影響已同步的持倉）</li>
-    </ul>
-
-    <h3>5.6 交易分析</h3>
-    <p>點擊 <strong>📊 交易分析</strong> 展開統計：已實現損益、個股明細、幣別區分（NT$ / US$）。</p>
-
-    <h3>5.7 篩選</h3>
-    <p>下拉篩選特定股票代碼。</p>
-
-    <hr>
-
-    <!-- ═══════════ 6. 盤後分析 ═══════════ -->
-    <h2 id="s6">6. 盤後分析<a class="goto-app" onclick="gotoApp('analysis')">前往操作 →</a></h2>
-    <p>導航：點擊左側 📊 圖示</p>
-
-    <h3>6.1 八大分析卡片</h3>
-    <table>
-      <tr><th>模組</th><th>內容</th></tr>
-      <tr><td>籌碼擠壓候選</td><td>突破前高自動觸發 SQUEEZE_BREAK 訊號</td></tr>
-      <tr><td>法人目標價</td><td>手動輸入目標價，計算乖離空間</td></tr>
-      <tr><td>融券軋空候選</td><td>券資比 &gt; 30% 的個股</td></tr>
-      <tr><td>投信鎖碼股</td><td>投信連續 3+ 日買超</td></tr>
-      <tr><td>籌碼棄守警示</td><td>投信連續 2 日大賣超 &gt; 500 張</td></tr>
-      <tr><td>利多不漲偵測</td><td>正面新聞但收黑 → 利多出盡</td></tr>
-      <tr><td>當沖比警示</td><td>當沖比 &gt; 50%，12:30 後跌破 VWAP 觸發賣出</td></tr>
-      <tr><td>融券軋空盤中突破</td><td>高券資比 + 突破前日高</td></tr>
-    </table>
-
-    <h3>6.2 資料抓取</h3>
-    <ul>
-      <li><strong>抓取今日籌碼</strong>：更新三大法人買賣超</li>
-      <li><strong>抓取當沖比</strong>：更新當沖比率</li>
-      <li><strong>抓取重大訊息</strong>：更新公司重大訊息</li>
-    </ul>
-
-    <h3>6.3 訊號歷史</h3>
-    <p>底部表格顯示歷史觸發訊號：時間、代碼、訊號類型、方向、價格、說明。</p>
-
-    <hr>
-
-    <!-- ═══════════ 7. 風控中心 ═══════════ -->
-    <h2 id="s7">7. 風控中心<a class="goto-app" onclick="gotoApp('macro')">前往操作 →</a></h2>
-    <p>導航：點擊左側 🛡 圖示</p>
-
-    <h3>7.1 MACRO_LOCK 全局鎖定</h3>
-    <p>四個總經條件監控：</p>
+    <h3>怎麼打開這個系統</h3>
     <ol>
-      <li>VIX &gt; 35</li>
-      <li>DXY 月漲 &gt; 3%</li>
-      <li>US10Y &gt; 5%</li>
-      <li>加權指數偏離月線 &gt; 5%</li>
+      <li>用手機或電腦的瀏覽器（Chrome、Safari、Edge 都可以），打開老公給的那個網址（一串英文，結尾是 <code>ngrok-free.dev</code>）。建議存成書籤，下次點一下就到。</li>
+      <li>第一次進去，可能會先出現一頁<strong>英文警告畫面</strong>（上面寫 ngrok）。這是正常的，不是壞掉 —— 找一顆藍色的 <strong>Visit Site</strong> 按鈕點下去，就進到系統了。</li>
+      <li>進去後看到深藍黑色的畫面、左邊一排按鈕，就對了。</li>
     </ol>
+
+    <div class="info-box warn">
+      <div class="label">如果打不開</div>
+      多半是家裡那台電腦關機了，或系統剛好在重開。等一下再試，或請老公開一下電腦就會恢復。這個網址是「連到家裡那台電腦」，電腦沒開就連不到。
+    </div>
 
     <div class="info-box danger">
-      <div class="label">風控三級制</div>
-      <strong>觸發 ≥ 2 個</strong> → <span class="badge badge-red">ALERT</span> 部位縮至 30%，禁止買入<br>
-      <strong>觸發 1 個</strong> → <span class="badge badge-yellow">CAUTION</span> 部位縮至 60%<br>
-      <strong>無觸發</strong> → <span class="badge badge-green">NORMAL</span> 全額操作
+      <div class="label">這是「模擬盤」，不是真的下單</div>
+      畫面左上角有一個橘色的 <span class="badge badge-yellow">模擬盤</span> 標記。系統裡的「買入／賣出」是<strong>記帳和練習用</strong>，<u>不會真的去券商下單花錢</u>。可以放心點，不會不小心買到股票。
     </div>
 
-    <h3>7.2 鎖定操作</h3>
+    <!-- ═══════════ 這個系統在做什麼 ═══════════ -->
+    <h2 id="what">💡 這個系統在幫我們做什麼</h2>
+    <p>簡單說，它是一個<strong>「投資儀表板＋小助手」</strong>，幫我們三件事：</p>
     <ul>
-      <li><strong>啟動鎖定</strong>：手動強制 MACRO_LOCK，頂部出現紅色橫幅，禁止所有買入</li>
-      <li><strong>解除鎖定</strong>：恢復正常</li>
+      <li><strong>盯盤</strong>：把我們關心的台股、美股，價格、漲跌、技術狀況，集中在一個畫面看，不用一個個查。</li>
+      <li><strong>提醒</strong>：當某支股票出現「該注意」的情況（例如跌太多、突破、法人在買），它會跳出訊號或警示。</li>
+      <li><strong>管風險</strong>：幫我們算「會不會押太多在同一支」、「大盤是不是危險」，跌破設定就紅字警告。</li>
     </ul>
-
-    <h3>7.3 風控聯動</h3>
-    <ul>
-      <li>頂部標題列風控 badge 即時顯示等級</li>
-      <li>風控 ALERT 時，K 線頁買入按鈕自動禁用</li>
-      <li>底部連結可跳轉至「資訊中心 → 總經」查看詳細數據</li>
-    </ul>
-
-    <hr>
-
-    <!-- ═══════════ 8. 系統透視 ═══════════ -->
-    <h2 id="s8">8. 系統透視<a class="goto-app" onclick="gotoApp('datasrc')">前往操作 →</a></h2>
-    <p>導航：點擊左側 🔍 圖示</p>
-
-    <h3>8.1 三維檢視</h3>
-    <p>上方三個 toggle 切換：</p>
-
-    <h4>📦 按資料源</h4>
-    <ul>
-      <li>顯示系統接入的所有資料管道（50+ 項）</li>
-      <li>篩選：全部 / 台股 / 美股 / 通用 / 加密</li>
-      <li>每張卡片顯示：名稱、狀態（活躍/規劃中）、是否設定、IC 是否使用</li>
-    </ul>
-
-    <h4>⚙️ 按功能</h4>
-    <ul>
-      <li>顯示每個功能使用了哪些資料源（15+ 功能）</li>
-      <li>點擊可展開資料源詳情</li>
-    </ul>
-
-    <h4>📐 按公式</h4>
-    <ul>
-      <li>顯示 40+ 條公式的數學表達式、評分規則、參數</li>
-      <li>按類別分組：技術指標、Alpha 因子、情緒、風控、出場規則等</li>
-      <li><strong>參數可調整</strong>：直接在卡片上修改參數值</li>
-      <li><strong>儲存</strong> / <strong>還原預設</strong> / <strong>送入回測</strong></li>
-      <li>外部對照 badges：<span class="badge badge-blue">🔬 RD-Agent</span> <span class="badge badge-green">💬 FinGPT</span> <span class="badge badge-purple">🤖 OpenAlice</span></li>
-    </ul>
-
-    <hr>
-
-    <!-- ═══════════ 9. 策略管理 ═══════════ -->
-    <h2 id="s9">9. 策略管理<a class="goto-app" onclick="gotoApp('strategy')">前往操作 →</a></h2>
-    <p>導航：點擊左側 ⭐ 圖示</p>
-
-    <h3>9.1 策略清單</h3>
-    <p>左側列出所有策略（19+），右側顯示詳情。篩選：全部 / 買進 / 賣出 / 🔧 系統內建 / ✏️ 自訂</p>
-
-    <h3>9.2 買進訊號</h3>
-    <table>
-      <tr><th>ID</th><th>名稱</th><th>說明</th></tr>
-      <tr><td>BUY_A</td><td>技術面多頭</td><td>KD 金叉 + MACD 翻正 + MA 排列</td></tr>
-      <tr><td>BUY_B</td><td>量能突破</td><td>量比 &gt; 1.5x + 突破前高</td></tr>
-      <tr><td>BUY_C</td><td>籌碼進場</td><td>三大法人連買 + 投信鎖碼</td></tr>
-      <tr><td>BUY_D</td><td>回踩支撐</td><td>回測均線後反彈 + 量縮</td></tr>
-      <tr><td>BUY_E</td><td>短線反轉</td><td>RSI 超賣 + KD 低檔金叉</td></tr>
-      <tr><td>BUY_F</td><td>價值浮現</td><td>PE &lt; 15 + 殖利率 &gt; 4%</td></tr>
-    </table>
-
-    <h3>9.3 賣出訊號</h3>
-    <table>
-      <tr><th>ID</th><th>名稱</th><th>說明</th></tr>
-      <tr><td>EXIT_A</td><td>技術面空頭</td><td>量價背離 + MA 死叉</td></tr>
-      <tr><td>EXIT_B</td><td>籌碼轉弱</td><td>法人轉賣 + 融券增</td></tr>
-      <tr><td>EXIT_C</td><td>移動止盈</td><td>波段漲 8% 回撤 2% 觸發</td></tr>
-      <tr><td>EXIT_D</td><td>絕對停損</td><td>跌破成本 5%<span class="badge badge-red">不可關閉</span></td></tr>
-    </table>
-
-    <h3>9.4 策略詳情</h3>
-    <p>點擊策略後右側顯示：完整條件描述、啟用/停用開關、參數可調整、對應公式連結。</p>
-
-    <hr>
-
-    <!-- ═══════════ 10. 回測引擎 ═══════════ -->
-    <h2 id="s10">10. 回測引擎<a class="goto-app" onclick="gotoApp('backtest')">前往操作 →</a></h2>
-    <p>導航：點擊左側 ⏱ 圖示</p>
-
-    <h3>10.1 設定</h3>
-    <table>
-      <tr><th>參數</th><th>說明</th></tr>
-      <tr><td>標的</td><td>逗號分隔代碼（如 <code>2330,2454</code>）</td></tr>
-      <tr><td>市場</td><td>TW / US</td></tr>
-      <tr><td>起迄日期</td><td>回測時間範圍</td></tr>
-      <tr><td>初始資金</td><td>預設 1,000,000</td></tr>
-      <tr><td>手續費折扣</td><td>預設 60%（六折）</td></tr>
-      <tr><td>交易類型</td><td>波段 / 當沖</td></tr>
-      <tr><td>策略選擇</td><td>勾選要回測的訊號組合</td></tr>
-    </table>
-
-    <h3>10.2 結果</h3>
-    <p>點擊 <strong>▶ 開始回測</strong> 後顯示六項 KPI：</p>
-    <ul>
-      <li>年化報酬（CAGR）、勝率、盈虧比</li>
-      <li>最大回撤（MDD）、夏普比率、總交易次數</li>
-    </ul>
-    <p>另有權益曲線圖、月度報酬率表、交易明細表。</p>
-
-    <h3>10.3 歷史紀錄</h3>
-    <p>下方顯示過往回測紀錄，可點擊回顧。</p>
-
-    <hr>
-
-    <!-- ═══════════ 11. 專家委員會 ═══════════ -->
-    <h2 id="s11">11. 專家委員會<a class="goto-app" onclick="gotoApp('expert')">前往操作 →</a></h2>
-    <p>導航：點擊左側 🧠 圖示</p>
-
-    <h3>11.1 四個子分頁</h3>
-
-    <h4>📋 分析紀錄</h4>
-    <p>列出歷史分析 session，點擊進入查看各專家意見。顯示：標題、狀態（completed/error）、建立時間。</p>
-
-    <h4>🚀 新建分析</h4>
-    <table>
-      <tr><th>設定</th><th>選項</th></tr>
-      <tr><td>市場</td><td>全部 / 台股 / 美股</td></tr>
-      <tr><td>時間維度</td><td>日度 / 週度 / 月度 / 年度</td></tr>
-      <tr><td>討論輪數</td><td>1~3 輪</td></tr>
-      <tr><td>分析標的</td><td>逗號分隔代碼</td></tr>
-      <tr><td>參與專家</td><td>量化分析師、技術分析師、總經策略師、數理研究員、情緒分析師</td></tr>
-    </table>
-    <p>點擊 <strong>🧠 開始專家分析</strong> → 背景執行 → 完成後自動更新狀態。</p>
-
     <div class="info-box">
-      <div class="label">防呆機制</div>
-      若分析過程中 AI 呼叫失敗或伺服器重啟，session 狀態自動標記為 <span class="badge badge-red">error</span>，不會永遠卡在「分析中」。
+      <div class="label">資料從哪來</div>
+      台股即時行情來自<strong>永豐金 Shioaji</strong>；美股來自公開行情（會延遲一點點）；AI 分析由 Claude 提供。資料都自動更新，不用手動弄。
     </div>
 
-    <h4>⏰ 排程設定</h4>
-    <p>設定定期自動分析（如每日收盤後），可啟用/停用排程。</p>
+    <!-- ═══════════ 畫面長怎樣 ═══════════ -->
+    <h2 id="layout">🧭 畫面長怎樣</h2>
+    <p>整個畫面分成四塊，認得它們就不會迷路：</p>
+    <table>
+      <tr><th>位置</th><th>長什麼樣</th><th>用途</th></tr>
+      <tr><td>最上面一條</td><td>系統名稱、<span class="badge badge-blue">TW 台股</span>／<span class="badge badge-purple">US 美股</span> 切換、風險燈號、時間</td><td>切換看台股還是美股；看現在風險高不高</td></tr>
+      <tr><td>左邊直排按鈕</td><td>分成六大區（下面詳細介紹）</td><td>點一下就跳到那個功能</td></tr>
+      <tr><td>中間大區塊</td><td>主要內容</td><td>你點什麼，這裡就顯示什麼</td></tr>
+      <tr><td>最下面紅條<br>（有時才出現）</td><td>紅色 🚨 緊急停損！</td><td>有持股跌超過設定，跳出來警告你，<strong>關不掉是故意的</strong></td></tr>
+    </table>
 
-    <h4>⚙️ 專家設定</h4>
-    <p>AI 來源（訂閱制/API 計費）、AI 模型（Sonnet/Haiku/Opus）、儲存設定。</p>
-
-    <h3>11.2 分析報告</h3>
-    <p>進入單一 session 後顯示各專家卡片（方向、信心度、關鍵論點）、共識摘要、完整回覆可展開。</p>
-
-    <hr>
-
-    <!-- ═══════════ 12. 資訊中心 ═══════════ -->
-    <h2 id="s12">12. 資訊中心<a class="goto-app" onclick="gotoApp('ic')">前往操作 →</a></h2>
-    <p>導航：點擊左側 ❓ 圖示</p>
-
-    <h3>12.1 九個子分頁</h3>
-
-    <h4>📊 總覽</h4>
-    <p>環境指標概覽、總經快覽、最新 BUY 推薦 Top 3。</p>
-
-    <h4>🌐 總經</h4>
-    <p>四組數據：風險指標、美股指數、債券/匯率、大宗商品。每項顯示當前值與漲跌幅，可刷新。</p>
-
-    <h4>🇹🇼 台股</h4>
-    <p>台股推薦清單、法人買賣超、個股分析（輸入代碼 → 技術評分 + 指標）。</p>
-
-    <h4>🇺🇸 美股</h4>
-    <p>板塊表現、個股分析。</p>
-
-    <h4>🔄 板塊輪動</h4>
-    <p>GICS 11 大板塊排名、RS vs SPY 相對強弱、動量標記（強勢/弱勢/中性）。</p>
-
-    <h4>📊 量化工具</h4>
-    <p>多因子排名、期權資料（美股）、加密貨幣行情。</p>
-
-    <h3 id="s12-ai">12.2 🤖 AI建議（重點頁面）</h3>
-
-    <h4>市場 Tab 切換</h4>
-    <p><span class="badge badge-blue">🇹🇼 台股</span> / <span class="badge badge-purple">🇺🇸 美股</span> 分開顯示，互不覆蓋。Tab 上顯示各市場推薦數量 badge。</p>
-
-    <h4>產生推薦</h4>
-    <ol>
-      <li>切換到目標市場 tab</li>
-      <li>點擊 <strong>產生推薦</strong></li>
-      <li>系統掃描該市場自選股 + 持倉</li>
-      <li>每支股票計算技術評分（0~100）→ 方向（BUY/SELL/HOLD）</li>
-      <li>結果以卡片顯示</li>
-    </ol>
-
-    <div class="info-box">
-      <div class="label">推薦卡片內容</div>
-      代碼、名稱、方向 badge、評分 ｜ 指標摘要（RS、OBV、MFI、進場價含幣別）｜ 訊號 chips<br>
-      <strong>✦ AI 深度解讀</strong>：呼叫 AI 分析 ｜ <strong>▶ 回測</strong>：帶入該股跳轉回測
+    <div class="info-box tip">
+      <div class="label">左邊六大區，照「你想做什麼」分</div>
+      🚖 <strong>駕駛艙</strong>：每天先看這裡（總覽、風控）<br>
+      🔬 <strong>研究台</strong>：研究某支股票（K線、盤後、資訊中心）<br>
+      🧠 <strong>決策引擎</strong>：讓 AI 專家團隊幫你分析<br>
+      🧪 <strong>驗證台</strong>：測試「這個策略以前有沒有用」（回測、策略）<br>
+      💼 <strong>投資組合</strong>：管我們手上的股票（持倉、交易紀錄）<br>
+      ⚙️ <strong>系統</strong>：設定、報告、這份手冊
     </div>
 
-    <h4 id="s12-hist">歷史推薦記錄</h4>
-    <ul>
-      <li>篩選：全部/台股/美股 × 全部/勝/敗/待評估</li>
-      <li>統計摘要：總筆數、勝率、平均損益</li>
-      <li>表格：代碼、方向、評分、信心、進場價（含幣別）、評估價、損益%、結果</li>
-      <li><strong>評估結果</strong>：自動抓取當前價格，計算各推薦的實際損益</li>
-    </ul>
+    <h3>切換台股／美股</h3>
+    <p>最上面點 <span class="badge badge-blue">TW 台股</span> 或 <span class="badge badge-purple">US 美股</span>，整個畫面（自選股、持倉、訊號）就跟著換。我們是台股美股都有，所以會常切。</p>
 
-    <h4 id="s12-src">📡 資料來源</h4>
-    <ul>
-      <li><strong>系統內建來源</strong>：唯讀，顯示所有系統資料管道</li>
-      <li><strong>新增資料來源</strong>：可餵入自己的研究資料</li>
-    </ul>
-    <table>
-      <tr><th>格式</th><th>說明</th></tr>
-      <tr><td>🌐 網頁 HTML</td><td>輸入網址，系統自動擷取</td></tr>
-      <tr><td>📡 RSS</td><td>訂閱 Feed</td></tr>
-      <tr><td>🔌 JSON API</td><td>自訂 API 端點</td></tr>
-      <tr><td>📄 PDF</td><td>上傳產業報告（≤25MB，本機解析不外傳）</td></tr>
-      <tr><td>📝 純文字</td><td>貼上研究筆記</td></tr>
-    </table>
-
-    <h4>⚙️ IC 設定</h4>
-    <p>API Key 設定、模型選擇、Token 用量追蹤。</p>
-
-    <hr>
-
-    <!-- ═══════════ 13. 系統設定 ═══════════ -->
-    <h2 id="s13">13. 系統設定<a class="goto-app" onclick="gotoApp('settings')">前往操作 →</a></h2>
-    <p>導航：點擊左側 ⚙️ 圖示</p>
-
-    <h3>13.1 停損設定</h3>
-    <table>
-      <tr><th>參數</th><th>預設</th><th>範圍</th></tr>
-      <tr><td>波段單停損</td><td>5%</td><td>3%~15%</td></tr>
-      <tr><td>當沖停損</td><td>1%</td><td>1%~8%</td></tr>
-      <tr><td>EXIT_D 緊急停損</td><td>5%</td><td>3%~7%</td></tr>
-    </table>
-
-    <h3>13.2 部位上限</h3>
-    <table>
-      <tr><th>參數</th><th>預設</th><th>範圍</th></tr>
-      <tr><td>單檔上限</td><td>20%</td><td>5%~50%</td></tr>
-      <tr><td>最大持倉數</td><td>10</td><td>1~20</td></tr>
-    </table>
-
-    <h3>13.3 通知設定</h3>
-    <ul>
-      <li><strong>Telegram</strong>：設定 Bot Token、新增/移除訂閱者</li>
-      <li><strong>Email SMTP</strong>：伺服器、帳密、收件者</li>
-      <li><strong>Webhook</strong>：自訂 URL</li>
-      <li><strong>測試推播</strong>：發送測試訊息確認設定正確</li>
-    </ul>
-
-    <h3>13.4 自動下單</h3>
-    <ul>
-      <li><strong>EXIT_D 自動停損</strong>：啟用後自動執行絕對停損</li>
-      <li><strong>EXIT_C 自動止盈</strong>：啟用後自動執行移動止盈</li>
-      <li>可手動執行掃描</li>
-    </ul>
-
-    <h3>13.5 法人籌碼排程</h3>
-    <p>自動抓取開關、手動立即抓取。</p>
-
-    <h3>13.6 系統管理</h3>
-    <p><strong>🔄 重啟後端</strong>：重新啟動 backend.py。</p>
-
-    <hr>
-
-    <!-- ═══════════ 14. 安全機制 ═══════════ -->
-    <h2 id="s14">14. 安全與保護機制</h2>
+    <!-- ═══════════ 顏色與數字 ═══════════ -->
+    <h2 id="colors">🎨 顏色與數字怎麼看（很重要）</h2>
 
     <div class="info-box danger">
-      <div class="label">EXIT_D 保命機制 — 不可關閉</div>
-      跌破成本 5% 自動觸發賣出訊號。底部紅色警示條永遠顯示，無法停用。
+      <div class="label">⚠️ 顏色和台灣股市「相反」，先記住這個</div>
+      這個系統用的是<strong>美國習慣</strong>：<br>
+      <span class="plain">綠色＝上漲／賺錢</span> 📈　　<span style="color:var(--red);font-weight:600">紅色＝下跌／賠錢</span> 📉<br>
+      （台股看盤軟體通常是紅漲綠跌，<u>剛好相反</u>，別看錯了！）
+    </div>
+
+    <h3>常見數字怎麼讀</h3>
+    <table>
+      <tr><th>你看到</th><th>意思</th></tr>
+      <tr><td><span class="plain">+73.68%</span>（綠）</td><td>這支從買進到現在<strong>賺了 73.68%</strong></td></tr>
+      <tr><td><span style="color:var(--red)">-15.89%</span>（紅）</td><td>這支現在<strong>賠了 15.89%</strong></td></tr>
+      <tr><td>1200 張 @ $2561</td><td>持有 1200 張，平均成本一股 2561 元（台股 1 張＝1000 股）</td></tr>
+      <tr><td>信心度 81%</td><td>系統對這個建議的把握程度，越高代表訊號越明確（不是保證會賺）</td></tr>
+      <tr><td>BUY · 88</td><td>建議方向是「買」，評分 88 分（滿分 100，分數越高越看好）</td></tr>
+    </table>
+
+    <!-- ═══════════ Z1 駕駛艙 ═══════════ -->
+    <h2 id="z1"><span class="zone-tag">第一區</span>🚖 駕駛艙</h2>
+    <p>每天打開系統，<strong>先來這一區看一眼</strong>，就像出門前看天氣。底下有兩個頁面：總覽、風控。</p>
+
+    <h3 id="z1-home">總覽（每天先看這頁）</h3>
+    <p>左邊點 🏠 <strong>總覽</strong>。由上到下會看到：</p>
+    <ul>
+      <li><strong>大盤環境卡</strong>（TW／US 各一張）：寫著 <span class="badge badge-green">TREND_UP</span>（趨勢上行）之類的字。<span class="plain">綠色＝大環境好</span>，紅／黃色就要小心。旁邊 VIX、今日漲跌等是輔助數字。</li>
+      <li><strong>今日系統訊號</strong>：今天系統覺得「值得注意」的股票，一張張卡片。卡片上的標籤（如 <code>LOCK_BUY</code>、<code>EXIT_D</code>）代表是什麼類型的訊號，意思請查辭典。</li>
+      <li><strong>持倉快覽</strong>（右側）：我們手上每一支股票的即時損益%。<span class="plain">綠賺紅賠</span>，一眼看出哪支表現好。點任一支可跳到它的 K 線圖。</li>
+    </ul>
+    <div class="info-box tip">
+      <div class="label">三顆按鈕</div>
+      <strong>手動掃描</strong>＝叫系統現在重算一次所有訊號；<strong>盤後回顧</strong>＝補抓收盤後的籌碼資料；<strong>補齊K線</strong>＝把圖的資料補到最新。平常不用按，想要最新時再按。
+    </div>
+
+    <h3 id="z1-risk">風控</h3>
+    <p>左邊點 🛡 <strong>風控</strong>。這頁是「<strong>大盤煞車系統</strong>」。它盯著四個總體經濟指標，幫你判斷現在能不能放心買：</p>
+    <table>
+      <tr><th>燈號</th><th>意思</th><th>建議</th></tr>
+      <tr><td><span class="badge badge-green">NORMAL 正常</span></td><td>環境健康</td><td>正常操作</td></tr>
+      <tr><td><span class="badge badge-yellow">CAUTION 注意</span></td><td>有 1 個指標亮黃燈</td><td>少押一點，部位縮到約六成</td></tr>
+      <tr><td><span class="badge badge-red">ALERT 警戒</span></td><td>有 2 個以上指標異常</td><td>很危險，建議暫停買進</td></tr>
+    </table>
+    <p>這個燈號也會顯示在最上面那條（例如 <span class="badge badge-yellow">CAUTION 60%</span>），不用特地進來也看得到。</p>
+
+    <!-- ═══════════ Z2 研究台 ═══════════ -->
+    <h2 id="z2"><span class="zone-tag">第二區</span>🔬 研究台</h2>
+    <p>想<strong>深入研究某一支股票</strong>時來這區。三個頁面：K線、盤後、資訊中心。</p>
+
+    <h3 id="z2-k">K線</h3>
+    <p>左邊點 📈 <strong>K線</strong>，或在總覽點任一支股票就會跳來這。</p>
+    <ul>
+      <li><strong>搜尋股票</strong>：最上方的框輸入代碼（台股像 <code>2330</code>、美股像 <code>AAPL</code>）按 Enter，就載入那支的走勢圖。</li>
+      <li><strong>那張圖</strong>：紅綠交錯的柱子是「K 棒」，每根代表一段時間的漲跌；上面幾條彎曲的線是「均線」（平均價格趨勢）；圖上的小標記是系統標出的買賣訊號點。</li>
+      <li><strong>5分／60分／日K</strong>：切換每根 K 棒代表多長時間（看短線用 5 分，看長期用日 K）。</li>
+      <li><strong>右邊面板</strong>：「五檔委託」是即時買賣掛單（盤後會顯示「等待行情…」屬正常）；下面是「快速下單」（模擬，練習用）。</li>
+    </ul>
+    <div class="info-box">
+      <div class="label">看不懂那些勾選項？</div>
+      量能、MACD、MA5/10/20/60… 是各種技術指標的開關，勾了圖上就多一條線或一塊資訊。不確定就維持預設，不影響使用。名詞請查辭典。
+    </div>
+
+    <h3 id="z2-after">盤後</h3>
+    <p>左邊點 <strong>盤後</strong>。收盤後系統會自動整理當天的「籌碼」資訊（誰在買、誰在賣）：</p>
+    <ul>
+      <li><strong>籌碼擠壓候選</strong>：可能準備突破的股票（沒有就顯示「今日無候選股」，正常）。</li>
+      <li><strong>法人目標價</strong>：可以自己填入看到的法人目標價，系統算出「離現在還有多少空間」。</li>
+    </ul>
+
+    <h3 id="z2-ic">資訊中心</h3>
+    <p>左邊點 <strong>資訊中心</strong>。這是「<strong>每日情報總匯</strong>」，上面有一排分頁可切換：</p>
+    <ul>
+      <li><strong>總覽</strong>：今天環境一句話建議（如「中性觀望」）＋ 全球重要數字（VIX、美元、黃金、油價等）＋ 今日 AI 最看好的幾支股票。</li>
+      <li><strong>總經 / 台股 / 美股</strong>：各市場的細節數據與推薦。</li>
+      <li><strong>板塊輪動</strong>：哪些產業類股最近強、哪些弱。</li>
+      <li><strong>情緒 / 量化工具 / AI 建議</strong>：進階分析。AI 建議頁可以按「產生推薦」，讓系統幫你掃一輪自選股給買賣建議。</li>
+    </ul>
+
+    <!-- ═══════════ Z3 決策引擎 ═══════════ -->
+    <h2 id="z3"><span class="zone-tag">第三區</span>🧠 決策引擎</h2>
+    <p>左邊點 <strong>專家</strong>。這裡是「<strong>AI 專家委員會</strong>」—— 系統用幾位不同角色的 AI 分析師（技術派、籌碼派、總經派等），針對一支股票各自發表看法，再給你綜合結論。</p>
+    <ul>
+      <li><strong>分析紀錄</strong>：過去做過的分析，點進去看當時各專家怎麼說。</li>
+      <li><strong>新建分析</strong>：選市場、時間維度、要分析的股票，按開始，它在背景跑，跑完狀態變「✓完成」。</li>
+    </ul>
+    <div class="info-box tip">
+      <div class="label">白話</div>
+      就像找一個「投資顧問小組」幫你針對某支股票開會，給你多角度意見。是參考用，最後決定還是人。
+    </div>
+
+    <!-- ═══════════ Z4 驗證台 ═══════════ -->
+    <h2 id="z4"><span class="zone-tag">第四區</span>🧪 驗證台</h2>
+    <p>這區回答一個問題：「<strong>這套買賣方法，如果套用在過去幾年，會賺還是賠？</strong>」這叫「回測」。四個頁面：回測、策略實驗室、策略工廠、策略。</p>
+
+    <h4>回測</h4>
+    <ul>
+      <li>填入：要測的股票、時間範圍、初始資金（預設 100 萬）、勾選要用哪些買賣訊號。</li>
+      <li>按 <strong>▶ 開始回測</strong>，系統拿歷史資料跑一遍，給你成績單：年化報酬、勝率、最大跌幅（MDD）、夏普值等。</li>
+      <li>下面有歷史回測紀錄可回顧。</li>
+    </ul>
+    <h4>策略 / 策略工廠 / 策略實驗室</h4>
+    <p>查看系統內建的各種買賣策略（每個策略就是一條「什麼情況該買、什麼情況該賣」的規則）、調整參數、做進階實驗。<strong>這幾頁比較進階，平常看看就好，主要是老公在用。</strong></p>
+
+    <!-- ═══════════ Z5 投資組合 ═══════════ -->
+    <h2 id="z5"><span class="zone-tag">第五區</span>💼 投資組合</h2>
+    <p>管理我們<strong>實際持有的股票</strong>。兩個頁面：持倉、交易紀錄。</p>
+
+    <h4>持倉</h4>
+    <ul>
+      <li>上方四張卡：最大單一部位%、前三大集中度、台股／美股比例、風控警示（有幾支押太多）。</li>
+      <li>下方表格：每支股票佔總資產的比例，超過 20% 上限會標 <span class="badge badge-yellow">⚠ 超過 20% 上限</span> 提醒「別押太重」。</li>
+      <li>最下面一行：總成本、總市值、<strong>未實現損益</strong>（帳面賺賠）和報酬率。</li>
+      <li><strong>新增持倉</strong>：手上新買了股票，可在這裡登記。</li>
+    </ul>
+    <div class="info-box">
+      <div class="label">什麼是「集中度」</div>
+      就是「會不會把雞蛋放同一個籃子」。某支佔比太高（>20%），萬一它大跌，整體傷很重，所以系統會警告分散一點。
+    </div>
+
+    <h4>交易紀錄</h4>
+    <ul>
+      <li>記錄每一筆買賣（哪天、買還是賣、幾張、多少錢）。台股、美股分開兩個分頁。</li>
+      <li>新增交易時，系統會<strong>自動幫你算手續費和稅</strong>，也會自動更新「持倉」。</li>
+      <li>有「交易分析」可看已實現的賺賠統計。</li>
+    </ul>
+
+    <!-- ═══════════ Z6 系統 ═══════════ -->
+    <h2 id="z6"><span class="zone-tag">第六區</span>⚙️ 系統</h2>
+    <p>設定與工具區。包含：資料源、報告中心、設定，還有<strong>這份手冊</strong>。</p>
+    <ul>
+      <li><strong>設定</strong>：調停損%、單檔上限、設定 Telegram／Email 通知（賺賠或警示可推到手機）。<u>密碼類欄位會顯示成 *** 保護，不會外露。</u></li>
+      <li><strong>資料源</strong>：系統接了哪些資料管道，技術性，看看就好。</li>
+      <li><strong>報告中心</strong>：系統產生的分析報告存放處。</li>
+    </ul>
+
+    <!-- ═══════════ 保命機制 ═══════════ -->
+    <h2 id="safety">🛡 保命機制（很重要）</h2>
+
+    <div class="info-box danger">
+      <div class="label">底部紅條：緊急停損警示（關不掉）</div>
+      當我們有股票<strong>跌破設定的停損線</strong>（預設約 -5%），畫面最下方會出現紅色 🚨「緊急停損！持倉跌幅超過 5%」。<br>
+      <strong>這是故意關不掉的</strong> —— 提醒你「有股票跌過頭了，去看看要不要處理」。看到它不用慌，但要去「持倉」確認一下。
     </div>
 
     <div class="info-box warn">
-      <div class="label">MACRO_LOCK 全局鎖定</div>
-      總經異常時自動/手動鎖定所有買入。頂部紅色橫幅動態閃爍提醒。
+      <div class="label">大盤鎖（MACRO_LOCK）</div>
+      當總體經濟很危險時，系統最上方會出現紅色閃爍橫幅，並建議停止買進，保護資金。
     </div>
 
-    <div class="info-box">
-      <div class="label">API Token 保護</div>
-      所有寫入操作需 token 驗證。敏感資訊（Telegram token、Email 密碼）存於 risk_config，不外洩。
+    <div class="info-box tip">
+      <div class="label">放心點按</div>
+      因為是<strong>模擬盤</strong>，所有「買入／賣出」都是練習與記帳，不會真的動到錢。可以大膽探索每個功能。
     </div>
 
-    <h3>三級風控一覽</h3>
+    <!-- ═══════════ 名詞小辭典 ═══════════ -->
+    <h2 id="glossary">📕 名詞小辭典（看不懂就查這裡）</h2>
     <table>
-      <tr><th>等級</th><th>條件</th><th>操作限制</th></tr>
-      <tr><td><span class="badge badge-green">NORMAL</span></td><td>無觸發</td><td>全額操作</td></tr>
-      <tr><td><span class="badge badge-yellow">CAUTION</span></td><td>觸發 1 個</td><td>部位縮至 60%</td></tr>
-      <tr><td><span class="badge badge-red">ALERT</span></td><td>觸發 ≥ 2 個</td><td>部位縮至 30%，禁止買入</td></tr>
+      <tr><th>名詞</th><th>白話解釋</th></tr>
+      <tr><td>K 線 / K 棒</td><td>股價走勢圖，每根柱子代表一段時間的開盤、收盤、最高、最低價。</td></tr>
+      <tr><td>均線 / MA</td><td>過去 N 天的平均價，畫成一條線看趨勢。MA20＝近 20 天平均。</td></tr>
+      <tr><td>VIX</td><td>「恐慌指數」。越高代表市場越緊張害怕，通常越危險。</td></tr>
+      <tr><td>RSI</td><td>判斷「漲太多（超買）或跌太多（超賣）」的指標，0~100。</td></tr>
+      <tr><td>MACD / KD</td><td>常用的買賣時機判斷指標，看「金叉／死叉」決定偏多或偏空。</td></tr>
+      <tr><td>乖離</td><td>現價離平均線多遠。乖離太大代表「漲過頭或跌過頭」。</td></tr>
+      <tr><td>五檔</td><td>當下想買、想賣的人各自掛的前五個價格與數量。</td></tr>
+      <tr><td>VWAP</td><td>當天「成交量加權平均價」，常被當作多空分界。</td></tr>
+      <tr><td>停損</td><td>跌到某個價就認賠賣出，避免越賠越多。</td></tr>
+      <tr><td>停利 / 止盈</td><td>賺到一定程度就獲利了結。</td></tr>
+      <tr><td>EXIT_D</td><td>本系統的「絕對停損保命線」，跌破成本約 5% 就強烈提醒出場。</td></tr>
+      <tr><td>regime / 環境</td><td>大盤現在的「氣候」：上行、下行還是盤整。</td></tr>
+      <tr><td>籌碼</td><td>誰在買誰在賣（尤其外資、投信等「法人」大戶的動向）。</td></tr>
+      <tr><td>法人</td><td>外資、投信、自營商等專業機構，資金大、影響股價。</td></tr>
+      <tr><td>集中度</td><td>資金有沒有過度集中在某幾支股票（風險）。</td></tr>
+      <tr><td>未實現損益</td><td>還沒賣出、帳面上的賺賠（賣了才是「已實現」）。</td></tr>
+      <tr><td>回測</td><td>用過去的歷史資料，測試某套買賣方法以前會不會賺。</td></tr>
+      <tr><td>CAGR</td><td>年化報酬率，平均每年賺幾%。</td></tr>
+      <tr><td>MDD</td><td>最大回撤，歷史上最慘從高點跌掉多少%。數字越小越穩。</td></tr>
+      <tr><td>勝率</td><td>所有交易裡賺錢的比例。</td></tr>
+      <tr><td>信心度 / 評分</td><td>系統對某個建議的把握程度，高不代表保證賺，是參考。</td></tr>
+      <tr><td>模擬盤</td><td>練習帳戶，買賣都是假的、不花真錢。</td></tr>
     </table>
 
-    <hr>
-
-    <!-- ═══════════ 附錄 ═══════════ -->
-    <h2 id="appendix">附錄：快速操作流程</h2>
-
+    <!-- ═══════════ 每日三步驟 ═══════════ -->
+    <h2 id="daily">📋 老婆的每日三步驟</h2>
+    <p>不想記太多？每天只要做這三步就夠：</p>
     <div class="flow-grid">
       <div class="flow-card">
-        <h4>A. 每日開盤流程</h4>
+        <h4>① 看天氣（30 秒）</h4>
         <ol>
-          <li>開啟首頁 → 檢查風控等級</li>
-          <li>查看今日訊號（自動 or 手動掃描）</li>
-          <li>有 BUY 訊號 → 跳轉 K 線查看 → 快速下單</li>
-          <li>檢查持倉 EXIT_D 警示</li>
+          <li>打開系統 → 🚖 駕駛艙 → <strong>總覽</strong></li>
+          <li>看最上面的風險燈號：綠／黃／紅</li>
+          <li>看大盤環境卡是不是 <span class="badge badge-green">TREND_UP</span></li>
         </ol>
       </div>
       <div class="flow-card">
-        <h4>B. 每日收盤流程</h4>
+        <h4>② 看自己（1 分鐘）</h4>
         <ol>
-          <li>盤後分析 → 抓取今日籌碼</li>
-          <li>資訊中心 → AI建議 → 產生推薦（台股+美股分開）</li>
-          <li>評估歷史推薦結果</li>
-          <li>交易紀錄 → 補錄今日交易</li>
+          <li>看「持倉快覽」每支的損益（<span class="plain">綠賺</span>／<span style="color:var(--red)">紅賠</span>）</li>
+          <li>底部有沒有跳<strong>紅色緊急停損條</strong></li>
+          <li>有的話 → 💼 投資組合 → 持倉，看哪支出問題</li>
         </ol>
       </div>
       <div class="flow-card">
-        <h4>C. 週末研究流程</h4>
+        <h4>③ 看建議（看心情）</h4>
         <ol>
-          <li>專家委員會 → 新建週度分析</li>
-          <li>資訊中心 → 量化工具 → 多因子排名</li>
-          <li>系統透視 → 按公式 → 調參數 → 回測驗證</li>
-          <li>策略管理 → 根據回測結果調整策略</li>
-        </ol>
-      </div>
-      <div class="flow-card">
-        <h4>D. 新增一檔股票</h4>
-        <ol>
-          <li>首頁 → 自選股 → + 新增 → 輸入代碼</li>
-          <li>點擊該股 → K 線 → 查看技術面</li>
-          <li>資訊中心 → AI建議 → AI 深度解讀</li>
-          <li>決定買入 → 交易紀錄 → 新增交易（BUY）</li>
+          <li>🔬 研究台 → 資訊中心 → <strong>AI 建議</strong></li>
+          <li>看今天系統看好哪些股票</li>
+          <li>有興趣的點進 K 線 / 找老公討論</li>
         </ol>
       </div>
     </div>
+
+    <!-- ═══════════ FAQ ═══════════ -->
+    <h2 id="faq">❓ 常見問題</h2>
+
+    <h4>Q：我會不會不小心買到股票、花到錢？</h4>
+    <p>A：<strong>不會。</strong>左上角是「模擬盤」，所有買賣都是練習記帳，不連券商、不動真錢。</p>
+
+    <h4>Q：為什麼綠色是賺、紅色是賠？跟我平常看的相反。</h4>
+    <p>A：這套用美國習慣（綠漲紅跌），和台灣看盤軟體相反。記住「<span class="plain">綠＝好</span>、<span style="color:var(--red)">紅＝壞</span>」就好。</p>
+
+    <h4>Q：底部紅色條一直在，是壞了嗎？</h4>
+    <p>A：不是。那是「有股票跌超過停損線」的<strong>提醒</strong>，故意關不掉。去「持倉」看一下哪支、要不要處理即可。</p>
+
+    <h4>Q：網址打不開／一直轉圈？</h4>
+    <p>A：通常是家裡電腦關了或系統在重啟。等幾分鐘再試，或請老公開電腦。第一次進去若有英文 ngrok 警告頁，點 <strong>Visit Site</strong> 就好。</p>
+
+    <h4>Q：K 線圖一進去顯示「載入中」？</h4>
+    <p>A：在最上面的框重新輸入一次代碼（例 <code>2330</code>）按 Enter，圖就會出來。</p>
+
+    <h4>Q：看到看不懂的英文標籤（像 LOCK_BUY、EXIT_D）？</h4>
+    <p>A：那是訊號類型代號，翻到 <a href="#glossary" style="color:var(--green)">名詞小辭典</a> 或問老公。記住 <code>EXIT_D</code> ＝「該停損保命」的紅色警訊就好。</p>
 
     <hr>
     <p style="font-size:12px;color:var(--text2);text-align:center;margin-top:30px">
-      智慧投顧監控系統 使用手冊 v2.0 ｜ 最後更新：2026-06-21 ｜ 涵蓋 12 頁面 × 159+ API 端點
+      智慧投顧監控系統 使用手冊 v4 ｜ 最後更新：2026-06-24 ｜ 六大區・白話版（為共同管理而寫）
     </p>
 
   </main>
 </div>
 
-<!-- Back to top -->
 <button class="back-top" id="backTop" onclick="window.scrollTo({top:0})">↑</button>
 <script>
 window.addEventListener('scroll', () => {
   document.getElementById('backTop').classList.toggle('show', window.scrollY > 300);
 });
-// Highlight current section in sidebar
 const observer = new IntersectionObserver(entries => {
   entries.forEach(e => {
     if (e.isIntersecting) {
@@ -891,17 +467,6 @@ const observer = new IntersectionObserver(entries => {
   });
 }, { threshold: 0.3 });
 document.querySelectorAll('h2[id]').forEach(h => observer.observe(h));
-
-// Detect if inside iframe — show/hide "前往操作" links accordingly
-const inIframe = window.self !== window.top;
-if (!inIframe) {
-  document.querySelectorAll('.goto-app').forEach(a => a.classList.add('hidden'));
-}
-function gotoApp(page) {
-  if (inIframe && window.parent && window.parent.showPage) {
-    window.parent.showPage(page);
-  }
-}
 </script>
 </body>
 </html>
