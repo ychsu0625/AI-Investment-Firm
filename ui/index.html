@@ -429,8 +429,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .sf-title{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.4px}
 .sf-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .sf-row label{font-size:12px;color:var(--text);min-width:130px}
-.sf-row input[type=number]{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 9px;font-size:13px;width:100px}
-.sf-row input:focus{outline:none;border-color:var(--blue)}
+/* Step3-Z6: only number inputs were dark; text/password/email/select fell back to white. Cover all non-range controls. */
+.sf-row input:not([type=range]),.sf-row select{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 9px;font-size:13px}
+.sf-row input[type=number]{width:100px}
+.sf-row input::placeholder{color:var(--text3)}
+.sf-row input:focus,.sf-row select:focus{outline:none;border-color:var(--blue)}
+/* Step3-Z6: IC quant-tool controls had inline border/padding but no bg/color -> white. */
+#ic-mf-market,#ic-opt-code,#ic-crypto-sym{background:var(--bg3);color:var(--text)}
+#ic-mf-market:focus,#ic-opt-code:focus,#ic-crypto-sym:focus{outline:none;border-color:var(--blue)}
 .sf-unit{color:var(--text3);font-size:12px}
 .sf-row input[type=range]{width:150px;accent-color:var(--red)}
 .sf-save{padding:8px 24px;background:var(--blue-d);border:none;border-radius:4px;color:#fff;font-size:13px;font-weight:600;cursor:pointer}
