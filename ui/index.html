@@ -1910,6 +1910,23 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px"><input type="checkbox" class="br-strat-chk" value="VOL_BREAKOUT" checked style="accent-color:var(--blue)"> VOL_BREAKOUT 量能突破</label>
               </div>
             </div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+              <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+                <span style="font-size:12px;color:var(--text2);font-weight:600">橫斷面 alpha 對照實驗（H-A1 旗艦）</span>
+                <span style="font-size:11px;color:var(--text3)">同一動量訊號跑「絕對 / 相對 / 殘差」三版，驗證 beta→alpha 機制（§5.2）</span>
+              </div>
+              <div style="display:flex;align-items:center;flex-wrap:wrap;gap:14px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">進場 top
+                  <input type="number" id="br-cs-topk" value="20" min="1" max="100" step="5" style="width:56px;padding:5px 6px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:var(--r);font-size:13px;font-variant-numeric:tabular-nums"> %
+                </label>
+                <div style="display:flex;gap:8px;font-size:11px;color:var(--text3)">
+                  <span title="絕對動量：個股 60d 報酬 top K%（高負載 β，預期僅 POSITIVE_EV）">A1_RAW 絕對</span>
+                  <span title="相對強度：個股 − 指數 60d 報酬 top K%（快速版，預期升 ALPHA）">A1_REL 相對</span>
+                  <span title="殘差動量：對指數滾動回歸殘差 IR top K%（嚴謹版，預期升 ALPHA）">A1_RESID 殘差</span>
+                </div>
+                <button id="br-btn-a1" onclick="brRunA1()" style="padding:7px 18px;background:none;color:var(--blue);border:1px solid var(--blue);border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;transition:.15s">▶ 跑 A1 對照實驗</button>
+              </div>
+            </div>
           </div>
           <div id="br-progress-wrap" style="display:none;margin-bottom:12px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
             <div style="height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-bottom:8px">
@@ -5807,24 +5824,21 @@ function brSelectAll(checked) {
   document.querySelectorAll('.br-strat-chk').forEach(c => c.checked = checked);
 }
 
-async function brSubmit() {
-  const markets = Array.from(document.querySelectorAll('.br-mkt-chk:checked')).map(c => c.value);
-  const buys    = Array.from(document.querySelectorAll('.br-strat-chk:checked')).map(c => c.value);
-  const start   = document.getElementById('br-start').value || '2022-01-01';
+function brCsTopK() {
+  const v = parseFloat((document.getElementById('br-cs-topk') || {}).value);
+  return (isFinite(v) && v > 0) ? Math.min(v, 100) / 100 : 0.20;
+}
 
-  if (!markets.length) { brSetMsg('請至少選一個市場', 'warn'); return; }
-  if (!buys.length)    { brSetMsg('請至少選一個進場策略', 'warn'); return; }
-
+async function brStart(payload, runMsg) {
   brClearPoll();
   brSetState('running');
-  brSetProgress(0, 0, '提交中…');
+  brSetProgress(0, 0, runMsg || '提交中…');
   brSetMsg('', '');
-
   try {
     const res = await fetch(API + '/api/backtest/base-rate', {
       method: 'POST',
       headers: authHeaders({'Content-Type': 'application/json'}),
-      body: JSON.stringify({markets, buy_strategies: buys, sell_strategies: ['EXIT_C', 'EXIT_D'], start})
+      body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
@@ -5834,6 +5848,30 @@ async function brSubmit() {
     brSetState('idle');
     brSetMsg('提交失敗: ' + e.message, 'error');
   }
+}
+
+async function brSubmit() {
+  const markets = Array.from(document.querySelectorAll('.br-mkt-chk:checked')).map(c => c.value);
+  const buys    = Array.from(document.querySelectorAll('.br-strat-chk:checked')).map(c => c.value);
+  const start   = document.getElementById('br-start').value || '2022-01-01';
+
+  if (!markets.length) { brSetMsg('請至少選一個市場', 'warn'); return; }
+  if (!buys.length)    { brSetMsg('請至少選一個進場策略', 'warn'); return; }
+
+  brStart({markets, buy_strategies: buys, sell_strategies: ['EXIT_C', 'EXIT_D'], start, cs_top_k: brCsTopK()});
+}
+
+// H-A1 對照實驗：絕對 vs 相對 vs 殘差 三版同跑（§5.2），驗證 beta→alpha 機制
+async function brRunA1() {
+  const markets = Array.from(document.querySelectorAll('.br-mkt-chk:checked')).map(c => c.value);
+  const start   = document.getElementById('br-start').value || '2022-01-01';
+  if (!markets.length) { brSetMsg('請至少選一個市場', 'warn'); return; }
+  brStart({
+    markets,
+    buy_strategies: ['A1_RAW', 'A1_REL', 'A1_RESID'],
+    sell_strategies: ['EXIT_C', 'EXIT_D'],
+    start, cs_top_k: brCsTopK()
+  }, 'A1 對照實驗計算中…（殘差動量需滾動回歸，較久）');
 }
 
 async function brPoll(jobId) {
@@ -5879,6 +5917,8 @@ function brSetState(state) {
   const running = state === 'running';
   btnRun.disabled    = running;
   btnRun.textContent = running ? '⏳ 計算中…' : '▶ 開始計算';
+  const btnA1 = document.getElementById('br-btn-a1');
+  if (btnA1) btnA1.disabled = running;
   btnCancel.style.display = running ? '' : 'none';
   progWrap.style.display  = state === 'idle' ? 'none' : '';
 }
@@ -5936,6 +5976,7 @@ function brRender(rows, meta) {
     <span>計算時間：${runAt}</span><span>歷史起始：${histFrom}</span>
     <span>出場：${sellLabel}</span>
     <span title="通過分級：先過正EV閘(可交易)，再過 beta 濾網才升 ALPHA">N≥${thr.min_N||30} ｜ 報酬CI下界&gt;${thr.avg_ret_ci_lower_gt!=null?thr.avg_ret_ci_lower_gt:0} ｜ P/L≥${thr.min_pl||1.2} ｜ +beta濾網=ALPHA</span>
+    <span title="§5.3 補強：2022超額=空頭桶逐筆超額(防禦型 alpha 應為正)；IR=超額/超額波動(資訊比率)">＋2022超額/IR（防誤殺防禦型）</span>
     <span style="margin-left:auto;display:flex;gap:12px;font-weight:600;font-variant-numeric:tabular-nums">
       <span style="color:var(--green)">ALPHA ${cAlpha}</span>
       <span style="color:var(--yellow)">POSITIVE_EV ${cPos}</span>
@@ -5957,9 +5998,23 @@ function brRender(rows, meta) {
     const excTxt    = (r.excess_avg == null)
       ? '<span style="color:var(--text3)">樣本不足</span>'
       : `<span style="color:${excColor}">${r.excess_avg >= 0 ? '+' : ''}${r.excess_avg.toFixed(1)}%</span> <span style="color:var(--text3);font-size:11px">${ci(r.excess_ci95)}</span>`;
+    // R-CS 橫斷面因子標記
+    const facMap    = {raw_mom:'絕對動量', rel_str:'相對強度', resid_mom:'殘差動量'};
+    const facTxt    = r.cs_factor
+      ? `<span style="color:var(--blue)">${facMap[r.cs_factor] || r.cs_factor}</span><span style="color:var(--text3);font-size:11px"> ·top${Math.round((r.cs_top_k||0.2)*100)}%</span>`
+      : '<span style="color:var(--text3)">—</span>';
+    // §5.3 下行超額（2022 空頭桶）
+    const dn        = r.downside_excess_avg;
+    const dnTxt     = (dn == null) ? '<span style="color:var(--text3)">—</span>'
+      : `<span style="color:${dn > 0 ? 'var(--green)' : 'var(--red)'}">${dn >= 0 ? '+' : ''}${dn.toFixed(1)}%</span>`;
+    // §5.3 資訊比率 IR
+    const ir        = r.info_ratio;
+    const irTxt     = (ir == null) ? '<span style="color:var(--text3)">—</span>'
+      : `<span style="color:${ir > 0 ? 'var(--text)' : 'var(--text2)'}">${ir.toFixed(2)}</span>`;
     return `<tr style="${rowStyle}">
       <td style="padding:7px 10px;font-family:ui-monospace,monospace;font-size:12px;color:var(--blue);white-space:nowrap">${r.strategy}</td>
       <td style="padding:7px 10px;font-size:13px">${r.market}</td>
+      <td style="padding:7px 10px;font-size:12px;white-space:nowrap">${facTxt}</td>
       <td style="padding:7px 10px;font-size:12px;color:var(--text2);white-space:nowrap">${r.family || '—'}</td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${(r.N||0).toLocaleString()}</td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;color:${wrColor}">${(r.win_rate||0).toFixed(1)}%</td>
@@ -5969,7 +6024,9 @@ function brRender(rows, meta) {
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${(r.pl_ratio||0).toFixed(2)}</td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:${subColor};white-space:nowrap">${subTxt}</td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${excTxt}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;white-space:nowrap">${dnTxt}</td>
       <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:var(--text2)">${(r.sharpe||0).toFixed(2)}</td>
+      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px">${irTxt}</td>
       <td style="padding:7px 10px;text-align:center">${brStatusBadge(st)}</td>
       <td style="padding:7px 10px;font-size:12px;color:var(--text3);max-width:220px">${r.reason || ''}</td>
     </tr>`;
@@ -5980,9 +6037,9 @@ function brRender(rows, meta) {
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead style="position:sticky;top:0;background:var(--bg3);z-index:1">
         <tr>
-          ${th('策略','left',true)}${th('市場','left',false)}${th('族別','left',true)}${th('N','right',false)}
+          ${th('策略','left',true)}${th('市場','left',false)}${th('因子','left',true)}${th('族別','left',true)}${th('N','right',false)}
           ${th('勝率','right',true)}${th('勝率 CI','right',true)}${th('平均報酬','right',true)}${th('報酬 CI','right',true)}
-          ${th('P/L','right',false)}${th('子期間','right',true)}${th('超額報酬','right',true)}${th('Sharpe','right',false)}
+          ${th('P/L','right',false)}${th('子期間','right',true)}${th('超額報酬','right',true)}${th('2022超額','right',true)}${th('Sharpe','right',false)}${th('IR','right',false)}
           ${th('狀態','center',false)}${th('原因','left',false)}
         </tr>
       </thead>

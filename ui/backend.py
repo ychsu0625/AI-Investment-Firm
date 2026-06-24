@@ -12878,6 +12878,23 @@ _BASE_RATE_BUY_IMPL = [
     "RSI_EXTREME", "MA_ALIGN", "DONCHIAN_BREAK", "MA_PULLBACK", "BB_SQUEEZE", "VOL_BREAKOUT",
 ]
 
+# ── R-CS 橫斷面排名（alpha agenda Tier 1 / H-A1 旗艦）─────────────────────
+# A1 對照實驗策略：純橫斷面排名進場（signal = 當日對全 universe 的因子百分位 ∈ top K%），
+# 沿用 EXIT_C/D 出場、淨成本、bootstrap CI、子期間/超額濾網。三檔構成 §5.2 殺手級對照：
+#   A1_RAW  = 絕對動量（個股 N 日報酬）        → 高負載 β，預期僅 POSITIVE_EV
+#   A1_REL  = 相對強度（個股 − 指數 N 日報酬）  → 剝除市場分量（快速版），預期升 ALPHA
+#   A1_RESID= 殘差動量（對指數滾動回歸殘差 IR） → 完整 β 殘差化（嚴謹版），預期升 ALPHA
+_BASE_RATE_CS_STRATS = {
+    "A1_RAW":   "raw_mom",
+    "A1_REL":   "rel_str",
+    "A1_RESID": "resid_mom",
+}
+_CS_REL_N      = 60     # 相對強度 / 絕對動量回看天數（agenda N 預設 60）
+_CS_RESID_REG  = 120    # 殘差動量：beta 估計窗（60–120d）
+_CS_RESID_ACC  = 60     # 殘差動量：殘差累積窗（短於估計窗，避免 OLS 殘差零和）
+_CS_DEFAULT_K  = 0.20   # 進場 top K%（agenda 預設前 20%，可配）
+_CS_MIN_XSECTION = 10   # 當日可排名所需的最少橫斷面樣本數（暖身期不足則不排名）
+
 
 def _net_return_pct(buy_price: float, sell_price: float, mkt: str, discount: float) -> float:
     """單筆交易扣成本後報酬%（台股含手續費+證交稅；美股套買賣兩邊滑價 US_SLIPPAGE_PCT，
@@ -13060,35 +13077,176 @@ def _detect_triggers(sid: str, f: dict):
     return trig
 
 
+def _compute_cs_factors(f: dict, bench_map: dict, factors_needed: set) -> dict:
+    """為單一個股算「橫斷面因子的時間序列」（對齊 f['dates']），供之後跨 universe 排名。
+       raw_mom   = 個股 N 日報酬%（絕對動量，§5.2 對照組，高負載 β）
+       rel_str   = 個股 N 日報酬 − 指數 N 日報酬（相對強度，A1 快速版，剝市場分量）
+       resid_mom = 對指數滾動回歸殘差的資訊比（近 acc 窗累積殘差 / 殘差波動，A1 嚴謹版）
+    回傳 {factor: np.array(len=n)}，暖身期/缺指數為 NaN。純 OHLCV + market.db 指數，零新數據。"""
+    import numpy as np
+    dates_c = f["dates"]; c = f["c"]; n = f["n"]
+    out = {}
+    idx = np.array([bench_map.get(d, float("nan")) for d in dates_c], dtype=float)
+
+    N = _CS_REL_N
+    if "raw_mom" in factors_needed or "rel_str" in factors_needed:
+        s_mom = np.full(n, np.nan)
+        b_mom = np.full(n, np.nan)
+        for i in range(N, n):
+            if c[i - N] > 0:
+                s_mom[i] = (c[i] / c[i - N] - 1) * 100
+            if idx[i - N] == idx[i - N] and idx[i] == idx[i] and idx[i - N] > 0:
+                b_mom[i] = (idx[i] / idx[i - N] - 1) * 100
+        if "raw_mom" in factors_needed:
+            out["raw_mom"] = s_mom
+        if "rel_str" in factors_needed:
+            out["rel_str"] = s_mom - b_mom  # NaN 傳染：任一缺 → 不排名
+
+    if "resid_mom" in factors_needed:
+        sr = np.full(n, np.nan); br = np.full(n, np.nan)
+        for i in range(1, n):
+            if c[i - 1] > 0:
+                sr[i] = c[i] / c[i - 1] - 1
+            if idx[i - 1] == idx[i - 1] and idx[i] == idx[i] and idx[i - 1] > 0:
+                br[i] = idx[i] / idx[i - 1] - 1
+        reg, acc = _CS_RESID_REG, _CS_RESID_ACC
+        rir = np.full(n, np.nan)
+        for i in range(reg, n):
+            xs = br[i - reg + 1:i + 1]; ys = sr[i - reg + 1:i + 1]
+            m = (xs == xs) & (ys == ys)
+            if int(m.sum()) < reg * 0.6:
+                continue
+            x = xs[m]; y = ys[m]
+            xm = x.mean(); sxx = float(((x - xm) ** 2).sum())
+            if sxx <= 0:
+                continue
+            beta = float(((x - xm) * (y - y.mean())).sum() / sxx)
+            xa = br[i - acc + 1:i + 1]; ya = sr[i - acc + 1:i + 1]
+            ma = (xa == xa) & (ya == ya)
+            if int(ma.sum()) < acc * 0.6:
+                continue
+            # 殘差報酬 = 個股報酬剝除「市場 beta 暴險」後的分量（保留特質性 alpha，
+            # 不減回歸截距，否則持續性 alpha 會被截距吃掉 → 殘差動量抓不到 alpha）。
+            # beta 估在長窗、殘差累在近 acc 窗 → 資訊比 = 近窗累積殘差 / 殘差波動。
+            resid = ya[ma] - beta * xa[ma]
+            sd = float(resid.std())
+            if sd > 0:
+                rir[i] = float(resid.sum()) / sd
+        out["resid_mom"] = rir
+    return out
+
+
+def _emit_trades(sid: str, trig, f: dict, rank_map, thresh: float, dst: list):
+    """記錄某策略的逐筆 trade（entry_date, exit_date, net_ret%）到 dst。
+       trig=None → 純橫斷面策略（每日皆候選，由 rank 決定）；trig 陣列 → 既有訊號策略。
+       rank_map=None → 不套橫斷面濾網（預設行為，零回歸）；
+       rank_map={date:pct} → 進場須 pct ≥ thresh（top K%）。open_until 自動去重疊倉。"""
+    oexit, oret, dts = f["outcome_exit"], f["outcome_ret"], f["dates"]
+    open_until = -1
+    for i in range(f["n"]):
+        if trig is not None and not trig[i]:
+            continue
+        if i > open_until and oexit[i] >= 0 and oret[i] == oret[i]:
+            if rank_map is not None:
+                pct = rank_map.get(dts[i])
+                if pct is None or pct < thresh:
+                    continue
+            dst.append((dts[i], dts[oexit[i]], float(oret[i])))
+            open_until = oexit[i]
+
+
 def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
                            buy_ids: list, preloaded: tuple,
-                           progress_cb=None, should_cancel=None) -> dict:
+                           progress_cb=None, should_cancel=None,
+                           cs_top_k: float = _CS_DEFAULT_K, cs_overlay_factor: str = None) -> dict:
     """
     trade-level 事件研究：每股算一次 outcome 表+指標，各進場策略只查表統計。
     回傳 {strategy: summary_dict}，summary 欄位對齊 _extract_row 期望。
+
+    R-CS（alpha agenda Tier 1）：buy_ids 含 A1_RAW/A1_REL/A1_RESID（純橫斷面策略），
+    或 cs_overlay_factor 不為 None（對既有訊號加「∧ 橫斷面 rank ∈ top K%」濾網）時，
+    先跑一趟「橫斷面 context pass」算全 universe 每日因子百分位，再用於進場濾網。
+    無橫斷面需求時走原單趟路徑（零回歸、零額外記憶體）。
     """
     import numpy as np
     all_dates, bar_data = preloaded
     bench_map = _get_benchmark_close_map(mkt, start, end)  # R4：逐筆超額對照表
 
     strat_trades = {sid: [] for sid in buy_ids}  # sid -> list of (entry_date, exit_date, net_ret%)
+    cs_ids = [s for s in buy_ids if s in _BASE_RATE_CS_STRATS]
+    non_cs_ids = [s for s in buy_ids if s not in _BASE_RATE_CS_STRATS]
+    # 每個 sid 用哪個因子排名：橫斷面策略用自身因子；既有策略用 overlay 因子（None=不濾）
+    sid_factor = {}
+    for s in buy_ids:
+        sid_factor[s] = _BASE_RATE_CS_STRATS.get(s) or (cs_overlay_factor if s in non_cs_ids else None)
+    factors_needed = {fac for fac in sid_factor.values() if fac}
+    thresh = 1.0 - float(cs_top_k)
 
-    for ci, code in enumerate(codes):
-        if should_cancel and should_cancel():
-            break
-        if progress_cb and ci % 10 == 0:
-            progress_cb(ci, len(codes))
-        f = _compute_stock_features(code, all_dates, bar_data)
-        if not f:
-            continue
-        oret, oexit, dates_c = f["outcome_ret"], f["outcome_exit"], f["dates"]
-        for sid in buy_ids:
-            trig = _detect_triggers(sid, f)
-            open_until = -1
-            for i in range(f["n"]):
-                if trig[i] and i > open_until and oexit[i] >= 0 and oret[i] == oret[i]:
-                    strat_trades[sid].append((dates_c[i], dates_c[oexit[i]], float(oret[i])))
-                    open_until = oexit[i]
+    if not factors_needed:
+        # ── 預設路徑（無橫斷面因子）：原單趟、低記憶體行為，逐字保留 ──
+        for ci, code in enumerate(codes):
+            if should_cancel and should_cancel():
+                break
+            if progress_cb and ci % 10 == 0:
+                progress_cb(ci, len(codes))
+            f = _compute_stock_features(code, all_dates, bar_data)
+            if not f:
+                continue
+            for sid in buy_ids:
+                _emit_trades(sid, _detect_triggers(sid, f), f, None, thresh, strat_trades[sid])
+    else:
+        # ── 橫斷面路徑：兩趟（context pass 算排名 → 進場 pass 套濾網） ──
+        feats = {}
+        factor_vals = {fac: {} for fac in factors_needed}  # fac -> {date -> {code -> val}}
+        for ci, code in enumerate(codes):
+            if should_cancel and should_cancel():
+                break
+            if progress_cb and ci % 10 == 0:
+                progress_cb(ci, len(codes) * 2)
+            f = _compute_stock_features(code, all_dates, bar_data)
+            if not f:
+                continue
+            feats[code] = f
+            cf = _compute_cs_factors(f, bench_map, factors_needed)
+            dts = f["dates"]
+            for fac, arr in cf.items():
+                fv = factor_vals[fac]
+                for i in range(len(dts)):
+                    val = arr[i]
+                    if val == val:  # not NaN
+                        d = dts[i]
+                        bucket = fv.get(d)
+                        if bucket is None:
+                            bucket = fv[d] = {}
+                        bucket[code] = float(val)
+        # 橫斷面百分位：每因子每日對全 universe 排名（pct∈[0,1]，1=因子最高，即動量最強）
+        rank_pct = {fac: {} for fac in factors_needed}
+        for fac in factors_needed:
+            fv = factor_vals[fac]; rp = rank_pct[fac]
+            for d, cvals in fv.items():
+                m = len(cvals)
+                if m < _CS_MIN_XSECTION:
+                    continue
+                items = sorted(cvals.items(), key=lambda kv: kv[1])
+                denom = (m - 1) if m > 1 else 1
+                for rank_i, (cc, _v) in enumerate(items):
+                    rp.setdefault(cc, {})[d] = rank_i / denom
+        # 進場 pass
+        for ci, code in enumerate(codes):
+            if should_cancel and should_cancel():
+                break
+            if progress_cb and ci % 10 == 0:
+                progress_cb(len(codes) + ci, len(codes) * 2)
+            f = feats.get(code)
+            if not f:
+                continue
+            for sid in non_cs_ids:
+                fac = sid_factor[sid]
+                rmap = rank_pct.get(fac, {}).get(code) if fac else None
+                _emit_trades(sid, _detect_triggers(sid, f), f, rmap, thresh, strat_trades[sid])
+            for sid in cs_ids:
+                rmap = rank_pct.get(sid_factor[sid], {}).get(code, {})
+                _emit_trades(sid, None, f, rmap, thresh, strat_trades[sid])
 
     # 彙總
     out = {}
@@ -13102,7 +13260,9 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
                             "win_rate_ci95": [None, None], "avg_return_ci95": [None, None],
                             "profit_loss_ratio": 0, "sharpe_ratio": 0, "max_drawdown_pct": 0,
                             "subperiod_pos": "0/0", "subperiod_frac": None, "subperiod_buckets": 0,
-                            "excess_avg": None, "excess_ci95": [None, None], "excess_n": 0})
+                            "excess_avg": None, "excess_ci95": [None, None], "excess_n": 0,
+                            "info_ratio": None, "downside_excess_avg": None, "downside_excess_n": 0,
+                            "cs_factor": sid_factor.get(sid), "cs_top_k": (cs_top_k if sid_factor.get(sid) else None)})
             out[sid] = summary
             continue
 
@@ -13155,10 +13315,14 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
 
         # (B) 逐筆對齊持有期超額 vs 基準（進場日→出場日同期間指數報酬）
         excess = []
+        down_excess = []   # §5.3 下行超額子測試：僅 2022 空頭桶（entry 年份）的逐筆超額
         for t in trades:
             be, bx = bench_map.get(t[0]), bench_map.get(t[1])
             if be and bx and be > 0:
-                excess.append(t[2] - (bx / be - 1) * 100)
+                e = t[2] - (bx / be - 1) * 100
+                excess.append(e)
+                if t[0][:4] == "2022":
+                    down_excess.append(e)
         excess_n = len(excess)
         excess_avg = round(sum(excess) / excess_n, 2) if excess_n else None
         excess_ci = [None, None]
@@ -13171,6 +13335,14 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
             be_boot.sort()
             lo, hi = int(1000 * 0.025), int(1000 * 0.975)
             excess_ci = [round(be_boot[lo], 2), round(be_boot[hi], 2)]
+
+        # §5.3 補強：資訊比率 IR = mean(超額)/std(超額)；下行（2022）平均超額
+        info_ratio = None
+        if excess_n >= 5:
+            ex_sd = float(np.std(excess))
+            info_ratio = round(float(np.mean(excess)) / ex_sd, 2) if ex_sd > 0 else None
+        down_n = len(down_excess)
+        down_avg = round(sum(down_excess) / down_n, 2) if down_n else None
 
         summary.update({
             "win_rate_pct": round(win_rate, 1),
@@ -13186,6 +13358,11 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
             "excess_avg": excess_avg,
             "excess_ci95": excess_ci,
             "excess_n": excess_n,
+            "info_ratio": info_ratio,
+            "downside_excess_avg": down_avg,
+            "downside_excess_n": down_n,
+            "cs_factor": sid_factor.get(sid),
+            "cs_top_k": (cs_top_k if sid_factor.get(sid) else None),
         })
         out[sid] = summary
     return out
@@ -13214,6 +13391,12 @@ def _extract_row(s: dict, mkt: str, buy_strat: str) -> dict:
     excess_avg        = s.get("excess_avg")
     excess_ci         = s.get("excess_ci95", [None, None]) or [None, None]
     excess_n          = s.get("excess_n", 0)
+    # §5.3 補強欄位 + R-CS 因子標記
+    info_ratio        = s.get("info_ratio")
+    downside_avg      = s.get("downside_excess_avg")
+    downside_n        = s.get("downside_excess_n", 0)
+    cs_factor         = s.get("cs_factor")
+    cs_top_k          = s.get("cs_top_k")
 
     # ── 族別分類（勝率 CI 下界 > 50 → 均值回歸型；否則趨勢型）；不決定通過 ──
     wr_lo = wr_ci[0] if wr_ci[0] is not None else 0
@@ -13267,6 +13450,10 @@ def _extract_row(s: dict, mkt: str, buy_strat: str) -> dict:
             if not exc_ok:
                 bp.append(f"超額CI下界{excess_ci[0]}≤0")
         reason = "可交易(beta疑慮)：" + ("; ".join(bp) if bp else "未過beta濾網")
+        # §5.3：多頭樣本偏誤下，防禦型 alpha 易被超額閘誤殺。若 2022 空頭桶逐筆超額為正，
+        # 標記提示（不改判級），讓人不把「在空頭仍贏大盤」的防禦型訊號當純 beta 丟掉。
+        if downside_avg is not None and downside_avg > 0 and downside_n >= 5:
+            reason += f" ｜ 2022空頭超額+{downside_avg}%(防禦型候選)"
 
     return {
         "market": mkt, "strategy": buy_strat,
@@ -13283,6 +13470,11 @@ def _extract_row(s: dict, mkt: str, buy_strat: str) -> dict:
         "subperiod_frac": subperiod_frac,
         "excess_avg": excess_avg,
         "excess_ci95": excess_ci,
+        "info_ratio": info_ratio,
+        "downside_excess_avg": downside_avg,
+        "downside_excess_n": downside_n,
+        "cs_factor": cs_factor,
+        "cs_top_k": cs_top_k,
         "beta_filter": beta_filter,
         "status": status,
         "pass": passed,
@@ -13290,7 +13482,8 @@ def _extract_row(s: dict, mkt: str, buy_strat: str) -> dict:
     }
 
 
-def _base_rate_worker(job_id: str, markets: list, buy_ids: list, sell_ids: list, start: str, end: str):
+def _base_rate_worker(job_id: str, markets: list, buy_ids: list, sell_ids: list, start: str, end: str,
+                      cs_top_k: float = _CS_DEFAULT_K, cs_overlay_factor: str = None):
     """compute-once: 每個市場只載入一次資料，所有策略共用同一份 bar_data"""
     job = _BASE_RATE_JOBS[job_id]
     rows = []
@@ -13348,6 +13541,7 @@ def _base_rate_worker(job_id: str, markets: list, buy_ids: list, sell_ids: list,
             summaries = _fast_base_rate_market(
                 mkt, codes, start, end, buy_ids, preloaded,
                 progress_cb=_prog, should_cancel=lambda: job.get("cancelled"),
+                cs_top_k=cs_top_k, cs_overlay_factor=cs_overlay_factor,
             )
         except Exception as e:
             import traceback; traceback.print_exc()
@@ -13386,16 +13580,28 @@ def run_base_rate(config: dict):
     sell_ids = config.get("sell_strategies", ["EXIT_C", "EXIT_D"])
     start = config.get("start", "2020-01-01")
     end = config.get("end", datetime.now().strftime("%Y-%m-%d"))
+    # R-CS（alpha agenda）：top K% 進場濾網 + 對既有訊號疊橫斷面因子的 overlay 模式
+    try:
+        cs_top_k = float(config.get("cs_top_k", _CS_DEFAULT_K))
+    except (TypeError, ValueError):
+        cs_top_k = _CS_DEFAULT_K
+    cs_top_k = min(max(cs_top_k, 0.01), 1.0)
+    cs_overlay_factor = config.get("cs_overlay_factor")  # None 或 raw_mom/rel_str/resid_mom
+    if cs_overlay_factor not in (None, "raw_mom", "rel_str", "resid_mom"):
+        cs_overlay_factor = None
 
     job_id = secrets.token_hex(8)
     _BASE_RATE_JOBS[job_id] = {
         "status": "starting", "progress": 0, "total": 0, "current": "",
         "rows": [], "errors": None, "cancelled": False,
-        "config": {"markets": markets, "buy_strategies": buy_ids, "sell_strategies": sell_ids, "start": start, "end": end},
+        "config": {"markets": markets, "buy_strategies": buy_ids, "sell_strategies": sell_ids,
+                   "start": start, "end": end, "cs_top_k": cs_top_k, "cs_overlay_factor": cs_overlay_factor},
         "started_at": datetime.now().isoformat(), "completed_at": None,
     }
 
-    threading.Thread(target=_base_rate_worker, args=(job_id, markets, buy_ids, sell_ids, start, end), daemon=True).start()
+    threading.Thread(target=_base_rate_worker,
+                     args=(job_id, markets, buy_ids, sell_ids, start, end, cs_top_k, cs_overlay_factor),
+                     daemon=True).start()
     return {"ok": True, "job_id": job_id, "message": f"Base rate job started: {len(buy_ids)} strategies × {len(markets)} markets. Poll GET /api/backtest/base-rate/{job_id} for progress."}
 
 
@@ -13431,6 +13637,8 @@ def get_base_rate_status(job_id: str):
         resp["sell_strategies"] = job["config"]["sell_strategies"]
         resp["run_at"] = job["completed_at"]
         resp["history_from"] = job["config"]["start"]
+        resp["cs_top_k"] = job["config"].get("cs_top_k")
+        resp["cs_overlay_factor"] = job["config"].get("cs_overlay_factor")
     return resp
 
 
