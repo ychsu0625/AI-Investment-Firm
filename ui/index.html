@@ -5992,9 +5992,9 @@ async function icLoadSentimentPanel() {
 
 function icSentimentHtml(code, market, h, s) {
   const hasHistory = h && h.data_points > 0;
-  const hasSocial  = s && (s.news_count > 0 || s.sentiment_score != null);
+  const hasSocial  = s && s.news_count > 0;
 
-  if (!hasHistory && (!s || s.news_count === 0)) {
+  if (!hasHistory && !hasSocial) {
     return `<div class="ic-empty-msg">【${code}】尚無情緒資料</div>`;
   }
 
@@ -6016,7 +6016,7 @@ function icSentimentHtml(code, market, h, s) {
         <div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
           <div style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">情緒分數</div>
           <div style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:${scoreColor(score)};line-height:1">${score.toFixed(0)}</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:4px">較前次 <span style="color:${delta>=0?'var(--up)':'var(--down)';}">${deltaStr}</span></div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">較前次 <span style="color:${delta>=0?'var(--up)':'var(--down)'}">${deltaStr}</span></div>
         </div>
         <div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;padding:14px 16px">
           <div style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">最新方向</div>
