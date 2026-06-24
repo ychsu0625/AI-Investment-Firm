@@ -1223,12 +1223,16 @@ def sparkline(code: str):
     api = get_api()
     contract = api.Contracts.Stocks.get(code)
     if contract is not None:
-        start = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
-        end   = datetime.now().strftime("%Y-%m-%d")
-        bars  = _api_call_with_backoff(api.kbars, contract, start=start, end=end)
-        df    = pd.DataFrame({**bars})
-        if not df.empty:
-            return [round(float(v), 2) for v in df["Close"].tail(30).tolist()]
+        try:
+            start = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+            end   = datetime.now().strftime("%Y-%m-%d")
+            bars  = _api_call_with_backoff(api.kbars, contract, start=start, end=end)
+            if bars is not None:
+                df = pd.DataFrame({**bars})
+                if not df.empty:
+                    return [round(float(v), 2) for v in df["Close"].tail(30).tolist()]
+        except Exception:
+            pass  # live API 失敗 → fall through 到 cache
     mkt = "US" if not code.isdigit() else "TW"
     ohlcv = _get_ohlcv_from_cache(code, 30, mkt)
     if ohlcv and ohlcv.get("closes"):
