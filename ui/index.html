@@ -39,6 +39,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
   padding:7px 16px;font-size:12px;color:var(--red);
 }
 #exitd-strip.show{display:flex;align-items:center;gap:12px}
+/* 緊急停損條顯示時，主內容讓出底部空間，避免固定條蓋住 K線 X 軸等內容 */
+body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 
 /* app shell */
 #app{display:flex;flex-direction:column;height:100%}
