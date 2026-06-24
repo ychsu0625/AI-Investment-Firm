@@ -1,0 +1,1519 @@
+diff --git a/ui/index.html b/ui/index.html
+index 8200954..be1001d 100644
+--- a/ui/index.html
++++ b/ui/index.html
+@@ -7,7 +7,7 @@
+ <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+ <style>
+ :root{
+-  --bg:#0d1117;--bg2:#161b22;--bg3:#1c2128;--bg4:#21262d;
++  --bg:#0d1117;--bg1:#13181f;--bg2:#161b22;--bg3:#1c2128;--bg4:#21262d;
+   --border:#30363d;--border2:#454f5a;
+   --text:#e6edf3;--text2:#8b949e;--text3:#6e7681;
+   --blue:#58a6ff;--blue-d:#1f6feb;--blue-bg:#0d2137;
+@@ -385,6 +385,131 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
+ ::-webkit-scrollbar{width:5px;height:5px}
+ ::-webkit-scrollbar-track{background:var(--bg2)}
+ ::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
++
++/* ══ 資訊中心 (IC) 內嵌頁 ══ */
++#page-ic{padding:0;overflow:hidden;display:none}
++#page-ic.active{display:flex}
++#ic-sidebar{width:52px;background:var(--bg2);border-right:1px solid var(--border);
++  display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;
++  transition:width .2s;overflow:hidden;flex-shrink:0}
++#ic-sidebar.expanded{width:176px}
++.ic-nav-item{width:100%;display:flex;align-items:center;gap:12px;padding:10px 14px;
++  cursor:pointer;border-radius:6px;transition:.15s;white-space:nowrap;color:var(--text2)}
++.ic-nav-item:hover,.ic-nav-item.active{background:var(--bg3);color:var(--text)}
++.ic-nav-item.active{color:var(--blue)}
++.ic-nav-item .ic-icon{font-size:17px;flex-shrink:0;width:20px;text-align:center}
++.ic-nav-label{font-size:12px;opacity:0;transition:opacity .2s;white-space:nowrap}
++#ic-sidebar.expanded .ic-nav-label{opacity:1}
++#ic-toggle-btn{background:none;border:none;color:var(--text2);cursor:pointer;
++  padding:8px;font-size:15px;align-self:flex-end;margin-right:4px}
++#ic-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
++#ic-topbar{background:var(--bg2);border-bottom:1px solid var(--border);
++  padding:8px 18px;display:flex;align-items:center;gap:12px}
++#ic-topbar h1{font-size:14px;font-weight:600}
++#ic-last-update{font-size:11px;color:var(--text2)}
++#ic-refresh-btn{margin-left:auto;background:var(--blue);color:#000;border:none;
++  padding:5px 12px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600}
++#ic-content{flex:1;overflow-y:auto;padding:18px}
++.ic-page{display:none}.ic-page.active{display:block}
++.ic-section-title{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;
++  letter-spacing:.6px;margin-bottom:10px;margin-top:22px}
++.ic-section-title:first-child{margin-top:0}
++.ic-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
++.ic-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
++.ic-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
++@media(max-width:900px){.ic-grid-4,.ic-grid-3{grid-template-columns:repeat(2,1fr)}.ic-grid-2{grid-template-columns:1fr}}
++.ic-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px}
++.ic-metric-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
++.ic-metric-label{font-size:11px;color:var(--text2);margin-bottom:4px}
++.ic-metric-value{font-size:19px;font-weight:700}
++.ic-metric-change{font-size:12px;margin-top:3px}
++.ic-up{color:var(--green)}.ic-down{color:var(--red)}.ic-flat{color:var(--text2)}
++.ic-score-badge{display:inline-block;padding:3px 8px;border-radius:12px;font-size:12px;font-weight:700}
++.ic-score-buy{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
++.ic-score-sell{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
++.ic-score-hold{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
++.ic-rec-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;
++  display:flex;flex-direction:column;gap:10px}
++.ic-rec-card.buy-card{border-left:3px solid var(--red)}
++.ic-rec-card.sell-card{border-left:3px solid var(--green)}
++.ic-rec-card.hold-card{border-left:3px solid var(--yellow)}
++.ic-rec-header{display:flex;align-items:center;gap:8px}
++.ic-rec-code{font-size:16px;font-weight:700}
++.ic-rec-name{font-size:12px;color:var(--text2)}
++.ic-rec-mkt{font-size:10px;background:var(--bg3);border:1px solid var(--border);padding:2px 6px;border-radius:4px;color:var(--text2)}
++.ic-score-bar-wrap{background:var(--bg);border-radius:4px;height:6px;width:100%}
++.ic-score-bar{height:6px;border-radius:4px;transition:width .3s}
++.ic-signals-wrap{display:flex;flex-wrap:wrap;gap:4px}
++.ic-signal-chip{font-size:11px;background:var(--bg3);border:1px solid var(--border);padding:2px 7px;border-radius:10px;color:var(--text2)}
++.ic-ai-text{font-size:12px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;white-space:pre-wrap;line-height:1.6}
++.ic-analyze-btn{background:var(--blue);color:#000;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;align-self:flex-start}
++.ic-analyze-btn:disabled{opacity:.5;cursor:not-allowed}
++.ic-sector-table{width:100%;border-collapse:collapse;font-size:13px}
++.ic-sector-table th{text-align:left;padding:7px 10px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase}
++.ic-sector-table td{padding:7px 10px;border-bottom:1px solid var(--bg3)}
++.ic-sector-table tr:hover td{background:var(--bg3)}
++.ic-bar-cell{display:flex;align-items:center;gap:6px}
++.ic-inline-bar{height:4px;border-radius:2px;min-width:2px}
++.ic-form-group{margin-bottom:14px}
++.ic-form-label{font-size:12px;color:var(--text2);margin-bottom:5px;display:block}
++.ic-form-input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;width:100%;font-size:13px}
++.ic-form-input:focus{outline:none;border-color:var(--blue)}
++.ic-chip-group{display:flex;flex-wrap:wrap;gap:6px}
++.ic-chip-toggle{padding:4px 12px;border-radius:12px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--bg);color:var(--text2);transition:.15s}
++.ic-chip-toggle.active{background:rgba(88,166,255,.15);color:var(--blue);border-color:var(--blue)}
++.ic-save-btn{background:var(--blue);color:#000;border:none;padding:7px 18px;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;margin-top:8px}
++.ic-macro-group-title{font-size:11px;color:var(--purple);font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
++.ic-macro-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
++.ic-loading{text-align:center;padding:32px;color:var(--text2);font-size:13px}
++.ic-spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle}
++@keyframes spin{to{transform:rotate(360deg)}}
++.ic-empty-msg{text-align:center;padding:32px;color:var(--text2);font-size:13px}
++.ic-env-banner{border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
++.ic-env-banner.green{background:rgba(63,185,80,.1);border:1px solid var(--green)}
++.ic-env-banner.yellow{background:rgba(210,153,34,.1);border:1px solid var(--yellow)}
++.ic-env-banner.red{background:rgba(248,81,73,.1);border:1px solid var(--red)}
++.ic-env-tag{font-size:17px;font-weight:800;white-space:nowrap}
++.ic-env-tag.green{color:var(--green)}.ic-env-tag.yellow{color:var(--yellow)}.ic-env-tag.red{color:var(--red)}
++.ic-env-advice{font-size:12px;color:var(--text);flex:1}
++.ic-env-sigs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;width:100%}
++.ic-env-sig{font-size:11px;padding:2px 7px;border-radius:10px;border:1px solid}
++.ic-env-sig.green{color:var(--green);border-color:var(--green);background:rgba(63,185,80,.08)}
++.ic-env-sig.yellow{color:var(--yellow);border-color:var(--yellow);background:rgba(210,153,34,.08)}
++.ic-env-sig.red{color:var(--red);border-color:var(--red);background:rgba(248,81,73,.08)}
++.ic-hist-table{width:100%;border-collapse:collapse;font-size:12px}
++.ic-hist-table th{text-align:left;padding:6px 9px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:11px;white-space:nowrap}
++.ic-hist-table td{padding:6px 9px;border-bottom:1px solid var(--bg3);vertical-align:middle}
++.ic-hist-table tr:hover td{background:var(--bg3)}
++.ic-outcome-win{color:var(--green);font-weight:700}
++.ic-outcome-loss{color:var(--red);font-weight:700}
++.ic-outcome-neutral{color:var(--yellow)}
++.ic-outcome-pending{color:var(--text2);font-style:italic}
++.ic-batch-input{width:100%;min-height:72px;resize:vertical;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;font-size:12px}
++.ic-batch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:12px}
++.ic-inst-table{width:100%;border-collapse:collapse;font-size:12px}
++.ic-inst-table th{text-align:right;padding:6px 9px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase}
++.ic-inst-table th:first-child,.ic-inst-table td:first-child,.ic-inst-table td:nth-child(2){text-align:left}
++.ic-inst-table td{padding:6px 9px;border-bottom:1px solid var(--bg3);text-align:right}
++.ic-inst-table tr:hover td{background:var(--bg3)}
++.ic-src-badge{font-size:10px;padding:2px 6px;border-radius:8px;font-weight:600;white-space:nowrap}
++.ic-src-system{background:rgba(88,166,255,.12);color:var(--blue);border:1px solid rgba(88,166,255,.3)}
++.ic-src-user{background:rgba(165,160,247,.12);color:var(--purple);border:1px solid rgba(165,160,247,.3)}
++.ic-src-badges-row{display:flex;flex-wrap:wrap;gap:4px}
++.ic-conf-bar-wrap{background:var(--bg);border-radius:4px;height:4px;width:100%}
++.ic-conf-bar{height:4px;border-radius:4px;background:var(--purple);transition:width .3s}
++.ic-src-table{width:100%;border-collapse:collapse;font-size:12px}
++.ic-src-table th{text-align:left;padding:7px 9px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:11px}
++.ic-src-table td{padding:7px 9px;border-bottom:1px solid var(--bg3);vertical-align:middle}
++.ic-src-table tr:hover td{background:var(--bg3)}
++#ic-bt-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center}
++#ic-bt-modal.show{display:flex}
++#ic-bt-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;width:min(600px,95vw);max-height:80vh;overflow-y:auto;padding:20px}
++#ic-bt-box h3{font-size:14px;margin-bottom:12px;display:flex;justify-content:space-between}
++#ic-bt-box h3 button{background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px}
++.ic-bt-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
++.ic-bt-stat{background:var(--bg);border-radius:6px;padding:9px;text-align:center}
++.ic-bt-stat-label{font-size:10px;color:var(--text2);margin-bottom:3px}
++.ic-bt-stat-val{font-size:15px;font-weight:700}
+ </style>
+ </head>
+ <body>
+@@ -449,6 +574,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
+         <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" fill="currentColor"/></svg>
+         回測
+       </button>
++      <button class="nav-btn" id="nav-ic" onclick="showPage('ic')">
++        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" fill="currentColor"/></svg>
++        資訊中心
++      </button>
+       <button class="nav-btn" id="nav-settings" onclick="showPage('settings')">
+         <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+         設定
+@@ -630,7 +759,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
+           <div id="chart-right">
+             <!-- G2: 五檔委託 -->
+             <div class="panel-sec">
+-              <div class="panel-sec-title">五檔委託 (G2)</div>
++              <div class="panel-sec-title">五檔委託</div>
+               <table id="bidask-table">
+                 <tbody id="bidask-body">
+                   <tr><td colspan="3" style="text-align:center;color:var(--text3);padding:10px;font-size:11px">訂閱中…</td></tr>
+@@ -686,14 +815,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
+         <div class="analysis-grid">
+           <!-- G5: SQUEEZE_BREAK 候選 -->
+           <div class="card">
+-            <div class="card-title">籌碼擠壓候選 (G5)</div>
++            <div class="card-title">籌碼擠壓候選</div>
+             <p style="font-size:11px;color:var(--text3);margin-bottom:10px">突破前高自動觸發 SQUEEZE_BREAK 訊號</p>
+             <div id="squeeze-list"><div class="empty-state">今日無候選股</div></div>
+           </div>
+ 
+           <!-- G6: 法人目標價 -->
+           <div class="card">
+-            <div class="card-title">法人目標價 (G6)</div>
++            <div class="card-title">法人目標價</div>
+             <p style="font-size:11px;color:var(--text3);margin-bottom:10px">手動輸入目標價，自動計算乖離空間</p>
+             <table class="wl-table">
+               <thead><tr><th>代碼</th><th>現價</th><th>目標價</th><th>空間</th></tr></thead>
+@@ -781,7 +910,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
+       <div class="page" id="page-macro">
+         <!-- G8: MACRO_LOCK 面板 -->
+         <div class="macro-lock-panel">
+-          <div class="mlp-title">⚠️ MACRO_LOCK 全局買單鎖定 (G8)</div>
++          <div class="mlp-title">⚠️ MACRO_LOCK 全局買單鎖定</div>
+           <div id="macro-conditions">
+             <div class="mlp-cond"><div class="cond-dot" id="dot-vix"></div><span>VIX &gt; 35（恐慌指數）</span><span id="st-vix" style="margin-left:auto;font-size:11px;color:var(--text3)">--</span></div>
+             <div class="mlp-cond"><div class="cond-dot" id="dot-dxy"></div><span>DXY 月漲 &gt; 3%（強勢美元）</span><span id="st-dxy" style="margin-left:auto;font-size:11px;color:var(--text3)">--</span></div>
+@@ -832,7 +961,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
+       <div class="page" id="page-settings">
+         <div class="settings-form">
+           <div class="sf-group">
+-            <div class="sf-title">停損設定 (G4)</div>
++            <div class="sf-title">停損設定</div>
+             <div class="sf-row"><label>波段單停損</label><input type="number" id="cfg-stop-wave" value="7" min="3" max="15" step="0.5"><span class="sf-unit">%（高點下跌觸發 Exit_C）</span></div>
+             <div class="sf-row"><label>當沖停損</label><input type="number" id="cfg-stop-day" value="3" min="1" max="8" step="0.5"><span class="sf-unit">%</span></div>
+             <div class="sf-row">
+@@ -891,17 +1020,37 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
+             </div>
+           </div>
+           <div class="sf-group">
+-            <div class="sf-title">自動停損下單（Phase 5）</div>
++            <div class="sf-title">自動下單（Phase 5）</div>
+             <div class="sf-row">
+-              <label>自動停損</label>
++              <label>EXIT_D 自動停損</label>
+               <select id="cfg-auto-sell"><option value="0">停用（僅警示）</option><option value="1">啟用（自動市價賣出）</option></select>
+             </div>
+-            <div style="font-size:11px;color:var(--text3);padding:4px 0">⚠ 啟用後，EXIT_D 觸發時將自動送出市價賣單。模擬環境僅記錄，正式環境(SJ_PRODUCTION=true)會實際下單。</div>
+-            <div class="sf-row">
+-              <button class="sf-save" style="background:#c44;padding:6px 16px" onclick="manualAutoSell()">手動觸發掃描</button>
++            <div style="font-size:11px;color:var(--text3);padding:2px 0">⚠ 啟用後，EXIT_D 觸發時自動送出市價賣單。模擬環境僅記錄，正式環境(SJ_PRODUCTION=true)會實際下單。</div>
++            <div class="sf-row" style="margin-top:8px">
++              <label>EXIT_C 自動止盈</label>
++              <select id="cfg-auto-sell-exitc"><option value="0">停用（僅警示）</option><option value="1">啟用（移動止盈自動賣出）</option></select>
++            </div>
++            <div style="font-size:11px;color:var(--text3);padding:2px 0">利潤達到設定門檻後追蹤高點，回落觸發自動止盈賣出。獨立於 EXIT_D 開關。</div>
++            <div class="sf-row" style="margin-top:8px;gap:8px">
++              <button class="sf-save" style="background:#c44;padding:6px 16px" onclick="manualAutoSell()">EXIT_D 掃描</button>
++              <button class="sf-save" style="background:#7a4;padding:6px 16px" onclick="manualAutoSellExitC()">EXIT_C 掃描</button>
+               <span id="auto-sell-msg" style="font-size:12px;color:var(--text2)"></span>
+             </div>
+           </div>
++          <div class="sf-group">
++            <div class="sf-title">法人籌碼自動排程</div>
++            <div class="sf-row">
++              <label>自動抓取</label>
++              <select id="cfg-chip-auto"><option value="1">啟用（每日 14:30 自動抓取）</option><option value="0">停用</option></select>
++            </div>
++            <div style="font-size:11px;color:var(--text3);padding:2px 0">台股收盤後（14:30）自動從 TWSE 抓取三大法人 + 融資融券，寫入 chip_snapshot。</div>
++            <div class="sf-row" style="margin-top:8px;gap:8px;align-items:center">
++              <button class="sf-save" style="background:var(--green-d);padding:6px 16px" onclick="saveChipScheduler()">儲存排程設定</button>
++              <button class="sf-save" style="padding:6px 14px" onclick="manualChipFetch()">立即抓取今日</button>
++              <span id="chip-sched-msg" style="font-size:12px;color:var(--text2)"></span>
++            </div>
++            <div id="chip-sched-status" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
++          </div>
+           <button class="sf-save" onclick="saveRiskConfig()">儲存設定</button>
+           <div id="cfg-save-msg" style="font-size:12px;color:var(--green);margin-top:8px;display:none">✓ 已儲存</div>
+         </div>
+@@ -1053,6 +1202,262 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
+         <div id="datasrc-grid" class="analysis-grid"><div class="loading">載入中…</div></div>
+       </div>
+ 
++      <!-- ═══ 資訊中心 ═══ -->
++      <div class="page flex-page" id="page-ic">
++        <!-- IC 側邊欄 -->
++        <nav id="ic-sidebar">
++          <button id="ic-toggle-btn" onclick="icToggleSidebar()" title="展開/收合">☰</button>
++          <div class="ic-nav-item active" data-page="overview" onclick="icNav(this)">
++            <span class="ic-icon">📊</span><span class="ic-nav-label">總覽</span>
++          </div>
++          <div class="ic-nav-item" data-page="macro" onclick="icNav(this)">
++            <span class="ic-icon">🌐</span><span class="ic-nav-label">總經</span>
++          </div>
++          <div class="ic-nav-item" data-page="tw-market" onclick="icNav(this)">
++            <span class="ic-icon">🇹🇼</span><span class="ic-nav-label">台股</span>
++          </div>
++          <div class="ic-nav-item" data-page="us-market" onclick="icNav(this)">
++            <span class="ic-icon">🇺🇸</span><span class="ic-nav-label">美股</span>
++          </div>
++          <div class="ic-nav-item" data-page="ai-recs" onclick="icNav(this)">
++            <span class="ic-icon">🤖</span><span class="ic-nav-label">AI建議</span>
++          </div>
++          <div class="ic-nav-item" data-page="sources" onclick="icNav(this)">
++            <span class="ic-icon">📡</span><span class="ic-nav-label">資料來源</span>
++          </div>
++          <div class="ic-nav-item" data-page="ic-settings" onclick="icNav(this)">
++            <span class="ic-icon">⚙️</span><span class="ic-nav-label">IC設定</span>
++          </div>
++        </nav>
++        <!-- IC 主區域 -->
++        <div id="ic-main">
++          <div id="ic-topbar">
++            <h1>資訊中心</h1>
++            <span id="ic-last-update" class="">尚未載入</span>
++            <button id="ic-refresh-btn" onclick="icRefreshAll()">⟳ 全部刷新</button>
++          </div>
++          <div id="ic-content">
++
++            <!-- IC 總覽 -->
++            <div class="ic-page active" id="ic-page-overview">
++              <div id="ic-env-banner-overview">
++                <div class="ic-loading"><span class="ic-spinner"></span>環境解讀中</div>
++              </div>
++              <div class="ic-section-title">總經快覽</div>
++              <div id="ic-overview-macro-grid" class="ic-macro-grid">
++                <div class="ic-loading"><span class="ic-spinner"></span>載入中</div>
++              </div>
++              <div class="ic-section-title">今日推薦標的</div>
++              <div id="ic-overview-recs">
++                <div class="ic-empty-msg">尚無推薦，請至「AI建議」頁面產生</div>
++              </div>
++            </div>
++
++            <!-- IC 總經 -->
++            <div class="ic-page" id="ic-page-macro">
++              <button class="ic-save-btn" style="margin-bottom:14px" onclick="icLoadMacro(true);icLoadInterpretation()">⟳ 刷新總經數據</button>
++              <div id="ic-env-banner-macro">
++                <div class="ic-loading"><span class="ic-spinner"></span>環境解讀中</div>
++              </div>
++              <div class="ic-macro-group-title">風險指標</div>
++              <div id="ic-macro-risk" class="ic-macro-grid"></div>
++              <div class="ic-macro-group-title">美股指數</div>
++              <div id="ic-macro-us" class="ic-macro-grid"></div>
++              <div class="ic-macro-group-title">債券 / 匯率</div>
++              <div id="ic-macro-fx" class="ic-macro-grid"></div>
++              <div class="ic-macro-group-title">大宗商品</div>
++              <div id="ic-macro-commodity" class="ic-macro-grid"></div>
++            </div>
++
++            <!-- IC 台股 -->
++            <div class="ic-page" id="ic-page-tw-market">
++              <div class="ic-section-title">持倉 + 自選股技術評分</div>
++              <div id="ic-tw-recs-wrap">
++                <div class="ic-empty-msg">尚無資料，請至「AI建議」頁刷新後回來查看</div>
++              </div>
++              <div class="ic-section-title">法人買超排行</div>
++              <div id="ic-tw-inst-wrap">
++                <div class="ic-loading"><span class="ic-spinner"></span>載入籌碼資料</div>
++              </div>
++              <div class="ic-section-title">批次評分</div>
++              <div class="ic-card">
++                <div class="ic-form-group" style="margin-bottom:8px">
++                  <label class="ic-form-label">代碼清單（每行一個，或逗號分隔）</label>
++                  <textarea class="ic-batch-input" id="ic-tw-batch-input" placeholder="2330&#10;2317&#10;2454"></textarea>
++                </div>
++                <div style="display:flex;gap:8px;align-items:center">
++                  <label class="ic-chip-toggle" id="ic-tw-batch-ai" onclick="icToggleChip(this)">🤖 AI 分析</label>
++                  <button class="ic-save-btn" style="margin:0" onclick="icBatchScore('TW')">批次評分</button>
++                </div>
++                <div id="ic-tw-batch-result" class="ic-batch-grid"></div>
++              </div>
++              <div class="ic-section-title">單股快速分析</div>
++              <div class="ic-card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
++                <div class="ic-form-group" style="margin:0;flex:1;min-width:110px">
++                  <label class="ic-form-label">股票代碼</label>
++                  <input class="ic-form-input" id="ic-tw-single-code" placeholder="2330" maxlength="8">
++                </div>
++                <label class="ic-chip-toggle active" id="ic-tw-ai-toggle" onclick="icToggleChip(this)" style="align-self:center">🤖 AI 分析</label>
++                <button class="ic-save-btn" style="margin:0" onclick="icAnalyzeSingle('TW')">分析</button>
++              </div>
++              <div id="ic-tw-single-result" style="margin-top:12px"></div>
++            </div>
++
++            <!-- IC 美股 -->
++            <div class="ic-page" id="ic-page-us-market">
++              <div class="ic-section-title">板塊輪動（ETF 月績效）</div>
++              <div id="ic-us-sectors-wrap">
++                <div class="ic-loading"><span class="ic-spinner"></span>載入中</div>
++              </div>
++              <div class="ic-section-title">單股快速分析</div>
++              <div class="ic-card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
++                <div class="ic-form-group" style="margin:0;flex:1;min-width:110px">
++                  <label class="ic-form-label">股票代號</label>
++                  <input class="ic-form-input" id="ic-us-single-code" placeholder="NVDA" maxlength="10" style="text-transform:uppercase">
++                </div>
++                <label class="ic-chip-toggle active" id="ic-us-ai-toggle" onclick="icToggleChip(this)" style="align-self:center">🤖 AI 分析</label>
++                <button class="ic-save-btn" style="margin:0" onclick="icAnalyzeSingle('US')">分析</button>
++              </div>
++              <div id="ic-us-single-result" style="margin-top:12px"></div>
++              <div class="ic-section-title">批次評分</div>
++              <div class="ic-card">
++                <div class="ic-form-group" style="margin-bottom:8px">
++                  <label class="ic-form-label">代號清單（每行一個，或逗號分隔）</label>
++                  <textarea class="ic-batch-input" id="ic-us-batch-input" placeholder="NVDA&#10;AAPL&#10;MSFT"></textarea>
++                </div>
++                <div style="display:flex;gap:8px;align-items:center">
++                  <label class="ic-chip-toggle" id="ic-us-batch-ai" onclick="icToggleChip(this)">🤖 AI 分析</label>
++                  <button class="ic-save-btn" style="margin:0" onclick="icBatchScore('US')">批次評分</button>
++                </div>
++                <div id="ic-us-batch-result" class="ic-batch-grid"></div>
++              </div>
++            </div>
++
++            <!-- IC AI建議 -->
++            <div class="ic-page" id="ic-page-ai-recs">
++              <div class="ic-card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
++                <div style="font-size:12px;color:var(--text2)">市場篩選：</div>
++                <div class="ic-chip-group" id="ic-market-filter-chips">
++                  <span class="ic-chip-toggle active" data-market="ALL" onclick="icSetMarketFilter(this)">全部</span>
++                  <span class="ic-chip-toggle" data-market="TW" onclick="icSetMarketFilter(this)">台股</span>
++                  <span class="ic-chip-toggle" data-market="US" onclick="icSetMarketFilter(this)">美股</span>
++                </div>
++                <label class="ic-chip-toggle" id="ic-ai-rec-toggle" onclick="icToggleChip(this)" style="margin-left:auto">🤖 含 AI 深度分析</label>
++                <button class="ic-save-btn" style="margin:0" onclick="icRefreshRecs()">產生推薦</button>
++              </div>
++              <div id="ic-recs-loading" style="display:none">
++                <div class="ic-loading"><span class="ic-spinner"></span>分析中，請稍候…</div>
++              </div>
++              <div id="ic-recs-grid" class="ic-grid-3">
++                <div class="ic-empty-msg">點擊「產生推薦」開始分析</div>
++              </div>
++              <div style="display:flex;align-items:center;gap:10px;margin-top:26px;margin-bottom:10px">
++                <div class="ic-section-title" style="margin:0">歷史推薦記錄</div>
++                <button class="ic-save-btn" style="margin:0;font-size:11px;padding:3px 10px" onclick="icEvaluateHistory()">評估結果</button>
++                <span id="ic-eval-msg" style="font-size:11px;color:var(--green);display:none"></span>
++                <button class="ic-analyze-btn" style="margin-left:auto" onclick="icLoadHistory()">⟳ 刷新</button>
++              </div>
++              <div id="ic-history-wrap">
++                <div class="ic-loading"><span class="ic-spinner"></span>載入中</div>
++              </div>
++            </div>
++
++            <!-- IC 資料來源 -->
++            <div class="ic-page" id="ic-page-sources">
++              <div class="ic-section-title" style="margin-top:0">系統內建來源 <span style="font-size:10px;color:var(--text2);text-transform:none;font-weight:normal">（唯讀）</span></div>
++              <div id="ic-sys-sources-wrap" class="ic-card" style="overflow-x:auto">
++                <div class="ic-loading"><span class="ic-spinner"></span>載入中</div>
++              </div>
++              <div class="ic-section-title">新增自定義來源</div>
++              <div class="ic-card" style="max-width:600px;margin-bottom:12px">
++                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
++                  <div class="ic-form-group" style="margin:0"><label class="ic-form-label">名稱 *</label><input class="ic-form-input" id="ic-src-name" placeholder="我的財經新聞"></div>
++                  <div class="ic-form-group" style="margin:0"><label class="ic-form-label">類型</label><select class="ic-form-input" id="ic-src-type"><option value="HTML">HTML (網頁)</option><option value="RSS">RSS Feed</option><option value="API">API</option></select></div>
++                  <div class="ic-form-group" style="margin:0;grid-column:1/-1"><label class="ic-form-label">URL</label><input class="ic-form-input" id="ic-src-url" placeholder="https://..."></div>
++                  <div class="ic-form-group" style="margin:0"><label class="ic-form-label">市場</label><select class="ic-form-input" id="ic-src-market"><option value="ALL">全部</option><option value="TW">台股</option><option value="US">美股</option><option value="MACRO">總經</option></select></div>
++                  <div class="ic-form-group" style="margin:0"><label class="ic-form-label">可靠性</label><select class="ic-form-input" id="ic-src-reliability"><option value="reference">參考</option><option value="confirmed">確認</option></select></div>
++                  <div class="ic-form-group" style="margin:0;grid-column:1/-1"><label class="ic-form-label">說明（選填）</label><input class="ic-form-input" id="ic-src-desc" placeholder="用途說明"></div>
++                </div>
++                <button class="ic-save-btn" style="margin-top:10px" onclick="icAddSource()">＋ 新增來源</button>
++                <span id="ic-src-msg" style="font-size:12px;color:var(--green);margin-left:10px;display:none">已新增</span>
++              </div>
++              <div class="ic-section-title" style="display:flex;align-items:center;gap:10px">
++                已新增的自定義來源
++                <button class="ic-save-btn" style="margin:0;font-size:11px;padding:3px 10px" onclick="icFetchAllSources()">⟳ 全部刷新新聞</button>
++                <span id="ic-fetch-all-msg" style="font-size:11px;color:var(--green);display:none"></span>
++              </div>
++              <div id="ic-user-sources-wrap" class="ic-card" style="overflow-x:auto">
++                <div class="ic-loading"><span class="ic-spinner"></span>載入中</div>
++              </div>
++              <div class="ic-section-title">新聞快取預覽</div>
++              <div id="ic-news-cache-wrap">
++                <div class="ic-empty-msg" style="font-size:12px">尚無快取，點擊來源的「抓取」按鈕後會顯示</div>
++              </div>
++            </div>
++
++            <!-- IC 設定 -->
++            <div class="ic-page" id="ic-page-ic-settings">
++              <div class="ic-card" style="max-width:540px">
++                <div class="ic-section-title" style="margin-top:0">投資風格設定</div>
++                <div class="ic-form-group">
++                  <label class="ic-form-label">操作週期</label>
++                  <div class="ic-chip-group" id="ic-holding-chips">
++                    <span class="ic-chip-toggle" data-val="當沖" onclick="icSelectHolding(this)">當沖</span>
++                    <span class="ic-chip-toggle active" data-val="波段" onclick="icSelectHolding(this)">波段</span>
++                    <span class="ic-chip-toggle" data-val="中長線" onclick="icSelectHolding(this)">中長線</span>
++                  </div>
++                </div>
++                <div class="ic-form-group">
++                  <label class="ic-form-label">風險偏好</label>
++                  <div class="ic-chip-group" id="ic-risk-chips">
++                    <span class="ic-chip-toggle" data-val="保守" onclick="icSelectRisk(this)">保守</span>
++                    <span class="ic-chip-toggle active" data-val="穩健" onclick="icSelectRisk(this)">穩健</span>
++                    <span class="ic-chip-toggle" data-val="積極" onclick="icSelectRisk(this)">積極</span>
++                  </div>
++                </div>
++                <div class="ic-form-group">
++                  <label class="ic-form-label">偏好指標（可多選）</label>
++                  <div class="ic-chip-group" id="ic-indicator-chips">
++                    <span class="ic-chip-toggle active" data-val="KD" onclick="icToggleIndicator(this)">KD</span>
++                    <span class="ic-chip-toggle active" data-val="MACD" onclick="icToggleIndicator(this)">MACD</span>
++                    <span class="ic-chip-toggle active" data-val="MA" onclick="icToggleIndicator(this)">均線</span>
++                    <span class="ic-chip-toggle active" data-val="VOL" onclick="icToggleIndicator(this)">量能</span>
++                    <span class="ic-chip-toggle" data-val="RSI" onclick="icToggleIndicator(this)">RSI</span>
++                    <span class="ic-chip-toggle" data-val="籌碼" onclick="icToggleIndicator(this)">籌碼</span>
++                    <span class="ic-chip-toggle" data-val="法人" onclick="icToggleIndicator(this)">法人</span>
++                  </div>
++                </div>
++                <div class="ic-form-group">
++                  <label class="ic-form-label">Claude API Key（用於 AI 深度分析）</label>
++                  <input class="ic-form-input" id="ic-claude-api-key" type="password" placeholder="sk-ant-…">
++                  <div style="font-size:11px;color:var(--text2);margin-top:4px">每次分析約 $0.01–0.03 USD</div>
++                </div>
++                <div class="ic-form-group" style="margin-top:16px">
++                  <label class="ic-form-label">AI 建議推播通知</label>
++                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
++                    <input type="checkbox" id="ic-notify-enabled" onchange="icSaveNotifyConfig()" style="width:15px;height:15px">
++                    啟用高信心度 BUY 訊號推播
++                  </label>
++                  <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
++                    <span style="font-size:12px;color:var(--text2)">最低信心度門檻：</span>
++                    <input type="range" id="ic-notify-threshold" min="0.5" max="1.0" step="0.05"
++                           value="0.70" style="width:110px" oninput="icUpdateThresholdLabel(this.value)" onchange="icSaveNotifyConfig()">
++                    <span id="ic-threshold-label" style="font-size:13px;font-weight:600;color:var(--blue);min-width:34px">70%</span>
++                  </div>
++                  <div style="font-size:11px;color:var(--text2);margin-top:4px">推播管道請在主頁「設定」中配置。</div>
++                </div>
++                <div style="font-size:12px;color:var(--text2);padding:4px 0 10px">
++                  資訊來源管理請至側邊欄「📡 資料來源」頁面新增 / 刪除 / 抓取。
++                </div>
++                <button class="ic-save-btn" onclick="icSaveSettings()">💾 儲存設定</button>
++                <span id="ic-save-msg" style="font-size:12px;color:var(--green);margin-left:10px;display:none">已儲存</span>
++              </div>
++            </div>
++
++          </div><!-- /ic-content -->
++        </div><!-- /ic-main -->
++      </div><!-- /page-ic -->
++
+     </div>
+   </div>
+ </div>
+@@ -1098,6 +1503,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
+   </div>
+ </div>
+ 
++<!-- IC 回測 Modal -->
++<div id="ic-bt-modal" onclick="if(event.target===this)icCloseBtModal()">
++  <div id="ic-bt-box">
++    <h3>
++      <span id="ic-bt-title">回測結果</span>
++      <button onclick="icCloseBtModal()">✕</button>
++    </h3>
++    <div id="ic-bt-loading" style="display:none" class="ic-loading"><span class="ic-spinner"></span>回測運算中…</div>
++    <div id="ic-bt-content"></div>
++  </div>
++</div>
++
+ <!-- 新增自選股 Modal -->
+ <div class="modal-overlay" id="modal-wl">
+   <div class="modal">
+@@ -1189,6 +1606,7 @@ function showPage(name) {
+   if (name === 'datasrc')  { loadDataSources(); }
+   if (name === 'strategy') { loadStrategies(); }
+   if (name === 'backtest') { loadBacktestPage(); }
++  if (name === 'ic')       { icInitPage(); }
+ }
+ 
+ // ── MACRO LOCK (G8) ───────────────────────────────
+@@ -1439,12 +1857,13 @@ async function loadSignals() {
+     }
+     grid.innerHTML = sigs.map(s => {
+       const cls = s.direction==='BUY'?'buy':s.direction==='SELL'?'sell':'warn';
++      const esc = v => String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+       return `<div class="sig-card ${cls}" onclick="openChart('${s.code}')">
+-        <div class="sc-code">${s.name||_nameMap[s.code]||''} (${s.code})</div>
++        <div class="sc-code">${esc(s.name||_nameMap[s.code]||'')} (${s.code})</div>
+         <div class="sc-name">${s.created_at?.slice(0,16)||''}</div>
+         <div class="sc-type sig-type-${s.signal_type}">${s.signal_type}</div>
+         <div class="sc-price ${cls==='buy'?'up':'dn'}">$${s.price}</div>
+-        <div class="sc-detail">${s.detail||''}</div>
++        <div class="sc-detail">${esc(s.detail)}</div>
+       </div>`;
+     }).join('');
+   } catch { grid.innerHTML='<div class="empty-state" style="width:100%">無法載入訊號</div>'; }
+@@ -1510,16 +1929,17 @@ async function loadPositions() {
+     function posRow(p, currency) {
+       const sym = currency === 'USD' ? 'US$' : 'NT$';
+       const cur = snapMap[p.code] || 0;
++      const lotMul = currency === 'USD' ? 1 : 1000; // TW: 1張=1000股
+       const pnlPct = p.cost > 0 && cur > 0 ? ((cur - p.cost) / p.cost * 100) : 0;
+-      const pnlAmt = p.cost > 0 && cur > 0 ? (cur - p.cost) * p.shares : 0;
++      const pnlAmt = p.cost > 0 && cur > 0 ? (cur - p.cost) * p.shares * lotMul : 0;
+       const cls = pnlPct > 0.05 ? 'up' : pnlPct < -0.05 ? 'down' : 'flat';
+       const sign = pnlPct > 0 ? '+' : '';
+-      const costTotal = p.cost * p.shares;
+-      const mktVal = cur > 0 ? cur * p.shares : 0;
++      const costTotal = p.cost * p.shares * lotMul;
++      const mktVal = cur > 0 ? cur * p.shares * lotMul : 0;
+       const fmt = (v) => v >= 1000 ? Math.round(v).toLocaleString() : v.toFixed(2);
+       return `<tr onclick="openChart('${p.code}')" title="點擊看K線">
+         <td><span class="pt-code">${p.code}</span></td>
+-        <td><span class="pt-name">${p.name||''}</span></td>
++        <td><span class="pt-name">${(p.name||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span></td>
+         <td>${p.shares.toLocaleString()}</td>
+         <td>${sym}${p.cost.toLocaleString()}</td>
+         <td>${costTotal > 0 ? sym+fmt(costTotal) : '--'}</td>
+@@ -1940,32 +2360,40 @@ async function loadRiskConfig() {
+     if (cfg.webhook_url)        document.getElementById('cfg-webhook').value     = cfg.webhook_url;
+     if (cfg.notify_enabled !== undefined) document.getElementById('cfg-notify-enabled').value = cfg.notify_enabled;
+     if (cfg.auto_sell_enabled !== undefined) document.getElementById('cfg-auto-sell').value = cfg.auto_sell_enabled;
++    if (cfg.auto_sell_exitc_enabled !== undefined) document.getElementById('cfg-auto-sell-exitc').value = cfg.auto_sell_exitc_enabled;
+   } catch {}
++  loadChipSchedulerStatus();
+ }
+ 
+ async function saveRiskConfig() {
+-  const autoSellVal = document.getElementById('cfg-auto-sell').value;
+-  if (autoSellVal === '1' && !confirm('確認啟用自動停損下單？\n正式環境(SJ_PRODUCTION=true)下 EXIT_D 觸發時會自動送出市價賣單！')) {
++  const autoSellVal     = document.getElementById('cfg-auto-sell').value;
++  const autoSellExitCVal = document.getElementById('cfg-auto-sell-exitc').value;
++  if (autoSellVal === '1' && !confirm('確認啟用 EXIT_D 自動停損下單？\n正式環境(SJ_PRODUCTION=true)下 EXIT_D 觸發時會自動送出市價賣單！')) {
+     document.getElementById('cfg-auto-sell').value = '0';
+     return;
+   }
++  if (autoSellExitCVal === '1' && !confirm('確認啟用 EXIT_C 自動止盈下單？\n移動止盈條件達成時自動送出市價賣單！')) {
++    document.getElementById('cfg-auto-sell-exitc').value = '0';
++    return;
++  }
+   const body = {
+-    stop_loss_wave:     document.getElementById('cfg-stop-wave').value,
+-    stop_loss_day:      document.getElementById('cfg-stop-day').value,
+-    exit_d_threshold:   document.getElementById('cfg-exitd').value,
+-    max_single_stock:   document.getElementById('cfg-single').value,
+-    max_positions:      document.getElementById('cfg-maxpos').value,
+-    telegram_bot_token: document.getElementById('cfg-tg-token').value,
+-    telegram_chat_id:   getTgChatIdCsv(),
+-    telegram_chat_names: getTgNamesCsv(),
+-    email_smtp_host:    document.getElementById('cfg-email-host').value || 'smtp.gmail.com',
+-    email_smtp_port:    document.getElementById('cfg-email-port').value,
+-    email_user:         document.getElementById('cfg-email-user').value,
+-    email_pass:         document.getElementById('cfg-email-pass').value,
+-    email_to:           getEmailCsv(),
+-    webhook_url:        document.getElementById('cfg-webhook').value,
+-    notify_enabled:     document.getElementById('cfg-notify-enabled').value,
+-    auto_sell_enabled:  document.getElementById('cfg-auto-sell').value,
++    stop_loss_wave:          document.getElementById('cfg-stop-wave').value,
++    stop_loss_day:           document.getElementById('cfg-stop-day').value,
++    exit_d_threshold:        document.getElementById('cfg-exitd').value,
++    max_single_stock:        document.getElementById('cfg-single').value,
++    max_positions:           document.getElementById('cfg-maxpos').value,
++    telegram_bot_token:      document.getElementById('cfg-tg-token').value,
++    telegram_chat_id:        getTgChatIdCsv(),
++    telegram_chat_names:     getTgNamesCsv(),
++    email_smtp_host:         document.getElementById('cfg-email-host').value || 'smtp.gmail.com',
++    email_smtp_port:         document.getElementById('cfg-email-port').value,
++    email_user:              document.getElementById('cfg-email-user').value,
++    email_pass:              document.getElementById('cfg-email-pass').value,
++    email_to:                getEmailCsv(),
++    webhook_url:             document.getElementById('cfg-webhook').value,
++    notify_enabled:          document.getElementById('cfg-notify-enabled').value,
++    auto_sell_enabled:       document.getElementById('cfg-auto-sell').value,
++    auto_sell_exitc_enabled: document.getElementById('cfg-auto-sell-exitc').value,
+   };
+   await fetch(API+'/api/risk-config', {method:'POST', headers: authHeaders({'Content-Type':'application/json'}), body:JSON.stringify(body)});
+   const msg = document.getElementById('cfg-save-msg');
+@@ -2603,25 +3031,85 @@ async function testNotify() {
+   setTimeout(() => { msg.textContent = ''; }, 5000);
+ }
+ 
+-// ── Phase 5: 手動觸發自動停損掃描 ────────────────
++// ── Phase 5: 手動觸發自動停損/止盈掃描 ──────────────
+ async function manualAutoSell() {
+-  if (!confirm('確認手動觸發自動停損掃描？\n正式環境(SJ_PRODUCTION=true)會實際送出市價賣單！')) return;
++  if (!confirm('確認手動觸發 EXIT_D 停損掃描？\n正式環境(SJ_PRODUCTION=true)會實際送出市價賣單！')) return;
+   const msg = document.getElementById('auto-sell-msg');
+   msg.textContent = '掃描中…'; msg.style.color = 'var(--text2)';
+   try {
+     const r = await fetch(API + '/api/auto-sell/execute', {method:'POST', headers: authHeaders()});
+     const d = await r.json();
+     if (d.executed && d.executed.length > 0) {
+-      msg.textContent = `已執行 ${d.executed.length} 筆停損賣出`;
++      msg.textContent = `EXIT_D 已執行 ${d.executed.length} 筆停損賣出`;
+       msg.style.color = 'var(--red)';
+     } else {
+-      msg.textContent = '無觸發停損的持倉';
++      msg.textContent = '無觸發 EXIT_D 的持倉';
+       msg.style.color = 'var(--green)';
+     }
+   } catch { msg.textContent = '後端未連線'; msg.style.color = 'var(--red)'; }
+   setTimeout(() => { msg.textContent = ''; }, 5000);
+ }
+ 
++async function manualAutoSellExitC() {
++  if (!confirm('確認手動觸發 EXIT_C 移動止盈掃描？\n正式環境(SJ_PRODUCTION=true)會實際送出市價賣單！')) return;
++  const msg = document.getElementById('auto-sell-msg');
++  msg.textContent = 'EXIT_C 掃描中…'; msg.style.color = 'var(--text2)';
++  try {
++    const r = await fetch(API + '/api/auto-sell/exit-c', {method:'POST', headers: authHeaders()});
++    const d = await r.json();
++    if (d.message && d.executed && d.executed.length === 0) {
++      msg.textContent = d.message || '無觸發 EXIT_C 的持倉';
++      msg.style.color = 'var(--green)';
++    } else if (d.executed && d.executed.length > 0) {
++      msg.textContent = `EXIT_C 已執行 ${d.executed.length} 筆止盈賣出`;
++      msg.style.color = 'var(--orange)';
++    } else {
++      msg.textContent = '無觸發 EXIT_C 的持倉';
++      msg.style.color = 'var(--green)';
++    }
++  } catch { msg.textContent = '後端未連線'; msg.style.color = 'var(--red)'; }
++  setTimeout(() => { msg.textContent = ''; }, 5000);
++}
++
++// ── 法人籌碼排程 ──────────────────────────────────
++async function loadChipSchedulerStatus() {
++  try {
++    const d = await fetch(API + '/api/chip/scheduler-status').then(r => r.json());
++    const el = document.getElementById('chip-sched-status');
++    const cfgEl = document.getElementById('cfg-chip-auto');
++    if (cfgEl) cfgEl.value = d.enabled ? '1' : '0';
++    if (el) el.textContent =
++      `下次排程：${d.next_fetch || '—'}　最後執行：${d.last_fetch || '未執行'}`;
++  } catch {}
++}
++
++async function saveChipScheduler() {
++  await getToken();
++  const val = document.getElementById('cfg-chip-auto').value;
++  const msg = document.getElementById('chip-sched-msg');
++  msg.textContent = '儲存中…'; msg.style.color = 'var(--text2)';
++  try {
++    await fetch(API + `/api/chip/scheduler/toggle/${val}`, {method:'POST', headers: authHeaders()});
++    msg.textContent = val === '1' ? '已啟用，每日 14:30 自動抓取' : '已停用';
++    msg.style.color = val === '1' ? 'var(--green)' : 'var(--orange)';
++    loadChipSchedulerStatus();
++  } catch { msg.textContent = '儲存失敗'; msg.style.color = 'var(--red)'; }
++  setTimeout(() => { msg.textContent = ''; }, 4000);
++}
++
++async function manualChipFetch() {
++  const msg = document.getElementById('chip-sched-msg');
++  msg.textContent = '抓取中…'; msg.style.color = 'var(--text2)';
++  try {
++    const r = await fetch(API + '/api/chip/fetch', {method:'POST', headers: authHeaders()});
++    const d = await r.json();
++    msg.textContent = d.ok ? `完成：${d.date} 共 ${d.count} 筆` : `失敗：${d.message}`;
++    msg.style.color = d.ok ? 'var(--green)' : 'var(--red)';
++    if (d.ok) loadChipSchedulerStatus();
++  } catch { msg.textContent = '後端未連線'; msg.style.color = 'var(--red)'; }
++  setTimeout(() => { msg.textContent = ''; }, 5000);
++}
++
+ // ── 資料來源管理頁 ──────────────────────────────
+ async function loadDataSources() {
+   const grid = document.getElementById('datasrc-grid');
+@@ -3107,6 +3595,798 @@ function openAddUSWatchlist() {
+     .then(()=>loadUSWatchlist());
+ }
+ 
++// ══════════════════════════════════════════════════
++// 資訊中心 (IC) 內嵌模組
++// ══════════════════════════════════════════════════
++function icAuthHeaders() {
++  return authHeaders({'Content-Type': 'application/json'});
++}
++
++// ── IC 導覽 ──
++let _icInited = false;
++function icNav(el) {
++  document.querySelectorAll('.ic-nav-item').forEach(e => e.classList.remove('active'));
++  document.querySelectorAll('.ic-page').forEach(e => e.classList.remove('active'));
++  el.classList.add('active');
++  document.getElementById('ic-page-' + el.dataset.page).classList.add('active');
++  const pg = el.dataset.page;
++  if (pg === 'macro')       { if (!_icMacroLoaded) icLoadMacro(); icLoadInterpretation(); }
++  if (pg === 'us-market')   { if (!_icSectorsLoaded) icLoadUsSectors(); }
++  if (pg === 'ic-settings') icLoadSettings();
++  if (pg === 'ai-recs')     { icLoadRecs(); icLoadHistory(); }
++  if (pg === 'tw-market')   { icLoadTwRecs(); icLoadTwInstitutional(); }
++  if (pg === 'sources')     icLoadSources();
++}
++function icToggleSidebar() {
++  document.getElementById('ic-sidebar').classList.toggle('expanded');
++}
++async function icInitPage() {
++  if (_icInited) return;
++  _icInited = true;
++  try {
++    await Promise.all([icLoadMacro(), icLoadInterpretation(), icLoadRecs()]);
++  } catch(e) {
++    _icInited = false;
++    console.error('[IC init]', e);
++  }
++}
++
++// ── IC Helpers ──
++function icFmt(v, decimals=2) { return v==null?'—':Number(v).toFixed(decimals); }
++function icPct(v) {
++  if (v==null) return '<span class="ic-flat">—</span>';
++  const cls = v>0?'ic-up':v<0?'ic-down':'ic-flat';
++  return `<span class="${cls}">${v>0?'+':''}${icFmt(v)}%</span>`;
++}
++function icScoreClass(dir) {
++  return dir==='BUY'?'ic-score-buy':dir==='SELL'?'ic-score-sell':'ic-score-hold';
++}
++function icScoreBarColor(score) {
++  if (score>=62) return 'var(--green)';
++  if (score<=38) return 'var(--red)';
++  return 'var(--yellow)';
++}
++function icToggleChip(el) { el.classList.toggle('active'); }
++function icEscHtml(s) {
++  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
++}
++
++// ── IC Market Filter ──
++let _icMarketFilter = 'ALL';
++function icSetMarketFilter(el) {
++  document.querySelectorAll('#ic-market-filter-chips .ic-chip-toggle').forEach(e => e.classList.remove('active'));
++  el.classList.add('active');
++  _icMarketFilter = el.dataset.market;
++}
++
++// ── IC Macro ──
++let _icMacroLoaded = false;
++const IC_MACRO_GROUPS = {
++  risk:      ['VIX','DXY','US10Y','US2Y'],
++  us:        ['SPX','NDX','DJI','SOX'],
++  fx:        ['TWD','JPY','EUR','CNY'],
++  commodity: ['WTI','BRENT','GOLD','SILVER','COPPER'],
++};
++const IC_MACRO_LABELS = {
++  VIX:'波動率 VIX',DXY:'美元指數 DXY',US10Y:'美債10年',US2Y:'美債2年',
++  SPX:'標普500',NDX:'那斯達克',DJI:'道瓊',SOX:'費城半導體',
++  TWD:'美元/台幣',JPY:'美元/日圓',EUR:'歐元/美元',CNY:'美元/人民幣',
++  WTI:'WTI 原油',BRENT:'布蘭特原油',GOLD:'黃金',SILVER:'白銀',COPPER:'銅',
++};
++const IC_MACRO_UNIT = {
++  US10Y:'%',US2Y:'%',VIX:'',DXY:'',SPX:'',NDX:'',DJI:'',SOX:'',
++  TWD:'',JPY:'',EUR:'',CNY:'',WTI:'$',BRENT:'$',GOLD:'$',SILVER:'$',COPPER:'$',
++};
++
++function icMacroCard(key, data) {
++  if (!data) return '';
++  const isVIX = key==='VIX';
++  const chgCls = isVIX
++    ? (data.change_pct>0?'ic-down':'ic-up')
++    : (data.change_pct>0?'ic-up':'ic-down');
++  return `<div class="ic-metric-card">
++    <div class="ic-metric-label">${IC_MACRO_LABELS[key]||key}</div>
++    <div class="ic-metric-value">${IC_MACRO_UNIT[key]||''}${icFmt(data.price,2)}</div>
++    <div class="ic-metric-change"><span class="${chgCls}">${data.change_pct>0?'+':''}${icFmt(data.change_pct)}%</span></div>
++  </div>`;
++}
++
++async function icLoadMacro(force=false) {
++  const url = force ? '/api/ic/macro/refresh' : '/api/ic/macro';
++  const method = force ? 'POST' : 'GET';
++  ['ic-overview-macro-grid','ic-macro-risk','ic-macro-us','ic-macro-fx','ic-macro-commodity'].forEach(id => {
++    const el = document.getElementById(id);
++    if (el) el.innerHTML = '<div class="ic-loading"><span class="ic-spinner"></span>載入中</div>';
++  });
++  try {
++    await getToken();
++    const r = await fetch(url, { method, headers: force?icAuthHeaders():{} });
++    const d = await r.json();
++    const ovKeys = ['VIX','US10Y','DXY','SPX','NDX','TWD','GOLD','WTI'];
++    const ovEl = document.getElementById('ic-overview-macro-grid');
++    if (ovEl) ovEl.innerHTML = ovKeys.map(k => icMacroCard(k, d[k])).join('');
++    for (const [grp, keys] of Object.entries(IC_MACRO_GROUPS)) {
++      const el = document.getElementById('ic-macro-'+grp);
++      if (el) el.innerHTML = keys.map(k => icMacroCard(k, d[k])).join('');
++    }
++    _icMacroLoaded = true;
++    const lu = document.getElementById('ic-last-update');
++    if (lu) lu.textContent = '更新：' + new Date().toLocaleTimeString('zh-TW');
++  } catch(e) { console.error(e); }
++}
++
++// ── IC US Sectors ──
++let _icSectorsLoaded = false;
++async function icLoadUsSectors() {
++  const wrap = document.getElementById('ic-us-sectors-wrap');
++  if (!wrap) return;
++  wrap.innerHTML = '<div class="ic-loading"><span class="ic-spinner"></span>載入板塊數據…</div>';
++  try {
++    const r = await fetch('/api/ic/us/sectors');
++    const data = await r.json();
++    if (!data.length) { wrap.innerHTML = '<div class="ic-empty-msg">無法取得板塊數據</div>'; return; }
++    const maxAbs = Math.max(...data.map(d => Math.abs(d.m1_pct||0)), 0.01);
++    wrap.innerHTML = `<table class="ic-sector-table">
++      <thead><tr><th>板塊</th><th>ETF</th><th>今日</th><th>近1月</th><th>近3月</th><th>MA20</th></tr></thead>
++      <tbody>${data.map(s => {
++        const barW = Math.min(100, Math.abs(s.m1_pct||0) / maxAbs * 100);
++        const barClr = (s.m1_pct||0)>=0 ? 'var(--green)' : 'var(--red)';
++        return `<tr>
++          <td><b>${s.sector}</b></td>
++          <td style="color:var(--text2)">${s.symbol}</td>
++          <td>${icPct(s.change_pct)}</td>
++          <td><div class="ic-bar-cell">${icPct(s.m1_pct)}
++            <div class="ic-inline-bar" style="width:${barW}px;background:${barClr}"></div>
++          </div></td>
++          <td>${icPct(s.m3_pct)}</td>
++          <td>${s.above_ma20?'<span class="ic-up">↑ 多頭</span>':'<span class="ic-down">↓ 空頭</span>'}</td>
++        </tr>`;
++      }).join('')}</tbody>
++    </table>`;
++    _icSectorsLoaded = true;
++  } catch(e) {
++    wrap.innerHTML = '<div class="ic-empty-msg">載入失敗</div>';
++  }
++}
++
++// ── IC Rec Card ──
++let _icRecsData = [];
++function icRecCard(r) {
++  const dir     = r.direction;
++  const scoreW  = (r.score||0) + '%';
++  const scoreC  = icScoreBarColor(r.score);
++  const confPct = Math.round((r.confidence||0)*100);
++  const confW   = confPct + '%';
++  const srcBadges = (r.sources||[]).map(s =>
++    `<span class="ic-src-badge ${s.source_type==='system'?'ic-src-system':'ic-src-user'}">${s.source_type==='system'?'✦':'◈'} ${s.name}</span>`
++  ).join('');
++  const safeName = (r.name||r.code).replace(/'/g,'&#39;');
++  return `<div class="ic-rec-card ${dir.toLowerCase()}-card">
++    <div class="ic-rec-header">
++      <span class="ic-rec-code">${r.code}</span>
++      <span class="ic-rec-name">${r.name||''}</span>
++      <span class="ic-rec-mkt">${r.market||''}</span>
++      <span class="ic-score-badge ${icScoreClass(dir)}" style="margin-left:auto">${dir}</span>
++    </div>
++    <div>
++      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
++        <span style="font-size:11px;color:var(--text2)">技術評分</span>
++        <span style="font-size:12px;font-weight:700">${r.score}/100</span>
++      </div>
++      <div class="ic-score-bar-wrap">
++        <div class="ic-score-bar" style="width:${scoreW};background:${scoreC}"></div>
++      </div>
++      ${r.confidence!=null?`<div style="display:flex;justify-content:space-between;margin:5px 0 4px">
++        <span style="font-size:11px;color:var(--text2)">AI 信心度</span>
++        <span style="font-size:11px;color:var(--purple)">${confPct}%</span>
++      </div>
++      <div class="ic-conf-bar-wrap"><div class="ic-conf-bar" style="width:${confW}"></div></div>`:''}
++    </div>
++    ${srcBadges?`<div class="ic-src-badges-row">${srcBadges}</div>`:''}
++    ${(r.signals||[]).length?`<div class="ic-signals-wrap">
++      ${r.signals.map(s=>`<span class="ic-signal-chip">${s}</span>`).join('')}
++    </div>`:''}
++    ${r.ai_analysis
++      ? `<div class="ic-ai-text">${icEscHtml(r.ai_analysis)}</div>`
++      : `<button class="ic-analyze-btn" onclick="icAnalyzeOne('${r.code}','${r.market}',this)">🤖 AI 分析</button>`
++    }
++    ${r.disclaimer?`<div style="font-size:10px;color:var(--text2);line-height:1.4">${r.disclaimer}</div>`:''}
++    <div style="display:flex;justify-content:space-between;align-items:center">
++      <button class="ic-analyze-btn" style="background:var(--purple);color:#fff"
++        onclick="icRunBacktest('${r.code}','${r.market}','${safeName}')">▶ 回測</button>
++      <span style="font-size:10px;color:var(--text2)">${(r.created_at||'').slice(0,16)}</span>
++    </div>
++  </div>`;
++}
++
++async function icLoadRecs() {
++  const grid = document.getElementById('ic-recs-grid');
++  if (!grid) return;
++  try {
++    const r = await fetch('/api/ic/recommendations');
++    const data = await r.json();
++    _icRecsData = data;
++    icRenderRecs();
++  } catch(e) {
++    if (grid) grid.innerHTML = '<div class="ic-empty-msg">載入失敗</div>';
++  }
++}
++
++function icRenderRecs() {
++  const grid = document.getElementById('ic-recs-grid');
++  if (!grid) return;
++  const filtered = _icMarketFilter === 'ALL'
++    ? _icRecsData
++    : _icRecsData.filter(r => r.market === _icMarketFilter);
++  if (!filtered.length) {
++    grid.innerHTML = '<div class="ic-empty-msg">尚無推薦，點擊「產生推薦」</div>';
++  } else {
++    grid.innerHTML = filtered.map(icRecCard).join('');
++  }
++  // overview top 3 BUY
++  const ovRecs = document.getElementById('ic-overview-recs');
++  if (ovRecs) {
++    const top3 = _icRecsData.filter(r=>r.direction==='BUY').slice(0,3);
++    ovRecs.innerHTML = top3.length
++      ? `<div class="ic-grid-3">${top3.map(icRecCard).join('')}</div>`
++      : '<div class="ic-empty-msg">尚無買入推薦</div>';
++  }
++}
++
++async function icRefreshRecs() {
++  await getToken();
++  const useAI = document.getElementById('ic-ai-rec-toggle').classList.contains('active');
++  const loadEl = document.getElementById('ic-recs-loading');
++  const grid   = document.getElementById('ic-recs-grid');
++  if (loadEl) loadEl.style.display = '';
++  if (grid)   grid.innerHTML = '';
++  try {
++    const r = await fetch('/api/ic/recommendations/refresh', {
++      method: 'POST',
++      headers: icAuthHeaders(),
++      body: JSON.stringify({ use_ai: useAI, market: _icMarketFilter }),
++    });
++    const data = await r.json();
++    _icRecsData = data.results || [];
++    icRenderRecs();
++  } catch(e) {
++    if (grid) grid.innerHTML = '<div class="ic-empty-msg">產生失敗</div>';
++  } finally {
++    if (loadEl) loadEl.style.display = 'none';
++  }
++}
++
++async function icAnalyzeOne(code, market, btn) {
++  await getToken();
++  btn.disabled = true; btn.textContent = '分析中…';
++  try {
++    const r = await fetch('/api/ic/analyze', {
++      method: 'POST',
++      headers: icAuthHeaders(),
++      body: JSON.stringify({ code, market, use_ai: true }),
++    });
++    const d = await r.json();
++    btn.replaceWith(Object.assign(document.createElement('div'), {
++      className: 'ic-ai-text',
++      textContent: d.ai_analysis || '（無分析結果）',
++    }));
++    const idx = _icRecsData.findIndex(x => x.code===code);
++    if (idx>=0) _icRecsData[idx].ai_analysis = d.ai_analysis;
++  } catch(e) {
++    btn.disabled = false; btn.textContent = '🤖 AI 分析';
++  }
++}
++
++// ── IC TW Recs ──
++async function icLoadTwRecs() {
++  const wrap = document.getElementById('ic-tw-recs-wrap');
++  if (!wrap) return;
++  const twData = _icRecsData.filter(r => r.market === 'TW');
++  if (!twData.length) {
++    wrap.innerHTML = '<div class="ic-empty-msg">尚無台股數據，請至「AI建議」頁產生</div>';
++    return;
++  }
++  wrap.innerHTML = `<div class="ic-grid-3">${twData.map(icRecCard).join('')}</div>`;
++}
++
++// ── IC Single Stock Analysis ──
++async function icAnalyzeSingle(market) {
++  await getToken();
++  const codeEl = document.getElementById(market==='TW'?'ic-tw-single-code':'ic-us-single-code');
++  const aiEl   = document.getElementById(market==='TW'?'ic-tw-ai-toggle':'ic-us-ai-toggle');
++  const resEl  = document.getElementById(market==='TW'?'ic-tw-single-result':'ic-us-single-result');
++  const code   = codeEl.value.trim().toUpperCase();
++  if (!code) { resEl.innerHTML = '<div class="ic-empty-msg">請輸入代碼</div>'; return; }
++  const useAI  = aiEl.classList.contains('active');
++  resEl.innerHTML = '<div class="ic-loading"><span class="ic-spinner"></span>分析中…</div>';
++  try {
++    const r = await fetch('/api/ic/analyze', {
++      method: 'POST',
++      headers: icAuthHeaders(),
++      body: JSON.stringify({ code, market, use_ai: useAI }),
++    });
++    const d = await r.json();
++    if (d.error) { resEl.innerHTML = `<div class="ic-empty-msg">${d.error}</div>`; return; }
++    const t = d.tech || {};
++    const ind = t.indicators || {};
++    const confPct = Math.round((d.confidence||0)*100);
++    const srcBadges = (d.sources||[]).map(s =>
++      `<span class="ic-src-badge ${s.source_type==='system'?'ic-src-system':'ic-src-user'}">${s.source_type==='system'?'✦':'◈'} ${s.name}</span>`
++    ).join('');
++    resEl.innerHTML = `<div class="ic-rec-card ${(t.direction||'hold').toLowerCase()}-card">
++      <div class="ic-rec-header">
++        <span class="ic-rec-code">${d.code}</span>
++        <span class="ic-rec-name">${d.name||''}</span>
++        <span class="ic-rec-mkt">${d.market}</span>
++        <span class="ic-score-badge ${icScoreClass(t.direction||'HOLD')}" style="margin-left:auto">
++          ${t.direction||'HOLD'} · ${t.score||0}/100
++        </span>
++      </div>
++      <div>
++        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
++          <span style="font-size:11px;color:var(--text2)">技術評分</span>
++          <span style="font-size:12px;font-weight:700">${t.score||0}/100</span>
++        </div>
++        <div class="ic-score-bar-wrap">
++          <div class="ic-score-bar" style="width:${t.score||0}%;background:${icScoreBarColor(t.score||0)}"></div>
++        </div>
++        ${d.confidence!=null?`<div style="display:flex;justify-content:space-between;margin:5px 0 4px">
++          <span style="font-size:11px;color:var(--text2)">AI 信心度</span>
++          <span style="font-size:11px;color:var(--purple)">${confPct}%</span>
++        </div>
++        <div class="ic-conf-bar-wrap"><div class="ic-conf-bar" style="width:${confPct}%"></div></div>`:''}
++      </div>
++      ${srcBadges?`<div class="ic-src-badges-row">${srcBadges}</div>`:''}
++      ${(t.signals||[]).length?`<div class="ic-signals-wrap">
++        ${t.signals.map(s=>`<span class="ic-signal-chip">${s}</span>`).join('')}
++      </div>`:''}
++      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;font-size:12px">
++        ${Object.entries(ind).map(([k,v])=>`<div class="ic-card" style="padding:7px">
++          <b>${k}</b><br>${Object.entries(v).map(([kk,vv])=>`${kk}: ${typeof vv==='boolean'?(vv?'是':'否'):vv}`).join(' | ')}
++        </div>`).join('')}
++      </div>
++      ${d.ai_analysis?`<div class="ic-ai-text">${icEscHtml(d.ai_analysis)}</div>`:''}
++      ${d.disclaimer?`<div style="font-size:10px;color:var(--text2);margin-top:5px;line-height:1.4">${d.disclaimer}</div>`:''}
++    </div>`;
++  } catch(e) {
++    resEl.innerHTML = '<div class="ic-empty-msg">分析失敗</div>';
++  }
++}
++
++// ── IC Settings ──
++function icSelectHolding(el) {
++  document.querySelectorAll('#ic-holding-chips .ic-chip-toggle').forEach(e=>e.classList.remove('active'));
++  el.classList.add('active');
++}
++function icSelectRisk(el) {
++  document.querySelectorAll('#ic-risk-chips .ic-chip-toggle').forEach(e=>e.classList.remove('active'));
++  el.classList.add('active');
++}
++function icToggleIndicator(el) { el.classList.toggle('active'); }
++
++async function icLoadSettings() {
++  try {
++    const r = await fetch('/api/ic/settings');
++    const d = await r.json();
++    document.querySelectorAll('#ic-holding-chips .ic-chip-toggle').forEach(el => {
++      el.classList.toggle('active', el.dataset.val === d.holding_period);
++    });
++    document.querySelectorAll('#ic-risk-chips .ic-chip-toggle').forEach(el => {
++      el.classList.toggle('active', el.dataset.val === d.risk_level);
++    });
++    const inds = Array.isArray(d.preferred_indicators) ? d.preferred_indicators : [];
++    document.querySelectorAll('#ic-indicator-chips .ic-chip-toggle').forEach(el => {
++      el.classList.toggle('active', inds.includes(el.dataset.val));
++    });
++    const k = document.getElementById('ic-claude-api-key');
++    if (k && d.claude_api_key) k.value = d.claude_api_key;
++  } catch(e) { console.error(e); }
++  await icLoadNotifyConfig();
++}
++
++async function icSaveSettings() {
++  await getToken();
++  const holding = document.querySelector('#ic-holding-chips .ic-chip-toggle.active')?.dataset.val || '波段';
++  const risk    = document.querySelector('#ic-risk-chips .ic-chip-toggle.active')?.dataset.val  || '穩健';
++  const inds    = [...document.querySelectorAll('#ic-indicator-chips .ic-chip-toggle.active')].map(e=>e.dataset.val);
++  const apiKey  = document.getElementById('ic-claude-api-key')?.value.trim() || '';
++  try {
++    await fetch('/api/ic/settings', {
++      method: 'POST',
++      headers: icAuthHeaders(),
++      body: JSON.stringify({
++        holding_period:       holding,
++        risk_level:           risk,
++        preferred_indicators: inds,
++        claude_api_key:       apiKey,
++      }),
++    });
++    const msg = document.getElementById('ic-save-msg');
++    if (msg) { msg.style.display = ''; setTimeout(() => msg.style.display='none', 2500); }
++  } catch(e) { alert('儲存失敗'); }
++}
++
++function icUpdateThresholdLabel(val) {
++  const el = document.getElementById('ic-threshold-label');
++  if (el) el.textContent = Math.round(val * 100) + '%';
++}
++
++async function icLoadNotifyConfig() {
++  try {
++    const r = await fetch('/api/ic/notify-config');
++    const d = await r.json();
++    const cb = document.getElementById('ic-notify-enabled');
++    const sl = document.getElementById('ic-notify-threshold');
++    if (cb) cb.checked = d.ic_notify_enabled;
++    if (sl) { sl.value = d.ic_notify_threshold; icUpdateThresholdLabel(d.ic_notify_threshold); }
++  } catch(e) { console.error(e); }
++}
++
++async function icSaveNotifyConfig() {
++  const cb = document.getElementById('ic-notify-enabled');
++  const sl = document.getElementById('ic-notify-threshold');
++  if (!cb || !sl) return;
++  try {
++    await fetch('/api/ic/notify-config', {
++      method: 'POST',
++      headers: icAuthHeaders(),
++      body: JSON.stringify({
++        ic_notify_enabled:   cb.checked,
++        ic_notify_threshold: parseFloat(sl.value),
++      }),
++    });
++  } catch(e) { console.error(e); }
++}
++
++// ── IC Refresh All ──
++async function icRefreshAll() {
++  await icLoadMacro(true);
++  await icLoadUsSectors();
++}
++
++// ── IC Macro Interpretation ──
++async function icLoadInterpretation() {
++  try {
++    const r = await fetch('/api/ic/macro/interpretation');
++    const d = await r.json();
++    const html = icEnvBannerHtml(d);
++    const ov = document.getElementById('ic-env-banner-overview');
++    const mc = document.getElementById('ic-env-banner-macro');
++    if (ov) ov.innerHTML = html;
++    if (mc) mc.innerHTML = html;
++  } catch(e) {
++    ['ic-env-banner-overview','ic-env-banner-macro'].forEach(id => {
++      const el = document.getElementById(id);
++      if (el) el.innerHTML = '';
++    });
++  }
++}
++
++function icEnvBannerHtml(d) {
++  const c = d.color || 'yellow';
++  const sigsHtml = (d.signals||[]).map(s =>
++    `<span class="ic-env-sig ${s.color}">${s.key}: ${s.status} — ${s.detail}</span>`
++  ).join('');
++  return `<div class="ic-env-banner ${c}">
++    <span class="ic-env-tag ${c}">${d.label}</span>
++    <span class="ic-env-advice">${d.advice}</span>
++    <div class="ic-env-sigs">${sigsHtml}</div>
++  </div>`;
++}
++
++// ── IC TW Institutional ──
++async function icLoadTwInstitutional() {
++  const wrap = document.getElementById('ic-tw-inst-wrap');
++  if (!wrap) return;
++  try {
++    const r = await fetch('/api/ic/tw/institutional-top');
++    const data = await r.json();
++    if (!data.length) {
++      wrap.innerHTML = '<div class="ic-empty-msg">尚無籌碼資料（請先至主系統抓取法人資料）</div>';
++      return;
++    }
++    wrap.innerHTML = `<div class="ic-card" style="overflow-x:auto"><table class="ic-inst-table">
++      <thead><tr>
++        <th>代碼</th><th>名稱</th><th>外資(張)</th><th>投信(張)</th><th>自營(張)</th>
++        <th>三大合計</th><th>融資</th><th>日期</th>
++      </tr></thead>
++      <tbody>${data.map(row => `<tr>
++        <td><b>${row.code}</b></td>
++        <td>${row.name}</td>
++        <td class="${row.foreign>0?'ic-up':'ic-down'}">${row.foreign>0?'+':''}${row.foreign}</td>
++        <td class="${row.trust>0?'ic-up':'ic-down'}">${row.trust>0?'+':''}${row.trust}</td>
++        <td class="${row.dealer>0?'ic-up':'ic-down'}">${row.dealer>0?'+':''}${row.dealer}</td>
++        <td class="${row.total>0?'ic-up':row.total<0?'ic-down':'ic-flat'}" style="font-weight:700">
++          ${row.total>0?'+':''}${row.total}
++        </td>
++        <td class="ic-flat">${row.margin}</td>
++        <td class="ic-flat" style="font-size:10px">${(row.date||'').slice(0,10)}</td>
++      </tr>`).join('')}</tbody>
++    </table></div>`;
++  } catch(e) {
++    wrap.innerHTML = '<div class="ic-empty-msg">載入失敗</div>';
++  }
++}
++
++// ── IC Batch Score ──
++async function icBatchScore(market) {
++  await getToken();
++  const inputId  = market==='TW' ? 'ic-tw-batch-input' : 'ic-us-batch-input';
++  const aiId     = market==='TW' ? 'ic-tw-batch-ai'    : 'ic-us-batch-ai';
++  const resultId = market==='TW' ? 'ic-tw-batch-result': 'ic-us-batch-result';
++  const raw    = document.getElementById(inputId)?.value || '';
++  const useAI  = document.getElementById(aiId)?.classList.contains('active') || false;
++  const codes  = raw.split(/[\n,，\s]+/).map(s=>s.trim().toUpperCase()).filter(Boolean);
++  if (!codes.length) return;
++  const resEl = document.getElementById(resultId);
++  resEl.innerHTML = '<div class="ic-loading" style="grid-column:1/-1"><span class="ic-spinner"></span>評分中…</div>';
++  try {
++    const r = await fetch('/api/ic/batch-score', {
++      method: 'POST',
++      headers: icAuthHeaders(),
++      body: JSON.stringify({ stocks: codes.map(c=>({code:c,market})), use_ai: useAI }),
++    });
++    const d = await r.json();
++    const results = d.results || [];
++    if (!results.length) { resEl.innerHTML = '<div class="ic-empty-msg">無法取得數據</div>'; return; }
++    resEl.innerHTML = results.map(r => icRecCard({...r, created_at:''})).join('');
++  } catch(e) {
++    resEl.innerHTML = '<div class="ic-empty-msg">評分失敗</div>';
++  }
++}
++
++// ── IC Backtest ──
++function icCloseBtModal() {
++  document.getElementById('ic-bt-modal').classList.remove('show');
++}
++
++async function icRunBacktest(code, market, name) {
++  await getToken();
++  document.getElementById('ic-bt-title').textContent = `回測：${name||code} (${market})`;
++  document.getElementById('ic-bt-content').innerHTML = '';
++  document.getElementById('ic-bt-loading').style.display = '';
++  document.getElementById('ic-bt-modal').classList.add('show');
++  const startYear = new Date();
++  startYear.setFullYear(startYear.getFullYear() - 2);
++  const start = startYear.toISOString().slice(0,10);
++  try {
++    const r = await fetch('/api/ic/backtest-preview', {
++      method: 'POST',
++      headers: icAuthHeaders(),
++      body: JSON.stringify({ code, market, start }),
++    });
++    const d = await r.json();
++    document.getElementById('ic-bt-loading').style.display = 'none';
++    const sum = d.summary || {};
++    const ret = sum.total_return_pct || 0;
++    const retCls = ret>=0?'ic-up':'ic-down';
++    const trades = (d.trades||[]).slice(-10).reverse();
++    const tradesHtml = trades.length ? `<div style="font-size:12px;color:var(--text2);margin:10px 0 5px">最近10筆交易</div>
++      <table class="ic-inst-table">
++        <thead><tr><th>日期</th><th>類型</th><th>訊號</th><th>價格</th><th>獲利</th></tr></thead>
++        <tbody>${trades.map(t=>`<tr>
++          <td>${(t.date||'').slice(0,10)}</td><td>${t.action||''}</td>
++          <td style="font-size:11px">${t.signal||''}</td><td>$${t.price||0}</td>
++          <td class="${(t.pnl||0)>=0?'ic-up':'ic-down'}">${(t.pnl||0)>=0?'+':''}${((t.pnl||0)).toFixed(0)}</td>
++        </tr>`).join('')}</tbody>
++      </table>` : '';
++    document.getElementById('ic-bt-content').innerHTML = `
++      <div class="ic-bt-stat-grid">
++        <div class="ic-bt-stat"><div class="ic-bt-stat-label">總報酬</div><div class="ic-bt-stat-val ${retCls}">${ret>=0?'+':''}${ret.toFixed(1)}%</div></div>
++        <div class="ic-bt-stat"><div class="ic-bt-stat-label">CAGR</div><div class="ic-bt-stat-val ${(sum.cagr_pct||0)>=0?'ic-up':'ic-down'}">${(sum.cagr_pct||0).toFixed(1)}%</div></div>
++        <div class="ic-bt-stat"><div class="ic-bt-stat-label">交易次數</div><div class="ic-bt-stat-val">${sum.total_trades||0}</div></div>
++        <div class="ic-bt-stat"><div class="ic-bt-stat-label">勝率</div><div class="ic-bt-stat-val">${(sum.win_rate_pct||0).toFixed(1)}%</div></div>
++        <div class="ic-bt-stat"><div class="ic-bt-stat-label">最大回撤</div><div class="ic-bt-stat-val ic-down">-${(sum.max_drawdown_pct||0).toFixed(1)}%</div></div>
++        <div class="ic-bt-stat"><div class="ic-bt-stat-label">Sharpe</div><div class="ic-bt-stat-val">${(sum.sharpe||0).toFixed(2)}</div></div>
++      </div>
++      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">回測期間：${start} ～ 今日</div>
++      ${tradesHtml}`;
++  } catch(e) {
++    document.getElementById('ic-bt-loading').style.display = 'none';
++    document.getElementById('ic-bt-content').innerHTML = '<div class="ic-empty-msg">回測失敗</div>';
++  }
++}
++
++// ── IC History ──
++async function icLoadHistory() {
++  const wrap = document.getElementById('ic-history-wrap');
++  if (!wrap) return;
++  try {
++    const r = await fetch('/api/ic/recommendations/history');
++    const data = await r.json();
++    if (!data.length) {
++      wrap.innerHTML = '<div class="ic-empty-msg" style="font-size:12px">尚無歷史記錄（產生推薦後自動存入）</div>';
++      return;
++    }
++    const ol = {WIN:'勝',LOSS:'敗',NEUTRAL:'持平',PENDING:'待評估'};
++    const oc = {WIN:'ic-outcome-win',LOSS:'ic-outcome-loss',NEUTRAL:'ic-outcome-neutral',PENDING:'ic-outcome-pending'};
++    wrap.innerHTML = `<div class="ic-card" style="overflow-x:auto"><table class="ic-hist-table">
++      <thead><tr>
++        <th>代碼</th><th>名稱</th><th>市場</th><th>方向</th><th>評分</th><th>信心</th>
++        <th>進場價</th><th>評估價</th><th>損益%</th><th>結果</th><th>建議時間</th><th>評估時間</th>
++      </tr></thead>
++      <tbody>${data.map(h => {
++        const outcome = h.outcome || 'PENDING';
++        const pnl = h.pnl_pct != null
++          ? `<span class="${h.pnl_pct>=0?'ic-up':'ic-down'}">${h.pnl_pct>=0?'+':''}${h.pnl_pct.toFixed(1)}%</span>`
++          : '—';
++        return `<tr>
++          <td><b>${h.code}</b></td>
++          <td style="color:var(--text2)">${h.name||''}</td>
++          <td style="color:var(--text2)">${h.market}</td>
++          <td><span class="ic-score-badge ${icScoreClass(h.direction)}">${h.direction}</span></td>
++          <td>${h.score||0}</td>
++          <td style="color:var(--purple)">${Math.round((h.confidence||0.5)*100)}%</td>
++          <td>${h.entry_price!=null?h.entry_price.toFixed(2):'—'}</td>
++          <td>${h.eval_price!=null?h.eval_price.toFixed(2):'—'}</td>
++          <td>${pnl}</td>
++          <td class="${oc[outcome]||'ic-outcome-pending'}">${ol[outcome]||outcome}</td>
++          <td style="font-size:10px;color:var(--text2)">${(h.created_at||'').slice(0,16)}</td>
++          <td style="font-size:10px;color:var(--text2)">${(h.eval_at||'').slice(0,16)||'—'}</td>
++        </tr>`;
++      }).join('')}</tbody>
++    </table></div>`;
++  } catch(e) {
++    wrap.innerHTML = '<div class="ic-empty-msg">載入失敗</div>';
++  }
++}
++
++async function icEvaluateHistory() {
++  await getToken();
++  const msg = document.getElementById('ic-eval-msg');
++  if (msg) { msg.style.display = ''; msg.textContent = '評估中…'; }
++  try {
++    const r = await fetch('/api/ic/recommendations/evaluate', {method:'POST', headers: icAuthHeaders()});
++    const d = await r.json();
++    if (msg) { msg.textContent = `完成 ${d.count} 筆`; setTimeout(() => msg.style.display='none', 3000); }
++    icLoadHistory();
++  } catch(e) {
++    if (msg) { msg.textContent = '失敗'; setTimeout(() => msg.style.display='none', 2000); }
++  }
++}
++
++// ── IC Sources ──
++async function icLoadSources() {
++  try {
++    const r = await fetch('/api/ic/sources');
++    const d = await r.json();
++    icRenderSysSources(d.system || []);
++    icRenderUserSources(d.user || []);
++    icLoadNewsCache();
++  } catch(e) {
++    const s = document.getElementById('ic-sys-sources-wrap');
++    const u = document.getElementById('ic-user-sources-wrap');
++    if (s) s.innerHTML = '<div class="ic-empty-msg">載入失敗</div>';
++    if (u) u.innerHTML = '<div class="ic-empty-msg">載入失敗</div>';
++  }
++}
++
++function icRenderSysSources(sources) {
++  const wrap = document.getElementById('ic-sys-sources-wrap');
++  if (!wrap) return;
++  if (!sources.length) { wrap.innerHTML = '<div class="ic-empty-msg">無系統來源</div>'; return; }
++  wrap.innerHTML = `<table class="ic-src-table">
++    <thead><tr><th>名稱</th><th>市場</th><th>類型</th><th>說明</th><th>可靠性</th></tr></thead>
++    <tbody>${sources.map(s=>`<tr>
++      <td><span class="ic-src-badge ic-src-system">✦ ${s.name}</span></td>
++      <td style="color:var(--text2)">${s.market}</td>
++      <td style="color:var(--text2)">${s.type}</td>
++      <td style="color:var(--text2);font-size:11px">${s.description||''}</td>
++      <td><span class="ic-src-badge ${s.reliability==='confirmed'?'ic-src-system':'ic-src-user'}">${s.reliability==='confirmed'?'確認':'參考'}</span></td>
++    </tr>`).join('')}</tbody>
++  </table>`;
++}
++
++function icRenderUserSources(sources) {
++  const wrap = document.getElementById('ic-user-sources-wrap');
++  if (!wrap) return;
++  if (!sources.length) { wrap.innerHTML = '<div class="ic-empty-msg">尚無自定義來源</div>'; return; }
++  wrap.innerHTML = `<table class="ic-src-table">
++    <thead><tr><th>名稱</th><th>市場</th><th>URL</th><th>類型</th><th>最後抓取</th><th>操作</th></tr></thead>
++    <tbody>${sources.map(s=>`<tr>
++      <td><span class="ic-src-badge ic-src-user">◈ ${s.name}</span></td>
++      <td style="color:var(--text2)">${s.market}</td>
++      <td style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
++        ${s.url?`<a href="${s.url}" target="_blank" style="color:var(--blue)">${s.url}</a>`:'—'}</td>
++      <td style="color:var(--text2)">${s.type}</td>
++      <td style="font-size:10px;color:var(--text2)">${s.last_fetched?(s.last_fetched||'').slice(0,16):'—'}</td>
++      <td style="display:flex;gap:4px">
++        <button class="ic-analyze-btn" style="padding:3px 8px" id="ic-fetch-btn-${s.db_id}"
++            onclick="icFetchOneSource(${s.db_id})">抓取</button>
++        <button class="ic-analyze-btn" style="background:var(--red);color:#fff;padding:3px 8px"
++            onclick="icDeleteSource(${s.db_id})">刪除</button>
++      </td>
++    </tr>`).join('')}</tbody>
++  </table>`;
++}
++
++async function icFetchOneSource(dbId) {
++  await getToken();
++  const btn = document.getElementById(`ic-fetch-btn-${dbId}`);
++  if (btn) { btn.disabled = true; btn.textContent = '…'; }
++  try {
++    const r = await fetch(`/api/ic/sources/${dbId}/fetch`, {method:'POST', headers: icAuthHeaders()});
++    const d = await r.json();
++    if (btn) { btn.disabled = false; btn.textContent = d.ok ? '✓' : '✗'; }
++    icLoadSources(); icLoadNewsCache();
++  } catch(e) {
++    if (btn) { btn.disabled = false; btn.textContent = '✗'; }
++  }
++}
++
++async function icFetchAllSources() {
++  await getToken();
++  const msg = document.getElementById('ic-fetch-all-msg');
++  if (msg) { msg.style.display = ''; msg.textContent = '抓取中…'; }
++  try {
++    const r = await fetch('/api/ic/sources/fetch-all', {method:'POST', headers: icAuthHeaders()});
++    const d = await r.json();
++    if (msg) { msg.textContent = `完成 ${d.count} 筆`; setTimeout(() => msg.style.display='none', 3000); }
++    icLoadSources(); icLoadNewsCache();
++  } catch(e) {
++    if (msg) { msg.textContent = '失敗'; setTimeout(() => msg.style.display='none', 2000); }
++  }
++}
++
++async function icLoadNewsCache() {
++  const wrap = document.getElementById('ic-news-cache-wrap');
++  if (!wrap) return;
++  try {
++    const r = await fetch('/api/ic/sources/news');
++    const data = await r.json();
++    if (!data.length) {
++      wrap.innerHTML = '<div class="ic-empty-msg" style="font-size:12px">尚無快取內容</div>';
++      return;
++    }
++    wrap.innerHTML = data.map(n => `<div class="ic-card" style="margin-bottom:8px">
++      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
++        <span class="ic-src-badge ic-src-user">◈ ${n.name}</span>
++        <span style="font-size:10px;color:var(--text2)">${n.market} · ${n.type}</span>
++        <span style="font-size:10px;color:var(--text2);margin-left:auto">${(n.fetched_at||'').slice(0,16)}</span>
++      </div>
++      <div style="font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.5;background:var(--bg);border-radius:4px;padding:7px;max-height:110px;overflow-y:auto">${icEscHtml(n.content||'')}</div>
++    </div>`).join('');
++  } catch(e) {
++    wrap.innerHTML = '<div class="ic-empty-msg">載入失敗</div>';
++  }
++}
++
++async function icAddSource() {
++  await getToken();
++  const name = document.getElementById('ic-src-name')?.value.trim() || '';
++  if (!name) { alert('請填寫名稱'); return; }
++  try {
++    await fetch('/api/ic/sources', {
++      method: 'POST', headers: icAuthHeaders(),
++      body: JSON.stringify({
++        name,
++        url:         document.getElementById('ic-src-url')?.value.trim() || '',
++        type:        document.getElementById('ic-src-type')?.value || 'HTML',
++        market:      document.getElementById('ic-src-market')?.value || 'ALL',
++        reliability: document.getElementById('ic-src-reliability')?.value || 'reference',
++        description: document.getElementById('ic-src-desc')?.value.trim() || '',
++      }),
++    });
++    ['ic-src-name','ic-src-url','ic-src-desc'].forEach(id => {
++      const el = document.getElementById(id);
++      if (el) el.value = '';
++    });
++    const msg = document.getElementById('ic-src-msg');
++    if (msg) { msg.style.display = ''; setTimeout(() => msg.style.display='none', 2000); }
++    icLoadSources();
++  } catch(e) { alert('新增失敗'); }
++}
++
++async function icDeleteSource(dbId) {
++  if (!confirm('確定刪除此來源？')) return;
++  await getToken();
++  try {
++    await fetch(`/api/ic/sources/${dbId}`, { method: 'DELETE', headers: icAuthHeaders() });
++    icLoadSources();
++  } catch(e) { alert('刪除失敗'); }
++}
++// ══ IC 模組結束 ══
++
+ async function loadUSPositionsMini() {
+   const el = document.getElementById('us-pos-mini');
+   try {

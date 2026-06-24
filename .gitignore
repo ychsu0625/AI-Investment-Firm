@@ -1,0 +1,38 @@
+# ── Secrets & tokens ──
+.api_token
+ui/.api_token
+.env
+ui/.env
+*.env
+
+# ── Databases ──
+*.db
+*.db-wal
+*.db-shm
+data/
+
+# ── Python cache ──
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# ── Logs ──
+*.log
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor ──
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Runtime ──
+nohup.out
+*.png

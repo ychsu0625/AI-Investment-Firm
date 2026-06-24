@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智慧投顧系統 — 完整 UI 規格 v2.0（缺口補全版）</title>
+<style>
+:root{
+  --bg:#f0f2f5;--white:#fff;--border:#d1d9e0;
+  --blue:#1677ff;--blue-l:#e6f4ff;--blue-m:#4096ff;
+  --green:#52c41a;--green-l:#f6ffed;--green-d:#135200;
+  --red:#ff4d4f;--red-l:#fff2f0;
+  --yellow:#faad14;--yellow-l:#fffbe6;
+  --purple:#722ed1;--purple-l:#f9f0ff;
+  --cyan:#13c2c2;--cyan-l:#e6fffb;
+  --orange:#fa8c16;--orange-l:#fff7e6;
+  --pink:#eb2f96;--pink-l:#fff0f6;
+  --gray:#8c8c8c;--gray-l:#f5f5f5;--gray-m:#e8e8e8;
+  --text:#1a1a2e;--text2:#595959;
+  --r:8px;--sh:0 2px 8px rgba(0,0,0,.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',sans-serif;font-size:14px}
+h1{font-size:22px;font-weight:700;margin-bottom:4px}
+h2{font-size:15px;font-weight:700;margin-bottom:10px;color:var(--blue);display:flex;align-items:center;gap:6px}
+h3{font-size:13px;font-weight:700;margin-bottom:6px;color:var(--text2)}
+p{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:8px}
+
+.wrap{max-width:1440px;margin:0 auto;padding:24px 20px}
+.sec{background:var(--white);border-radius:12px;padding:22px 24px;margin-bottom:18px;box-shadow:var(--sh)}
+.meta{font-size:11px;color:var(--gray);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+
+/* ── grid ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+
+/* ── wireframe box ── */
+.wf{border:2px dashed var(--border);border-radius:var(--r);background:var(--gray-l);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:10px;position:relative;gap:4px}
+.wf-t{font-size:12px;font-weight:700;color:var(--text2)}
+.wf-d{font-size:11px;color:var(--gray);line-height:1.5}
+.tag{position:absolute;top:-1px;left:8px;color:#fff;font-size:10px;
+     padding:1px 7px;border-radius:0 0 5px 5px;font-weight:700}
+
+.wf.rt {border-color:var(--green); background:var(--green-l)} .wf.rt .tag{background:var(--green);color:#000}
+.wf.sig{border-color:var(--yellow);background:var(--yellow-l)}.wf.sig .tag{background:var(--yellow);color:#000}
+.wf.ch {border-color:var(--blue);  background:var(--blue-l)}  .wf.ch .tag{background:var(--blue)}
+.wf.pos{border-color:var(--purple);background:var(--purple-l)}.wf.pos .tag{background:var(--purple)}
+.wf.rsk{border-color:var(--red);   background:var(--red-l)}   .wf.rsk .tag{background:var(--red)}
+.wf.chip{border-color:var(--cyan); background:var(--cyan-l)}  .wf.chip .tag{background:var(--cyan);color:#000}
+.wf.mac{border-color:var(--pink);  background:var(--pink-l)}  .wf.mac .tag{background:var(--pink)}
+.wf.act{border-color:var(--orange);background:var(--orange-l)}.wf.act .tag{background:var(--orange)}
+.wf.new{border-color:#531dab;background:#f9f0ff;border-width:2.5px} .wf.new .tag{background:#531dab}
+
+/* ── info / warn / success box ── */
+.ibox{border-radius:8px;padding:11px 15px;font-size:13px;margin-bottom:12px;line-height:1.6}
+.ibox.blue{background:var(--blue-l);border:1px solid #91caff;color:#0958d9}
+.ibox.yellow{background:var(--yellow-l);border:1px solid #ffd666;color:#7a4800}
+.ibox.red{background:var(--red-l);border:1px solid #ffa39e;color:#a8071a}
+.ibox.green{background:var(--green-l);border:1px solid #b7eb8f;color:var(--green-d)}
+.ibox.purple{background:var(--purple-l);border:1px solid #d3adf7;color:var(--purple)}
+
+/* ── badge pill ── */
+.pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap}
+.p1{background:#fff2f0;color:var(--red)}
+.p2{background:var(--yellow-l);color:#7a4800}
+.p3{background:var(--green-l);color:var(--green-d)}
+.pnew{background:var(--purple-l);color:var(--purple);border:1px solid #d3adf7}
+
+/* ── gap badge ── */
+.gap-badge{display:inline-flex;align-items:center;gap:4px;background:#fff2f0;
+           border:1px solid #ffa39e;color:var(--red);font-size:11px;font-weight:700;
+           padding:2px 8px;border-radius:4px}
+.gap-fixed{background:var(--green-l);border-color:#b7eb8f;color:var(--green-d)}
+
+/* ── table ── */
+.tb{width:100%;border-collapse:collapse;font-size:13px}
+.tb th{background:var(--gray-l);padding:8px 12px;text-align:left;font-size:11px;
+       color:var(--text2);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.tb td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.5}
+.tb tr:last-child td{border-bottom:none}
+.tb tr.highlight td{background:#f9f0ff}
+
+/* ── flow ── */
+.flow{display:flex;align-items:center;flex-wrap:wrap;gap:0;margin:8px 0}
+.fb{background:var(--white);border:1.5px solid var(--border);border-radius:7px;
+    padding:7px 12px;font-size:12px;font-weight:600;text-align:center;white-space:nowrap}
+.fb.blue{border-color:var(--blue);background:var(--blue-l);color:var(--blue)}
+.fb.green{border-color:var(--green);background:var(--green-l);color:var(--green-d)}
+.fb.red{border-color:var(--red);background:var(--red-l);color:var(--red)}
+.fb.yellow{border-color:var(--yellow);background:var(--yellow-l);color:#7a4800}
+.fb.purple{border-color:var(--purple);background:var(--purple-l);color:var(--purple)}
+.fb.new{border-color:#531dab;background:#f9f0ff;color:#531dab;border-width:2px}
+.fa{font-size:16px;color:var(--gray);padding:0 5px}
+
+/* ── anno ── */
+.anno{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;font-size:12px}
+.anno .num{min-width:20px;height:20px;border-radius:50%;background:var(--blue);color:#fff;
+           display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.anno .num.red{background:var(--red)}
+.anno .num.purple{background:var(--purple)}
+.anno .txt{color:var(--text2);line-height:1.6}
+.anno .txt b{color:var(--text)}
+
+/* ── legend ── */
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.li{display:flex;align-items:center;gap:5px;font-size:12px}
+.ld{width:12px;height:12px;border-radius:3px}
+
+/* section header accent */
+.sec-accent{border-left:4px solid var(--blue);padding-left:12px;margin-bottom:14px}
+.sec-accent.red{border-color:var(--red)}
+.sec-accent.green{border-color:var(--green)}
+.sec-accent.purple{border-color:var(--purple)}
+
+/* component card */
+.comp{background:var(--gray-l);border-radius:var(--r);padding:12px 14px;border:1px solid var(--border)}
+.comp h4{font-size:12px;font-weight:700;margin-bottom:4px}
+.comp p{font-size:11px;color:var(--gray);margin:0}
+
+/* global lock strip */
+.lock-strip{background:#3a1a1a;border:2px solid var(--red);border-radius:8px;
+            padding:10px 16px;display:flex;align-items:center;gap:10px;
+            color:var(--red);font-weight:700;font-size:13px}
+
+/* bidask table */
+.ba-row{display:flex;gap:4px;font-size:12px;padding:2px 0}
+.ba-ask{color:#ff4d4f;flex:1;text-align:right}
+.ba-vol{width:60px;text-align:center;color:#8c8c8c}
+.ba-bid{color:#52c41a;flex:1}
+
+/* divider */
+hr.d{border:none;border-top:1px solid var(--border);margin:16px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══ Title ══ -->
+<div style="margin-bottom:22px">
+  <div style="font-size:11px;color:var(--gray);margin-bottom:4px">智慧投顧監控系統 · UI 完整規格 v2.0 · 缺口補全版 · 2026-06-10</div>
+  <h1>📐 完整 UI Layout 規格（動工前版本）</h1>
+  <p>Phase 1–3 全功能 · 8 項缺口全部補入 · 老婆需求 100% 覆蓋</p>
+  <div class="ibox green">✅ 本文件已對照原始需求規格書逐條核對，8 項缺口全部補入設計。動工前最終確認版。</div>
+</div>
+
+<!-- ══ 0. 缺口補全清單 ══ -->
+<div class="sec">
+  <div class="sec-accent red"><h2>🔴 0. 八項缺口 — 補全確認</h2></div>
+  <div class="meta">從前版規劃中識別出的缺口，已全數補入本版設計</div>
+  <table class="tb">
+    <thead><tr><th>#</th><th>缺口項目</th><th>補入位置</th><th>解法說明</th><th>狀態</th></tr></thead>
+    <tbody>
+      <tr class="highlight">
+        <td><b>G1</b></td>
+        <td>負乖離 + 年線之上 → 左側分批低吸提示</td>
+        <td>K線監控頁 · 訊號流</td>
+        <td>年線（240MA）加入主圖顯示；後端計算負乖離閾值，觸發「LOW_BUY」訊號類型，呈現「建議分批低吸」卡片</td>
+        <td><span class="pill pnew">✅ 補入</span></td>
+      </tr>
+      <tr class="highlight">
+        <td><b>G2</b></td>
+        <td>Buy_B 五檔委託結構偵測 + UI</td>
+        <td>K線監控頁 → 五檔面板</td>
+        <td>訂閱 Shioaji BidAsk，K線監控頁底部新增「五檔委託結構」子面板，視覺化賣壓被吃狀況</td>
+        <td><span class="pill pnew">✅ 補入</span></td>
+      </tr>
+      <tr class="highlight">
+        <td><b>G3</b></td>
+        <td>持倉需區分「波段單 / 當沖單」→ Exit_C 規則分流</td>
+        <td>持倉管理頁 · 下單面板</td>
+        <td>買進時彈出選擇「波段 / 當沖」，存入 positions.trade_type；Exit_C 依 trade_type 套用不同止盈規則</td>
+        <td><span class="pill pnew">✅ 補入</span></td>
+      </tr>
+      <tr class="highlight">
+        <td><b>G4</b></td>
+        <td>Exit_D 停損比例可設定（-5% ~ -7%）</td>
+        <td>風控設定頁</td>
+        <td>風控設定頁新增滑桿 -5% ~ -7%，預設 -5%；變更需二次確認；後端即時更新所有持倉停損線</td>
+        <td><span class="pill pnew">✅ 補入</span></td>
+      </tr>
+      <tr class="highlight">
+        <td><b>G5</b></td>
+        <td>融券軋空：盤中突破前高 → 強力買進訊號</td>
+        <td>盤中訊號流 · K線監控</td>
+        <td>後端對軋空候選池每 tick 比對前日高點，突破時觸發「SQUEEZE_BREAK」訊號，推入訊號流並在 K 線標記</td>
+        <td><span class="pill pnew">✅ 補入</span></td>
+      </tr>
+      <tr class="highlight">
+        <td><b>G6</b></td>
+        <td>法人目標價中位數 >20%（資料 + UI）</td>
+        <td>盤後分析頁 · 翌日候選池</td>
+        <td>短期：人工輸入欄位（目標價）；中期：爬 CMoney / 公開資訊觀測站；UI 顯示「法人共識」badge 與漲幅空間</td>
+        <td><span class="pill pnew">✅ 補入</span></td>
+      </tr>
+      <tr class="highlight">
+        <td><b>G7</b></td>
+        <td>NLP 利多出盡盤中版（開盤後 15 分鐘）</td>
+        <td>K線監控頁 · 首頁訊號流</td>
+        <td>盤前掃描新聞 → 標記「重大正面新聞股」→ 09:00 起監控 15 分鐘走勢 → 開高走低量大收黑觸發「NEWS_FADE」訊號</td>
+        <td><span class="pill pnew">✅ 補入</span></td>
+      </tr>
+      <tr class="highlight">
+        <td><b>G8</b></td>
+        <td>系統性風險 → 全站「暫停買進」鎖定狀態 UI</td>
+        <td>全域常駐橫幅 · 所有買進按鈕</td>
+        <td>總經 ALERT 時，全站頂部顯示「系統性風險鎖定橫幅」，所有買進按鈕變灰並顯示鎖定原因；僅停損/賣出可操作</td>
+        <td><span class="pill pnew">✅ 補入</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══ 1. 訊號類型完整表 ══ -->
+<div class="sec">
+  <div class="sec-accent"><h2>📡 1. 完整訊號類型定義（後端 + 前端對照）</h2></div>
+  <div class="meta">系統所有訊號統一命名，前後端共用同一套 enum</div>
+  <table class="tb">
+    <thead><tr><th>訊號代碼</th><th>名稱</th><th>觸發條件</th><th>UI 呈現</th><th>允許操作</th></tr></thead>
+    <tbody>
+      <tr><td><b style="color:var(--green)">BUY_A</b></td><td>假跌破破底翻</td><td>跌破5MA → 15–30分回拉 + 外盤/特大單</td><td>綠色訊號卡 + K線綠箭頭</td><td>買進</td></tr>
+      <tr><td><b style="color:var(--blue)">BUY_B</b></td><td>主力量價突破</td><td>量比>2.5x + 外盤5筆 + 特大單 + 五檔吃盤</td><td>藍色訊號卡 + K線綠箭頭</td><td>買進</td></tr>
+      <tr class="highlight"><td><b style="color:var(--cyan)">LOW_BUY</b></td><td>左側分批低吸</td><td>負乖離極限 + 個股在年線之上 + 大盤崩盤</td><td>青色訊號卡 + 提示「建議分批」</td><td>分批買進（限制單筆張數）</td></tr>
+      <tr class="highlight"><td><b style="color:var(--orange)">SQUEEZE_BREAK</b></td><td>融券軋空突破</td><td>融券候選池個股突破前日高點</td><td>橘色訊號卡 + K線標記</td><td>買進（強力）</td></tr>
+      <tr class="highlight"><td><b style="color:var(--purple)">NEWS_FADE</b></td><td>利多出盡</td><td>正面新聞股 + 開盤15分開高走低量大收黑</td><td>紫色警示卡 + K線紅標記</td><td>賣出（防守）</td></tr>
+      <tr><td><b style="color:var(--red)">EXIT_A</b></td><td>VWAP 跌破</td><td>跌破均價線 3 分鐘無法站回</td><td>紅色訊號卡 + K線紅箭頭</td><td>賣出</td></tr>
+      <tr><td><b style="color:var(--orange)">EXIT_B</b></td><td>高檔爆量出貨</td><td>高位特大單砸內盤 + 長上影/黑K</td><td>橘色訊號卡 + K線紅箭頭</td><td>賣出</td></tr>
+      <tr><td><b style="color:var(--orange)">EXIT_C</b></td><td>移動止盈</td><td>波段+8%回落2% / 當沖+3%回落1%</td><td>橘色進度條 + 到點自動提示</td><td>賣出（或自動）</td></tr>
+      <tr><td><b style="color:var(--red)">EXIT_D</b></td><td>絕對停損</td><td>帳面虧損達設定值（-5%~-7%）</td><td>🚨全域緊急條 + 強制確認</td><td>強制市價賣出</td></tr>
+      <tr><td><b style="color:var(--yellow)">LOCK_BUY</b></td><td>正乖離鎖定</td><td>正乖離 >15%</td><td>黃色警示 + 買進按鈕鎖定</td><td>禁止買進</td></tr>
+      <tr class="highlight"><td><b style="color:var(--red)">DAYTRADE_WARN</b></td><td>當沖比防洗</td><td>當沖比>70% + 過12:30 + 跌破均價線</td><td>橘黃警示 + 買進鎖定 + 賣出提示</td><td>禁止追高 / 提示賣出</td></tr>
+      <tr class="highlight"><td><b style="color:var(--red)">MACRO_LOCK</b></td><td>總經系統風險鎖定</td><td>VIX急升>15% / DXY急拉 / US10Y暴漲任兩項</td><td>🔴全站紅色橫幅 + 所有買進鎖定</td><td>僅允許停損賣出</td></tr>
+    </tbody>
+  </table>
+  <div class="ibox purple" style="margin-top:12px">🔵 <b>紫底列</b>為新補入的 5 個訊號類型（G1/G5/G7/G8/G3 衍生）</div>
+</div>
+
+<!-- ══ 2. 全域常駐元件 ══ -->
+<div class="sec">
+  <div class="sec-accent red"><h2>🔴 2. 全域常駐元件（所有頁面共用）</h2></div>
+  <div class="meta">這些元件固定在畫面，不隨頁面切換消失</div>
+
+  <!-- 元件 A：MACRO_LOCK 橫幅（G8 補入）-->
+  <h3 style="margin-bottom:6px">元件 A — 系統性風險鎖定橫幅（G8）</h3>
+  <div style="margin-bottom:14px">
+    <div class="lock-strip" style="margin-bottom:6px">
+      🔴 系統性風險警戒 — 買進功能已全面鎖定 &nbsp;|&nbsp;
+      原因：VIX 單日 +18%（超過 15% 閾值）&nbsp;|&nbsp;
+      部位上限：<b>30%（3 張）</b>&nbsp;|&nbsp;
+      <span style="margin-left:auto;font-size:12px;border:1px solid var(--red);padding:2px 10px;border-radius:4px;cursor:pointer">查看詳情</span>
+    </div>
+    <div class="ibox red" style="font-size:12px">
+      <b>觸發條件（任兩項）：</b> VIX 單日漲幅 >15% · DXY 急拉 >0.8% · US10Y 單日漲幅 >15bps<br>
+      <b>效果：</b> 全站所有「買進」按鈕轉為灰色並顯示 🔒 鎖定；僅允許執行 EXIT 操作；30分鐘更新一次，解除需手動確認或指標回落
+    </div>
+  </div>
+
+  <!-- 元件 B：EXIT_D 緊急條 -->
+  <h3 style="margin-bottom:6px">元件 B — EXIT_D 緊急警示條（常駐，觸發才顯示）</h3>
+  <div style="background:#4a0a0a;border:2px solid #ff6b6b;border-radius:8px;padding:10px 16px;
+              display:flex;align-items:center;gap:10px;color:#ff6b6b;font-size:13px;margin-bottom:14px">
+    🚨 <b>緊急停損觸發</b>：聯發科 2454 帳面虧損 -5.2%，已達停損閾值 -5.0%
+    &nbsp;<button style="background:#ff4d4f;color:#fff;border:none;padding:5px 16px;border-radius:6px;font-weight:700;cursor:pointer">確認市價出場</button>
+    &nbsp;<span style="font-size:11px;color:#8b949e">此訊號無法忽略，需明確確認</span>
+  </div>
+
+  <!-- 元件 C：Header -->
+  <h3 style="margin-bottom:6px">元件 C — Header（含時段感知 + 市場狀態）</h3>
+  <div class="wf ch" style="height:50px;flex-direction:row;justify-content:space-between;padding:0 18px;margin-bottom:4px">
+    <span style="font-weight:700;color:var(--blue)">📈 智慧投顧</span>
+    <span style="font-size:12px;color:var(--gray)">Logo · 系統標題 · 版本</span>
+    <span style="font-size:12px">時鐘 &nbsp;|&nbsp; 市場狀態（盤中/盤後/休市）&nbsp;|&nbsp; 模式（模擬⚠️/正式）</span>
+  </div>
+  <div class="ibox blue" style="font-size:12px">Header 中的「模擬模式」以<b style="color:var(--yellow)">黃色橫條</b>警告顯示；切換至正式環境需二次確認 + 密碼</div>
+</div>
+
+<!-- ══ 3. 首頁總覽 ══ -->
+<div class="sec">
+  <div class="sec-accent"><h2>🏠 3. 首頁總覽（盤中預設頁面）</h2></div>
+  <div class="meta">資訊密度中等，重點是「訊號 + 持倉 + 一鍵跳轉」；非技術人員友善</div>
+
+  <!-- Layout sketch -->
+  <div style="display:flex;flex-direction:column;gap:5px">
+    <!-- 全域警示 -->
+    <div class="wf rsk" style="height:36px;flex-direction:row;justify-content:space-between;padding:0 14px">
+      <div class="tag">常駐</div>
+      <span style="font-size:12px;font-weight:700">🔴 全域鎖定 / EXIT_D 警示條（條件觸發）</span>
+      <span style="font-size:11px;color:var(--gray)">→ 平時隱藏，觸發才展開</span>
+    </div>
+    <!-- 總經 Banner -->
+    <div class="wf mac" style="height:46px;flex-direction:row;justify-content:space-between;padding:0 14px">
+      <div class="tag">總經</div>
+      <span style="font-weight:700">✅ 全面偏多 — 部位 100%</span>
+      <span style="font-size:11px;color:var(--gray)">VIX 17.3 · DXY 104.2 · US10Y 4.42% · ES +0.87%</span>
+      <span style="font-size:11px;color:var(--blue)">詳細 →</span>
+    </div>
+    <!-- 主體 -->
+    <div style="display:grid;grid-template-columns:200px 1fr;gap:5px">
+      <!-- Sidebar -->
+      <div class="wf" style="justify-content:flex-start;align-items:stretch;padding:0;min-height:500px">
+        <div style="padding:10px 0;width:100%">
+          <div style="padding:7px 12px;font-size:10px;color:var(--gray)">MAIN</div>
+          <div style="padding:8px 14px;font-size:12px;background:var(--blue-l);color:var(--blue);font-weight:600;border-left:3px solid var(--blue)">🏠 首頁總覽</div>
+          <div style="padding:8px 14px;font-size:12px;color:var(--text2)">📊 K線監控</div>
+          <div style="padding:8px 14px;font-size:12px;color:var(--text2)">💼 持倉管理</div>
+          <div style="padding:8px 14px;font-size:12px;color:var(--text2)">🌙 盤後分析</div>
+          <div style="padding:8px 14px;font-size:12px;color:var(--text2)">🌏 總經雷達</div>
+          <div style="padding:8px 14px;font-size:12px;color:var(--text2)">⚙️ 風控設定</div>
+          <hr style="margin:6px 12px;border-color:var(--border)">
+          <div style="padding:7px 12px;font-size:10px;color:var(--gray)">快速清單</div>
+          <div style="margin:0 8px;background:var(--gray-l);border-radius:6px;padding:8px;font-size:11px">
+            <div style="color:var(--text2);margin-bottom:4px">監控中 5 檔</div>
+            <div style="line-height:2.0">
+              <span>2330 台積電</span><span style="float:right;color:var(--red)">▲3.8%</span><br>
+              <span>2317 鴻海</span><span style="float:right;color:var(--red)">▲4.3%</span><br>
+              <span style="color:var(--red)">2454 聯發科⚠️</span><span style="float:right;color:var(--green)">▼2.7%</span>
+            </div>
+            <div style="color:var(--blue);font-size:10px;margin-top:5px">+ 新增 / 管理</div>
+          </div>
+          <!-- 風控 mini -->
+          <div style="margin:8px;background:#e6fffb;border:1px solid var(--cyan);border-radius:6px;padding:8px;font-size:11px">
+            <div style="color:var(--gray);margin-bottom:3px">🛡 風控狀態</div>
+            <div style="font-weight:700;color:var(--green)">✅ 全面偏多</div>
+            <div style="color:var(--gray)">部位上限 <b>100%</b></div>
+          </div>
+        </div>
+      </div>
+      <!-- Main -->
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <!-- Stats row -->
+        <div class="g4">
+          <div class="wf pos" style="height:68px"><div class="tag">財務</div><div class="wf-t">今日盈虧</div><div style="font-size:20px;font-weight:800;color:var(--red)">+$24,800</div></div>
+          <div class="wf sig" style="height:68px"><div class="tag">訊號</div><div class="wf-t">今日訊號</div><div style="font-size:20px;font-weight:800;color:var(--yellow)">7</div></div>
+          <div class="wf rt" style="height:68px"><div class="tag">績效</div><div class="wf-t">本週勝率</div><div style="font-size:20px;font-weight:800;color:var(--green)">71%</div></div>
+          <div class="wf rsk" style="height:68px"><div class="tag">風控</div><div class="wf-t">最大風險</div><div style="font-size:20px;font-weight:800">-$7,000</div></div>
+        </div>
+        <!-- 訊號流 + 持倉 -->
+        <div class="g2">
+          <div class="wf sig" style="min-height:230px;align-items:flex-start;padding:12px">
+            <div class="tag">即時</div>
+            <div style="font-weight:700;margin-bottom:8px;width:100%;display:flex;justify-content:space-between">
+              🔔 即時訊號流
+              <span style="font-size:11px;color:var(--blue)">全部 (7)</span>
+            </div>
+            <div style="text-align:left;width:100%;font-size:12px;display:flex;flex-direction:column;gap:5px">
+              <div style="background:#f6ffed;border-left:3px solid var(--green);padding:6px 8px;border-radius:3px">
+                <b style="color:var(--green)">BUY_B</b> 台積電 2330 · 10:38<br>
+                <span style="color:var(--gray)">量比3.2x · 外盤8筆 · 五檔吃盤確認</span>
+              </div>
+              <div style="background:var(--purple-l);border-left:3px solid var(--purple);padding:6px 8px;border-radius:3px">
+                <b style="color:var(--purple)">NEWS_FADE ★新</b> 聯發科 2454 · 09:18<br>
+                <span style="color:var(--gray)">正面新聞但開高走低，利多出盡警示</span>
+              </div>
+              <div style="background:var(--orange-l);border-left:3px solid var(--orange);padding:6px 8px;border-radius:3px">
+                <b style="color:var(--orange)">SQUEEZE_BREAK ★新</b> 力積電 6770 · 10:15<br>
+                <span style="color:var(--gray)">突破前日高 42.3，融券強制回補壓力</span>
+              </div>
+              <div style="color:var(--gray);font-size:11px;padding:2px 0">+ 4 筆較舊訊號…</div>
+            </div>
+          </div>
+          <div class="wf pos" style="min-height:230px;align-items:flex-start;padding:12px">
+            <div class="tag">持倉</div>
+            <div style="font-weight:700;margin-bottom:8px;width:100%;display:flex;justify-content:space-between">
+              💼 持倉快覽
+              <span style="font-size:11px;color:var(--blue)">→ 持倉管理頁</span>
+            </div>
+            <div style="width:100%;font-size:12px">
+              <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+                <span>台積電 3張 <span style="color:var(--gray);font-size:10px">波段</span></span>
+                <span style="color:var(--red)">+$11,400 ▲3.8%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
+                <span>鴻海 5張 <span style="color:var(--gray);font-size:10px">波段</span></span>
+                <span style="color:var(--red)">+$4,000 ▲4.3%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);background:#fff2f0;margin:0 -2px;padding:5px 4px">
+                <span style="color:var(--red)">聯發科 2張 ⚠️ <span style="font-size:10px">波段</span></span>
+                <span style="color:var(--green)">-$7,000 ▼2.7%</span>
+              </div>
+              <div style="margin-top:8px;font-size:11px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--red)">聯發科停損倒數</span><span style="color:var(--gray)">-2.7% / -5.0%</span></div>
+                <div style="height:5px;background:#eee;border-radius:3px;overflow:hidden"><div style="height:100%;width:54%;background:linear-gradient(90deg,#faad14,#ff4d4f)"></div></div>
+                <span style="color:var(--red)">再跌 <b>31元</b> 自動觸發</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 監控清單快覽 -->
+        <div class="wf ch" style="min-height:100px;align-items:flex-start;padding:12px">
+          <div class="tag">監控</div>
+          <div style="font-weight:700;margin-bottom:6px">📋 監控清單（點擊 → 自動跳轉 K線監控）</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;width:100%">
+            <div style="background:var(--green-l);border:1px solid var(--green);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+              台積電 2330 <span style="color:var(--red)">▲3.8%</span><br>
+              <span style="font-size:10px;color:var(--gray)">BUY_B · 火花↗</span>
+            </div>
+            <div style="background:var(--green-l);border:1px solid var(--green);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+              鴻海 2317 <span style="color:var(--red)">▲4.3%</span><br>
+              <span style="font-size:10px;color:var(--gray)">BUY_A · 火花↗</span>
+            </div>
+            <div style="background:var(--red-l);border:1px solid var(--red);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+              聯發科 2454 <span style="color:var(--green)">▼2.7%</span><br>
+              <span style="font-size:10px;color:var(--red)">⚠️ NEWS_FADE · 近停損</span>
+            </div>
+            <div style="background:var(--orange-l);border:1px solid var(--orange);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">
+              力積電 6770 <span style="color:var(--red)">▲3.1%</span><br>
+              <span style="font-size:10px;color:var(--orange)">SQUEEZE_BREAK ★</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 4. K線監控頁（最複雜）══ -->
+<div class="sec">
+  <div class="sec-accent"><h2>📊 4. K線監控頁（深度分析主頁）</h2></div>
+  <div class="meta">三層圖表 + 五檔面板（G2）+ 訊號結論 + 快速下單（含 G3 部位類型）</div>
+
+  <div style="display:flex;flex-direction:column;gap:5px">
+    <!-- Toolbar -->
+    <div class="wf ch" style="height:46px;flex-direction:row;justify-content:space-between;padding:0 14px">
+      <div class="tag">工具列</div>
+      <span style="font-size:12px">🔍 搜尋框（代碼/名稱）</span>
+      <span style="font-weight:700;font-size:13px">台積電 2330 &nbsp; 978 <span style="color:var(--red)">▲3.8%</span></span>
+      <span style="font-size:12px">[ 5分 | 60分 | 日K ]</span>
+      <span style="font-size:12px">[ 量能✓ | MACD✓ | 五檔✓ | 年線✓ ]</span>
+    </div>
+    <!-- Watchlist chips -->
+    <div class="wf" style="height:34px;flex-direction:row;gap:6px;justify-content:flex-start;padding:0 12px">
+      <span style="background:var(--blue-l);color:var(--blue);padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600">台積電</span>
+      <span style="background:var(--gray-l);padding:3px 10px;border-radius:12px;font-size:12px">鴻海</span>
+      <span style="background:var(--gray-l);padding:3px 10px;border-radius:12px;font-size:12px">聯發科</span>
+      <span style="background:var(--orange-l);color:var(--orange);padding:3px 10px;border-radius:12px;font-size:12px">力積電 ★</span>
+    </div>
+
+    <!-- NLP 盤中警示條（G7）-->
+    <div class="wf new" style="height:34px;flex-direction:row;justify-content:flex-start;gap:10px;padding:0 12px">
+      <div class="tag" style="background:#531dab">G7 NLP</div>
+      <span style="font-size:12px;font-weight:600;color:#531dab">📰 NEWS_FADE 警示</span>
+      <span style="font-size:12px;color:var(--text2)">聯發科：正面新聞（Q1營收新高）+ 開高走低量大 → 利多出盡，建議防守</span>
+    </div>
+
+    <!-- 三層圖 -->
+    <div class="wf ch" style="height:300px">
+      <div class="tag">主圖 K線</div>
+      <div class="wf-t">K線 + MA5/10/20 + VWAP(黃) + <b>年線240MA（G1）</b></div>
+      <div class="wf-d" style="max-width:500px">
+        紅漲綠跌 K 線 &nbsp;·&nbsp; 藍/紫/橘 MA 線 &nbsp;·&nbsp; <b>灰色虛線 = 年線 240MA</b><br>
+        訊號箭頭：綠↑BUY_A/B/LOW_BUY/SQUEEZE &nbsp;·&nbsp; 紅↓EXIT + NEWS_FADE<br>
+        低吸區間（G1）：當負乖離過大 + 個股在年線之上，K線背景染成淡青色
+      </div>
+    </div>
+    <div class="wf rt" style="height:70px">
+      <div class="tag">子圖1 量能</div>
+      <div class="wf-t">成交量 Histogram（紅漲綠跌）· 可關閉</div>
+    </div>
+    <div class="wf sig" style="height:80px">
+      <div class="tag">子圖2 MACD</div>
+      <div class="wf-t">DIF藍 / MACD橘 / Histogram · 金叉死叉同步到主圖箭頭 · 可關閉</div>
+    </div>
+
+    <!-- 底部三欄 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px">
+
+      <!-- 五檔面板（G2）-->
+      <div class="wf new" style="min-height:150px;align-items:flex-start;padding:12px">
+        <div class="tag" style="background:#531dab">G2 五檔</div>
+        <div style="font-weight:700;margin-bottom:8px;color:#531dab">📊 五檔委託結構</div>
+        <div style="font-size:11px;width:100%;color:var(--text)">
+          <div style="font-size:10px;color:var(--gray);margin-bottom:4px;display:flex;justify-content:space-between">
+            <span>賣價</span><span>張數</span><span>買價</span>
+          </div>
+          <div class="ba-row"><span class="ba-ask">980</span><span class="ba-vol" style="color:var(--red);font-weight:700">843↓</span><span class="ba-bid"></span></div>
+          <div class="ba-row"><span class="ba-ask">979</span><span class="ba-vol" style="color:var(--red)">612↓</span><span class="ba-bid"></span></div>
+          <div class="ba-row"><span class="ba-ask" style="font-size:13px;font-weight:700">978</span><span class="ba-vol">成交</span><span class="ba-bid" style="font-size:13px;font-weight:700">977</span></div>
+          <div class="ba-row"><span></span><span class="ba-vol">423</span><span class="ba-bid">976</span></div>
+          <div class="ba-row"><span></span><span class="ba-vol">318</span><span class="ba-bid">975</span></div>
+          <div style="margin-top:6px;background:var(--green-l);border-radius:4px;padding:4px 6px;font-size:11px;color:var(--green-d)">
+            ✅ 吃盤確認：外盤持續消化賣壓，主力吸籌特徵
+          </div>
+        </div>
+      </div>
+
+      <!-- Tick 監控 -->
+      <div class="wf rt" style="min-height:150px;align-items:flex-start;padding:12px">
+        <div class="tag">盤中 Tick</div>
+        <div style="font-weight:700;margin-bottom:6px">📡 即時量能</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.9">
+          外盤連續：<b style="color:var(--red)">8 筆</b><br>
+          大單計數：<b style="color:var(--red)">3 筆 (>100張)</b><br>
+          量比：<b>3.2x</b>（過去5日同時段）<br>
+          當沖比估算：<b>18%</b>（安全）<br>
+          VWAP：<b>971.3</b>（現價在上方）
+        </div>
+      </div>
+
+      <!-- 訊號結論 + 下單（G3）-->
+      <div class="wf act" style="min-height:150px;align-items:flex-start;padding:12px">
+        <div class="tag">結論 + 下單</div>
+        <div style="font-weight:700;margin-bottom:6px">🎯 訊號結論</div>
+        <div style="font-size:12px;margin-bottom:8px">
+          <span style="background:var(--green-l);border:1px solid var(--green);padding:3px 8px;border-radius:4px;font-weight:700;color:var(--green-d)">BUY_B 觸發</span>
+          <span style="font-size:11px;color:var(--gray);margin-left:4px">3/3 條件滿足</span>
+        </div>
+        <!-- G3：部位類型選擇 -->
+        <div style="font-size:11px;color:var(--purple);font-weight:700;margin-bottom:4px">★ 選擇持倉類型（G3）</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <div style="border:2px solid var(--blue);background:var(--blue-l);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;color:var(--blue);cursor:pointer">波段單<br><span style="font-weight:400;color:var(--gray)">止盈 +8%→-2%</span></div>
+          <div style="border:1.5px solid var(--border);background:var(--gray-l);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer">當沖單<br><span style="font-weight:400;color:var(--gray)">止盈 +3%→-1%</span></div>
+        </div>
+        <div style="display:flex;gap:5px">
+          <button style="background:var(--green);color:#fff;border:none;padding:7px 16px;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">買進 10張</button>
+          <button style="background:var(--red);color:#fff;border:none;padding:7px 16px;border-radius:6px;font-weight:700;cursor:pointer;font-size:12px">賣出</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 5. 持倉管理頁 ══ -->
+<div class="sec">
+  <div class="sec-accent purple"><h2>💼 5. 持倉管理頁（含 G3 波段/當沖區分）</h2></div>
+  <div class="meta">一眼看清損益狀態，Stop Loss 進度可視化，Exit_C 規則依部位類型自動套用</div>
+  <div class="g2" style="margin-bottom:10px">
+    <div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <!-- 波段單 -->
+        <div class="wf pos" style="min-height:140px;align-items:flex-start;padding:11px">
+          <div class="tag">波段</div>
+          <div style="font-weight:700;font-size:13px">台積電 2330</div>
+          <div style="font-size:10px;color:var(--gray);margin-bottom:4px">3張 · 成本 940</div>
+          <div style="font-size:18px;font-weight:800;color:var(--red)">+$11,400</div>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">止盈監控中：最高 983<br>觸發回落 2% = 963</div>
+          <div style="width:100%;margin-top:6px">
+            <div style="height:4px;background:#eee;border-radius:2px"><div style="height:100%;width:80%;background:var(--green);border-radius:2px"></div></div>
+            <div style="font-size:10px;color:var(--green)">進度 80%（+8.2%，待回落）</div>
+          </div>
+        </div>
+        <!-- 波段單 -->
+        <div class="wf pos" style="min-height:140px;align-items:flex-start;padding:11px">
+          <div class="tag">波段</div>
+          <div style="font-weight:700;font-size:13px">鴻海 2317</div>
+          <div style="font-size:10px;color:var(--gray);margin-bottom:4px">5張 · 成本 188</div>
+          <div style="font-size:18px;font-weight:800;color:var(--red)">+$4,000</div>
+          <div style="font-size:11px;color:var(--gray);margin-top:4px">止盈未觸發<br>需達 +8% = 203</div>
+          <div style="width:100%;margin-top:6px">
+            <div style="height:4px;background:#eee;border-radius:2px"><div style="height:100%;width:53%;background:var(--yellow);border-radius:2px"></div></div>
+            <div style="font-size:10px;color:var(--yellow)">進度 53%（+4.3%）</div>
+          </div>
+        </div>
+        <!-- 危險持倉 -->
+        <div class="wf rsk" style="min-height:140px;align-items:flex-start;padding:11px">
+          <div class="tag">波段⚠️</div>
+          <div style="font-weight:700;font-size:13px">聯發科 2454</div>
+          <div style="font-size:10px;color:var(--gray);margin-bottom:4px">2張 · 成本 1,320</div>
+          <div style="font-size:18px;font-weight:800;color:var(--green)">-$7,000</div>
+          <div style="font-size:11px;color:var(--red);margin-top:4px">停損線：1,254<br>現價距停損：31元</div>
+          <div style="width:100%;margin-top:6px">
+            <div style="height:5px;background:#eee;border-radius:3px;overflow:hidden"><div style="height:100%;width:54%;background:linear-gradient(90deg,#faad14,#ff4d4f)"></div></div>
+            <div style="font-size:10px;color:var(--red)">停損危險度 54%</div>
+          </div>
+          <button style="width:100%;margin-top:6px;background:var(--red);color:#fff;border:none;padding:5px;border-radius:5px;font-weight:700;font-size:11px">立刻出場</button>
+        </div>
+      </div>
+      <!-- 損益曲線 -->
+      <div class="wf ch" style="height:120px">
+        <div class="tag">圖表</div>
+        <div class="wf-t">今日累積損益曲線 + 各持倉貢獻 Bar Chart</div>
+      </div>
+    </div>
+    <!-- 右側設定（含 G4）-->
+    <div>
+      <div class="wf new" style="align-items:flex-start;padding:14px;height:100%">
+        <div class="tag" style="background:#531dab">G4 停損設定</div>
+        <div style="font-weight:700;margin-bottom:12px;color:#531dab">⚙️ Exit 參數設定</div>
+        <div style="font-size:12px;width:100%;display:flex;flex-direction:column;gap:10px">
+          <!-- Exit_D 範圍 G4 -->
+          <div style="background:var(--red-l);border:1px solid #ffa39e;border-radius:6px;padding:10px">
+            <div style="font-weight:700;color:var(--red);margin-bottom:6px">🔒 Exit_D 絕對停損（G4 補入）</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span>停損閾值：</span><b style="font-size:16px">-5.0%</b>
+              <input type="range" min="5" max="7" step="0.5" value="5" style="flex:1">
+              <span style="color:var(--gray)">-7.0%</span>
+            </div>
+            <div style="font-size:11px;color:var(--red)">⚠️ 修改需二次確認，系統最高優先級，無法跳過</div>
+          </div>
+          <!-- Exit_C 波段 -->
+          <div>
+            <div style="font-weight:700;margin-bottom:4px">📈 Exit_C 波段止盈</div>
+            <div>觸發獲利：<b>+8%</b> &nbsp; 回落幅度：<b>-2%</b></div>
+          </div>
+          <!-- Exit_C 當沖 -->
+          <div>
+            <div style="font-weight:700;margin-bottom:4px">⚡ Exit_C 當沖止盈</div>
+            <div>觸發獲利：<b>+3%</b> &nbsp; 回落幅度：<b>-1%</b></div>
+          </div>
+          <div style="font-size:11px;color:var(--gray);border-top:1px solid var(--border);padding-top:8px">
+            波段/當沖判斷依據：買進時選擇的部位類型
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 6. 盤後分析頁 ══ -->
+<div class="sec">
+  <div class="sec-accent"><h2>🌙 6. 盤後分析頁（含 G5 / G6 / G7 補入）</h2></div>
+  <div class="meta">每日 15:00 解鎖，為明天預做準備；G7 NLP 盤中部分在 K線監控頁顯示</div>
+  <div class="g2" style="margin-bottom:10px">
+    <!-- 投信籌碼 -->
+    <div class="wf chip" style="min-height:180px;align-items:flex-start;padding:12px">
+      <div class="tag">籌碼</div>
+      <div style="font-weight:700;margin-bottom:8px">🏦 投信鎖碼清單</div>
+      <div style="font-size:12px;width:100%">
+        <div style="color:var(--gray);margin-bottom:6px">連買 ≥ 3天 · 持股比 3–12%</div>
+        <table style="width:100%;font-size:11px">
+          <tr style="color:var(--gray)"><th style="text-align:left">股票</th><th>連買天</th><th>持股%</th><th>動作</th></tr>
+          <tr><td>智原 3035</td><td style="color:var(--green);text-align:center">7天</td><td style="text-align:center">8.2%</td><td style="color:var(--blue)">加入監控</td></tr>
+          <tr><td>矽力 6415</td><td style="color:var(--green);text-align:center">5天</td><td style="text-align:center">6.7%</td><td style="color:var(--blue)">加入監控</td></tr>
+        </table>
+      </div>
+    </div>
+    <!-- 融券軋空（G5 補入盤中突破訊號）-->
+    <div class="wf new" style="min-height:180px;align-items:flex-start;padding:12px">
+      <div class="tag" style="background:#531dab">G5 融券+盤中</div>
+      <div style="font-weight:700;margin-bottom:8px;color:#531dab">⚡ 融券軋空候選（含盤中觸發）</div>
+      <div style="font-size:12px;width:100%">
+        <div style="color:var(--gray);margin-bottom:6px">券資比 >30% · 距回補 &lt;7天 · <b style="color:#531dab">盤中突破前高自動觸發 SQUEEZE_BREAK</b></div>
+        <table style="width:100%;font-size:11px">
+          <tr style="color:var(--gray)"><th style="text-align:left">股票</th><th>券資比</th><th>回補</th><th>前高</th><th>狀態</th></tr>
+          <tr>
+            <td>力積電 6770</td>
+            <td style="color:var(--red);text-align:center">42%</td>
+            <td style="color:var(--red);text-align:center"><b>3天</b></td>
+            <td style="text-align:center">42.3</td>
+            <td><span style="background:var(--orange-l);color:var(--orange);padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">監控突破中</span></td>
+          </tr>
+        </table>
+        <div style="margin-top:8px;font-size:11px;background:var(--purple-l);padding:6px 8px;border-radius:4px;color:var(--purple)">
+          💡 盤中若突破前高 42.3 → 自動推送 SQUEEZE_BREAK 訊號到首頁訊號流
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="g2">
+    <!-- 法人目標價（G6）-->
+    <div class="wf new" style="min-height:160px;align-items:flex-start;padding:12px">
+      <div class="tag" style="background:#531dab">G6 法人目標價</div>
+      <div style="font-weight:700;margin-bottom:8px;color:#531dab">🎯 法人共識股（目標價中位數 >20%）</div>
+      <div style="font-size:12px;width:100%">
+        <div style="color:var(--gray);margin-bottom:6px">短期：人工輸入 / 中期：CMoney API 自動抓取</div>
+        <table style="width:100%;font-size:11px">
+          <tr style="color:var(--gray)"><th style="text-align:left">股票</th><th>現價</th><th>目標中位數</th><th>空間</th><th>來源</th></tr>
+          <tr><td>智原 3035</td><td>315</td><td>405</td><td style="color:var(--green);font-weight:700">+28.6%</td><td><span style="color:var(--gray);font-size:10px">手動輸入</span></td></tr>
+        </table>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <input placeholder="股票代碼" style="border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:11px;width:80px">
+          <input placeholder="目標價" style="border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:11px;width:80px">
+          <button style="background:var(--blue);color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer">新增</button>
+        </div>
+      </div>
+    </div>
+    <!-- 籌碼棄守 + NLP 盤後（G7 盤後部分）-->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="wf sig" style="min-height:70px;align-items:flex-start;padding:11px">
+        <div class="tag">籌碼棄守</div>
+        <div style="font-size:12px"><b>🔔 籌碼棄守</b>：原鎖碼投信/主力連 2 日大賣超 → 提示「分批出場」</div>
+      </div>
+      <div class="wf new" style="min-height:80px;align-items:flex-start;padding:11px">
+        <div class="tag" style="background:#531dab">G7 NLP 盤後</div>
+        <div style="font-size:12px;color:#531dab"><b>📰 NLP 盤後掃描</b></div>
+        <div style="font-size:11px;color:var(--text2)">
+          盤後：掃描今日新聞 → 標記「明日重大正面新聞股」→ 09:00 開盤監控 15 分走勢<br>
+          <b>盤中：</b>若開高走低量大收黑 → 觸發 NEWS_FADE 訊號（顯示在 K 線監控頁）
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 7. 總經雷達頁 ══ -->
+<div class="sec">
+  <div class="sec-accent"><h2>🌏 7. 總經雷達頁（含 G8 MACRO_LOCK 完整邏輯）</h2></div>
+  <div class="meta">盤前必看，決定當日部位規模；風險升高時全站聯動鎖定</div>
+  <div class="g4" style="margin-bottom:10px">
+    <div class="wf mac" style="height:90px"><div class="tag">VIX</div><div style="font-size:22px;font-weight:800;color:var(--green)">17.3</div><div style="font-size:11px;color:var(--gray)">恐慌低 · 偏多</div></div>
+    <div class="wf mac" style="height:90px"><div class="tag">DXY</div><div style="font-size:22px;font-weight:800">104.2</div><div style="font-size:11px;color:var(--gray)">走平 · 中性</div></div>
+    <div class="wf mac" style="height:90px"><div class="tag">US10Y</div><div style="font-size:22px;font-weight:800;color:var(--yellow)">4.42%</div><div style="font-size:11px;color:var(--gray)">微升 · 注意</div></div>
+    <div class="wf mac" style="height:90px"><div class="tag">ES期指</div><div style="font-size:22px;font-weight:800;color:var(--green)">+0.87%</div><div style="font-size:11px;color:var(--gray)">美股上漲 · 偏多</div></div>
+  </div>
+  <div class="g2">
+    <div class="wf new" style="min-height:140px;align-items:flex-start;padding:14px">
+      <div class="tag" style="background:#531dab">G8 MACRO_LOCK</div>
+      <div style="font-weight:700;margin-bottom:8px;color:#531dab">🔒 系統性風險鎖定機制</div>
+      <div style="font-size:12px;line-height:1.8">
+        <b>觸發條件（任兩項同時）：</b><br>
+        &nbsp;· VIX 單日漲幅 >15%<br>
+        &nbsp;· DXY 單日漲幅 >0.8%<br>
+        &nbsp;· US10Y 單日漲幅 >15bps<br>
+        <b>效果：</b> 全站所有買進按鈕鎖定 · 部位上限降至 30%<br>
+        <b>解除：</b> 三項指標全部回落 + 手動確認解鎖
+      </div>
+    </div>
+    <div class="wf mac" style="min-height:140px">
+      <div class="tag">部位決策</div>
+      <div style="font-size:26px;font-weight:800;color:var(--green)">100% 部位</div>
+      <div style="font-size:12px;color:var(--gray)">全部指標偏多 → 允許最高 10 張/筆</div>
+      <div style="font-size:11px;color:var(--gray);margin-top:4px">30 分鐘自動更新</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 8. 風控設定頁 ══ -->
+<div class="sec">
+  <div class="sec-accent"><h2>⚙️ 8. 風控設定頁（統一管理所有閾值）</h2></div>
+  <div class="meta">所有可調參數集中於此，修改關鍵參數需二次確認</div>
+  <div class="g3">
+    <div class="comp">
+      <h4>🔴 停損設定（G4）</h4>
+      <p>Exit_D 停損比例：-5% ~ -7%（滑桿）<br>預設 -5%，修改需輸入確認</p>
+    </div>
+    <div class="comp">
+      <h4>📈 止盈設定</h4>
+      <p>波段：觸發 +8%，回落 -2%<br>當沖：觸發 +3%，回落 -1%</p>
+    </div>
+    <div class="comp">
+      <h4>🔒 乖離率閾值</h4>
+      <p>正乖離鎖定：預設 15%（可調）<br>負乖離低吸觸發：可設定</p>
+    </div>
+    <div class="comp">
+      <h4>📊 量比閾值</h4>
+      <p>Buy_B 量比門檻：預設 2.5x<br>特大單定義：預設 100 張</p>
+    </div>
+    <div class="comp">
+      <h4>🌏 總經風控閾值（G8）</h4>
+      <p>VIX 急升閾值：15%（可調）<br>DXY 急拉閾值：0.8%<br>部位縮放：ALERT=30%，CAUTION=60%</p>
+    </div>
+    <div class="comp">
+      <h4>📱 通知設定</h4>
+      <p>Line Notify Token 輸入<br>推播訊號等級選擇（EXIT_D必推）<br>靜音時段設定</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 9. 完整元件清單 ══ -->
+<div class="sec">
+  <div class="sec-accent green"><h2>✅ 9. 完整元件清單（含缺口補全）</h2></div>
+  <div class="legend">
+    <div class="li"><div class="ld" style="background:var(--red)"></div>Phase 1 核心</div>
+    <div class="li"><div class="ld" style="background:var(--yellow)"></div>Phase 2 輔助</div>
+    <div class="li"><div class="ld" style="background:var(--green)"></div>Phase 3 執行</div>
+    <div class="li"><div class="ld" style="background:var(--purple)"></div>新補入元件</div>
+  </div>
+  <table class="tb">
+    <thead><tr><th>元件</th><th>頁面</th><th>資料來源</th><th>Phase</th><th>缺口#</th></tr></thead>
+    <tbody>
+      <tr><td><b>總經 Banner + MACRO_LOCK 聯動</b></td><td>全域</td><td>yfinance 30分更新</td><td><span class="pill p1">P1</span></td><td><span class="gap-fixed">G8 ✓</span></td></tr>
+      <tr><td><b>全域緊急警示條（EXIT_D + MACRO_LOCK）</b></td><td>全域</td><td>後端訊號引擎</td><td><span class="pill p1">P1</span></td><td><span class="gap-fixed">G8 ✓</span></td></tr>
+      <tr><td>K線 + MA5/10/20 + VWAP + <b>年線 240MA</b></td><td>K線監控</td><td>Shioaji kbars() + 快取</td><td><span class="pill p1">P1</span></td><td><span class="gap-fixed">G1 ✓</span></td></tr>
+      <tr><td>量能子圖 / MACD 子圖</td><td>K線監控</td><td>同 kbars</td><td><span class="pill p1">P1</span></td><td>—</td></tr>
+      <tr><td><b>五檔委託結構面板</b></td><td>K線監控</td><td>Shioaji BidAsk 訂閱</td><td><span class="pill p2">P2</span></td><td><span class="gap-fixed">G2 ✓</span></td></tr>
+      <tr><td><b>LOW_BUY 左側低吸提示 + K線背景染色</b></td><td>K線監控 + 訊號流</td><td>後端計算負乖離 + 年線判斷</td><td><span class="pill p2">P2</span></td><td><span class="gap-fixed">G1 ✓</span></td></tr>
+      <tr><td><b>NEWS_FADE 盤中警示條</b></td><td>K線監控頂部</td><td>盤前 NLP 標記 + 盤中走勢判斷</td><td><span class="pill p2">P2</span></td><td><span class="gap-fixed">G7 ✓</span></td></tr>
+      <tr><td><b>部位類型選擇（波段/當沖）下單彈窗</b></td><td>K線監控 · 下單面板</td><td>存入 DB positions.trade_type</td><td><span class="pill p1">P1</span></td><td><span class="gap-fixed">G3 ✓</span></td></tr>
+      <tr><td>火花圖 Sparkline（30日趨勢）</td><td>首頁監控清單</td><td>kbars 快取</td><td><span class="pill p1">P1</span></td><td>—</td></tr>
+      <tr><td>停損倒數進度條（含 G4 可設定範圍）</td><td>首頁 + 持倉頁</td><td>即時 tick</td><td><span class="pill p1">P1</span></td><td><span class="gap-fixed">G4 ✓</span></td></tr>
+      <tr><td>訊號流（含全部 12 種訊號類型）</td><td>首頁 + K線監控</td><td>後端訊號引擎 WebSocket</td><td><span class="pill p1">P1</span></td><td>—</td></tr>
+      <tr><td>即時 Tick 面板（外盤/大單/量比/當沖比）</td><td>K線監控</td><td>Shioaji Tick WebSocket</td><td><span class="pill p2">P2</span></td><td>—</td></tr>
+      <tr><td>DAYTRADE_WARN 當沖比聯動鎖定</td><td>K線監控 + 買進按鈕</td><td>後端估算當沖比</td><td><span class="pill p2">P2</span></td><td>—</td></tr>
+      <tr><td>快速下單面板（張數 slider + 二步確認）</td><td>K線監控</td><td>Shioaji place_order()</td><td><span class="pill p3">P3</span></td><td>—</td></tr>
+      <tr><td>投信籌碼表</td><td>盤後分析</td><td>證交所公開資料爬蟲</td><td><span class="pill p2">P2</span></td><td>—</td></tr>
+      <tr><td><b>融券軋空（含盤中突破前高 SQUEEZE_BREAK）</b></td><td>盤後分析 + 訊號流</td><td>證交所 + Shioaji Tick</td><td><span class="pill p2">P2</span></td><td><span class="gap-fixed">G5 ✓</span></td></tr>
+      <tr><td><b>法人目標價（手動輸入 + 未來自動）</b></td><td>盤後分析</td><td>手動 / CMoney（P2）</td><td><span class="pill p2">P2</span></td><td><span class="gap-fixed">G6 ✓</span></td></tr>
+      <tr><td><b>NLP 利多出盡（盤前掃描 + 盤中偵測）</b></td><td>盤後分析 + K線監控</td><td>新聞 API + Claude API</td><td><span class="pill p2">P2</span></td><td><span class="gap-fixed">G7 ✓</span></td></tr>
+      <tr><td>Exit_D 自動送單</td><td>全域執行</td><td>Shioaji place_order()</td><td><span class="pill p3">P3</span></td><td>—</td></tr>
+      <tr><td>Exit_C 移動止盈自動化（波段/當沖分流）</td><td>全域執行</td><td>後端 + Shioaji</td><td><span class="pill p3">P3</span></td><td><span class="gap-fixed">G3 ✓</span></td></tr>
+      <tr><td>MACRO_LOCK 全站買進鎖定機制</td><td>全域 UI 狀態</td><td>yfinance 即時</td><td><span class="pill p1">P1</span></td><td><span class="gap-fixed">G8 ✓</span></td></tr>
+      <tr><td>Line Notify 推播</td><td>後端事件觸發</td><td>Line API</td><td><span class="pill p2">P2</span></td><td>—</td></tr>
+      <tr><td>績效報表頁</td><td>獨立頁面</td><td>DB 歷史交易</td><td><span class="pill p3">P3</span></td><td>—</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══ 10. 日常操作流程 ══ -->
+<div class="sec">
+  <div class="sec-accent green"><h2>🎯 10. 老婆日常操作流程（UI 引導設計）</h2></div>
+  <div class="meta">UI 每個步驟都有明確的視覺引導，不需要記住任何技術指標</div>
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div>
+      <h3>☀️ 早上 08:50 — 盤前準備（2 分鐘）</h3>
+      <div class="flow">
+        <div class="fb blue">開啟系統<br><span style="font-weight:400;font-size:10px">自動跳總經雷達</span></div><div class="fa">→</div>
+        <div class="fb blue">看「今日部位」大字<br><span style="font-weight:400;font-size:10px">100% / 60% / 30%</span></div><div class="fa">→</div>
+        <div class="fb yellow">看昨日盤後選股<br><span style="font-weight:400;font-size:10px">新增監控清單</span></div><div class="fa">→</div>
+        <div class="fb green">切換到首頁，準備就緒</div>
+      </div>
+    </div>
+    <div>
+      <h3>📈 盤中收到買進訊號</h3>
+      <div class="flow">
+        <div class="fb yellow">訊號卡彈出<br><span style="font-weight:400;font-size:10px">BUY_B 台積電</span></div><div class="fa">→</div>
+        <div class="fb blue">點「看K線」<br><span style="font-weight:400;font-size:10px">自動跳K線頁</span></div><div class="fa">→</div>
+        <div class="fb blue">看三層圖 + 五檔<br><span style="font-weight:400;font-size:10px">確認方向</span></div><div class="fa">→</div>
+        <div class="fb new">選波段/當沖（G3）</div><div class="fa">→</div>
+        <div class="fb green">按買進，確認張數</div>
+      </div>
+    </div>
+    <div>
+      <h3>🚨 盤中 EXIT_D 觸發（保命）</h3>
+      <div class="flow">
+        <div class="fb red">全域紅色警示條<br><span style="font-weight:400;font-size:10px">🚨 無法忽略</span></div><div class="fa">→</div>
+        <div class="fb red">顯示虧損金額<br><span style="font-weight:400;font-size:10px">一鍵確認出場</span></div><div class="fa">→</div>
+        <div class="fb green">自動送市價單<br><span style="font-weight:400;font-size:10px">損失最小化</span></div>
+      </div>
+    </div>
+    <div>
+      <h3>🔴 盤中收到 MACRO_LOCK（G8）</h3>
+      <div class="flow">
+        <div class="fb red">頂部紅橫幅出現<br><span style="font-weight:400;font-size:10px">系統性風險</span></div><div class="fa">→</div>
+        <div class="fb red">所有買進按鈕自動灰掉</div><div class="fa">→</div>
+        <div class="fb yellow">只能執行賣出/停損</div><div class="fa">→</div>
+        <div class="fb green">等指標回落<br><span style="font-weight:400;font-size:10px">手動確認解鎖</span></div>
+      </div>
+    </div>
+    <div>
+      <h3>🌙 收盤後 15:00 — 明日準備（5 分鐘）</h3>
+      <div class="flow">
+        <div class="fb blue">系統跳到盤後分析<br><span style="font-weight:400;font-size:10px">自動觸發</span></div><div class="fa">→</div>
+        <div class="fb blue">看投信 + 軋空清單</div><div class="fa">→</div>
+        <div class="fb new">查 G6 法人目標價<br><span style="font-weight:400;font-size:10px">更新手動目標價</span></div><div class="fa">→</div>
+        <div class="fb yellow">點「加入監控」</div><div class="fa">→</div>
+        <div class="fb green">明日清單更新完畢</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 11. 需求覆蓋率確認 ══ -->
+<div class="sec">
+  <div class="sec-accent green"><h2>☑️ 11. 原始需求 100% 覆蓋確認表</h2></div>
+  <div class="ibox green">✅ 以下所有需求均已在本規格文件中明確設計對應元件與頁面，缺口 G1–G8 全數補入。</div>
+  <table class="tb">
+    <thead><tr><th>原始需求</th><th>對應元件</th><th>頁面位置</th><th>狀態</th></tr></thead>
+    <tbody>
+      <tr><td>日K多頭排列 5MA>10MA>20MA</td><td>K線主圖 MA 線 + 後端過濾</td><td>K線監控</td><td>✅</td></tr>
+      <tr><td>60分K MACD 金叉/死叉/柱狀體</td><td>MACD 子圖 + 訊號箭頭</td><td>K線監控</td><td>✅</td></tr>
+      <tr><td>5分K 盤中進場</td><td>TF 切換 5分 + Tick 面板</td><td>K線監控</td><td>✅</td></tr>
+      <tr><td>乖離率 >15% 鎖定 + LOCK_BUY 訊號</td><td>後端計算 + 買進按鈕灰掉</td><td>K線監控 + 全域</td><td>✅</td></tr>
+      <tr class="highlight"><td><b>負乖離 + 年線之上 → 左側低吸（G1）</b></td><td>LOW_BUY 訊號 + 年線 240MA + K線背景染色</td><td>K線監控 + 訊號流</td><td><span class="pill pnew">G1 ✓</span></td></tr>
+      <tr><td>Buy_A 假跌破 + 時間窗 + 外盤/特大單</td><td>BUY_A 訊號卡 + 後端 Tick 邏輯</td><td>首頁訊號流</td><td>✅</td></tr>
+      <tr><td>Buy_B 量比 + 外盤5筆 + 特大單</td><td>BUY_B 訊號卡 + Tick 面板</td><td>K線監控 + 訊號流</td><td>✅</td></tr>
+      <tr class="highlight"><td><b>Buy_B 五檔委託結構（G2）</b></td><td>五檔委託結構子面板</td><td>K線監控底部</td><td><span class="pill pnew">G2 ✓</span></td></tr>
+      <tr><td>Exit_A VWAP 跌破 3 分鐘</td><td>EXIT_A 訊號 + VWAP 線</td><td>K線監控 + 訊號流</td><td>✅</td></tr>
+      <tr><td>Exit_B 高檔爆量砸盤 + 上影/黑K</td><td>EXIT_B 訊號 + K線標記</td><td>訊號流</td><td>✅</td></tr>
+      <tr class="highlight"><td><b>Exit_C 波段/當沖分流（G3）</b></td><td>買進彈窗選部位類型 + 對應止盈規則</td><td>K線監控下單 + 持倉頁</td><td><span class="pill pnew">G3 ✓</span></td></tr>
+      <tr class="highlight"><td><b>Exit_D 可設定 -5%~-7%（G4）</b></td><td>風控設定頁滑桿 + 即時更新停損線</td><td>風控設定 + 持倉頁</td><td><span class="pill pnew">G4 ✓</span></td></tr>
+      <tr><td>投信連買 3–5 天，持股 3–12%</td><td>投信籌碼表</td><td>盤後分析</td><td>✅</td></tr>
+      <tr><td>融券距回補 &lt;7 天，券資比 &gt;30%</td><td>融券軋空表</td><td>盤後分析</td><td>✅</td></tr>
+      <tr class="highlight"><td><b>融券軋空盤中突破前高 → 強力買進（G5）</b></td><td>SQUEEZE_BREAK 訊號 + 自動推送</td><td>訊號流 + K線監控</td><td><span class="pill pnew">G5 ✓</span></td></tr>
+      <tr class="highlight"><td><b>法人目標價中位數 &gt;20%（G6）</b></td><td>手動輸入表格（短期）/ CMoney API（中期）</td><td>盤後分析</td><td><span class="pill pnew">G6 ✓</span></td></tr>
+      <tr><td>籌碼棄守 → 分批出場提示</td><td>籌碼棄守訊號卡</td><td>盤後分析 + 訊號流</td><td>✅</td></tr>
+      <tr class="highlight"><td><b>NLP 利多出盡（盤前+盤中，G7）</b></td><td>NEWS_FADE 訊號（盤中 K線頁頂部 + 訊號流）</td><td>K線監控 + 盤後分析</td><td><span class="pill pnew">G7 ✓</span></td></tr>
+      <tr><td>當沖比 &gt;70% + 12:30 → 阻斷追高</td><td>DAYTRADE_WARN + 買進按鈕灰掉</td><td>K線監控 + 全域</td><td>✅</td></tr>
+      <tr><td>當沖比高 + 跌破均價 → 短線賣出</td><td>DAYTRADE_WARN 觸發 EXIT 訊號</td><td>訊號流</td><td>✅</td></tr>
+      <tr><td>VIX/DXY/US10Y/ES 監控</td><td>總經雷達頁 + Banner</td><td>全域 + 總經雷達</td><td>✅</td></tr>
+      <tr class="highlight"><td><b>系統性風險 → 全面暫停買進（G8）</b></td><td>MACRO_LOCK 全域鎖定橫幅 + 所有買進按鈕灰掉</td><td>全域常駐</td><td><span class="pill pnew">G8 ✓</span></td></tr>
+      <tr><td>部位縮放（偏多100% / 風險30%）</td><td>動態部位決策 + 下單張數上限聯動</td><td>總經雷達 + 下單面板</td><td>✅</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div style="text-align:center;padding:20px 0;font-size:12px;color:var(--gray)">
+  智慧投顧監控系統 · UI 完整規格 v2.0 · 8 項缺口全數補入 · 2026-06-10 · Claude Code 生成
+</div>
+</div>
+</body>
+</html>

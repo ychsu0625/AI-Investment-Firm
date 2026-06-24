@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>投資助手</title>
+<style>
+  :root {
+    --bg: #f5f6fa;
+    --card: #ffffff;
+    --border: #e8ecf0;
+    --text: #1a1d23;
+    --text2: #6b7280;
+    --green: #00b894;
+    --green-bg: #eafaf6;
+    --red: #e17055;
+    --red-bg: #fdf2ef;
+    --yellow: #f0b429;
+    --yellow-bg: #fffbeb;
+    --blue: #3b82f6;
+    --blue-bg: #eff6ff;
+    --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    --shadow-hover: 0 4px 20px rgba(0,0,0,0.12);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: white;
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+  }
+  .logo { font-size: 17px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .market-badge {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--green-bg); color: var(--green);
+    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Page ── */
+  .page { max-width: 900px; margin: 0 auto; padding: 20px 16px 40px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ── Section title ── */
+  .section-title {
+    font-size: 13px; font-weight: 600; color: var(--text2);
+    text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 2px;
+  }
+
+  /* ── Risk card ── */
+  .risk-card {
+    background: white; border-radius: 16px; padding: 18px 20px;
+    box-shadow: var(--shadow); border-left: 5px solid var(--green);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .risk-card.caution { border-left-color: var(--yellow); }
+  .risk-card.alert   { border-left-color: var(--red); }
+  .risk-emoji { font-size: 32px; }
+  .risk-main { flex: 1; }
+  .risk-title { font-size: 17px; font-weight: 700; margin-bottom: 2px; }
+  .risk-sub { font-size: 13px; color: var(--text2); }
+  .risk-indicators { display: flex; gap: 20px; flex-wrap: wrap; }
+  .ri { text-align: center; }
+  .ri .v { font-size: 18px; font-weight: 700; }
+  .ri .l { font-size: 11px; color: var(--text2); margin-top: 1px; }
+
+  /* ── Alert banner ── */
+  .alert-banner {
+    background: var(--red-bg); border: 1px solid #fbc8bb;
+    border-radius: 12px; padding: 14px 18px;
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .alert-icon { font-size: 22px; }
+  .alert-text { flex: 1; }
+  .alert-title { font-weight: 700; color: var(--red); margin-bottom: 2px; }
+  .alert-desc { font-size: 13px; color: var(--text2); }
+  .alert-action {
+    background: var(--red); color: white;
+    border: none; border-radius: 10px;
+    padding: 8px 18px; font-size: 14px; font-weight: 700;
+    cursor: pointer; white-space: nowrap; align-self: center;
+  }
+
+  /* ── Action cards (buy signals) ── */
+  .action-cards { display: flex; flex-direction: column; gap: 10px; }
+  .action-card {
+    background: white; border-radius: 14px; padding: 16px 18px;
+    box-shadow: var(--shadow); display: flex; align-items: center; gap: 14px;
+    border: 1px solid var(--border); transition: box-shadow 0.2s;
+    cursor: pointer;
+  }
+  .action-card:hover { box-shadow: var(--shadow-hover); }
+  .action-card.buy  { border-left: 4px solid var(--green); }
+  .action-card.sell { border-left: 4px solid var(--red); }
+  .action-card.warn { border-left: 4px solid var(--yellow); }
+
+  .ac-icon { font-size: 28px; }
+  .ac-body { flex: 1; }
+  .ac-stock { font-size: 16px; font-weight: 700; }
+  .ac-reason { font-size: 13px; color: var(--text2); margin-top: 2px; }
+  .ac-price { font-size: 22px; font-weight: 800; }
+  .ac-change { font-size: 13px; font-weight: 600; }
+  .ac-btn {
+    padding: 10px 22px; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    transition: opacity 0.15s; white-space: nowrap;
+  }
+  .ac-btn:hover { opacity: 0.85; }
+  .btn-green { background: var(--green); color: white; }
+  .btn-red   { background: var(--red); color: white; }
+  .btn-gray  { background: var(--border); color: var(--text2); }
+
+  /* ── Positions ── */
+  .position-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .pos-card {
+    background: white; border-radius: 14px; padding: 16px;
+    box-shadow: var(--shadow); border: 1px solid var(--border);
+  }
+  .pos-card.danger { border-color: #fbc8bb; background: var(--red-bg); }
+  .pos-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .pos-name { font-size: 15px; font-weight: 700; }
+  .pos-code { font-size: 12px; color: var(--text2); }
+  .pos-status {
+    font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px;
+  }
+  .status-ok   { background: var(--green-bg); color: var(--green); }
+  .status-warn { background: var(--yellow-bg); color: var(--yellow); }
+  .status-danger { background: var(--red-bg); color: var(--red); }
+
+  .pos-pnl { font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+  .pos-detail { font-size: 12px; color: var(--text2); }
+  .pos-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text2); margin-top: 10px; margin-bottom: 3px; }
+  .pos-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .pos-bar-fill { height: 100%; border-radius: 3px; }
+  .pos-action { margin-top: 12px; }
+  .pos-action button {
+    width: 100%; padding: 9px; border: none; border-radius: 9px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+
+  /* ── Watchlist simple ── */
+  .watch-list { display: flex; flex-direction: column; gap: 8px; }
+  .watch-item {
+    background: white; border-radius: 12px; padding: 14px 16px;
+    box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px;
+    border: 1px solid var(--border);
+  }
+  .wi-name { font-weight: 700; font-size: 15px; }
+  .wi-code { font-size: 12px; color: var(--text2); }
+  .wi-price { font-size: 18px; font-weight: 800; margin-left: auto; }
+  .wi-change { font-size: 13px; font-weight: 600; min-width: 56px; text-align: right; }
+  .wi-tag {
+    padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .tag-buy    { background: var(--green-bg); color: var(--green); }
+  .tag-sell   { background: var(--red-bg); color: var(--red); }
+  .tag-watch  { background: var(--blue-bg); color: var(--blue); }
+  .tag-lock   { background: var(--yellow-bg); color: var(--yellow); }
+
+  .wi-indicator {
+    display: flex; flex-direction: column; gap: 2px; min-width: 70px;
+  }
+  .ind-label { font-size: 10px; color: var(--text2); }
+  .ind-val { font-size: 12px; font-weight: 600; }
+
+  /* ── Tomorrow picks ── */
+  .tomorrow-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .tmr-card {
+    background: white; border-radius: 14px; padding: 16px;
+    box-shadow: var(--shadow); border: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .tmr-top { display: flex; justify-content: space-between; align-items: center; }
+  .tmr-reason {
+    font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 600;
+  }
+  .r-squeeze { background: var(--blue-bg); color: var(--blue); }
+  .r-inst    { background: #f3f0ff; color: #7c3aed; }
+  .tmr-name { font-size: 16px; font-weight: 700; }
+  .tmr-detail { font-size: 13px; color: var(--text2); }
+  .tmr-upside { font-size: 20px; font-weight: 800; color: var(--green); }
+
+  /* ── Bottom nav ── */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: white; border-top: 1px solid var(--border);
+    display: flex; padding: 8px 0 env(safe-area-inset-bottom);
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+  }
+  .bn-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 6px; cursor: pointer; color: var(--text2); font-size: 11px;
+    transition: color 0.15s;
+  }
+  .bn-item.active { color: var(--blue); }
+  .bn-icon { font-size: 22px; }
+  .bn-badge {
+    position: absolute; top: 2px; right: 18px;
+    background: var(--red); color: white; border-radius: 10px;
+    font-size: 10px; font-weight: 700; padding: 1px 5px; min-width: 16px; text-align: center;
+  }
+  .bn-item { position: relative; }
+
+  /* ── Divider ── */
+  .divider { height: 1px; background: var(--border); }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 32px; color: var(--text2); font-size: 14px; }
+
+  /* spacing for bottom nav */
+  .page { padding-bottom: 90px; }
+
+  /* ── Subtle pulse for urgent ── */
+  @keyframes urgentPulse {
+    0%,100% { box-shadow: 0 2px 12px rgba(225,112,85,0.15); }
+    50% { box-shadow: 0 4px 24px rgba(225,112,85,0.35); }
+  }
+  .urgent { animation: urgentPulse 2s infinite; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">📈 我的投資助手</div>
+  <div class="market-badge"><span class="dot"></span>交易中</div>
+</header>
+
+<div class="page">
+
+  <!-- 1. 今日大環境 -->
+  <div class="section-title">今日大環境</div>
+  <div class="risk-card">
+    <div class="risk-emoji">✅</div>
+    <div class="risk-main">
+      <div class="risk-title" style="color:#00b894">適合積極操作</div>
+      <div class="risk-sub">美股上漲、市場情緒穩定，可正常下單</div>
+    </div>
+    <div class="risk-indicators">
+      <div class="ri">
+        <div class="v" style="color:#00b894">17.3</div>
+        <div class="l">VIX 低（好）</div>
+      </div>
+      <div class="ri">
+        <div class="v">104.2</div>
+        <div class="l">美元指數</div>
+      </div>
+      <div class="ri">
+        <div class="v" style="color:#00b894">+0.87%</div>
+        <div class="l">美股期指</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 緊急提示：停損警告 -->
+  <div class="alert-banner urgent">
+    <div class="alert-icon">🚨</div>
+    <div class="alert-text">
+      <div class="alert-title">聯發科 (2454) 接近停損線</div>
+      <div class="alert-desc">目前虧損 -2.7%，距離自動停損還剩 <strong>31元</strong>（停損線：1,254）</div>
+    </div>
+    <button class="alert-action" onclick="alert('已送出市價賣單')">現在出場</button>
+  </div>
+
+  <!-- 3. 現在可以做什麼？ -->
+  <div class="section-title">📬 系統建議</div>
+  <div class="action-cards">
+
+    <div class="action-card buy">
+      <div class="ac-icon">🟢</div>
+      <div class="ac-body">
+        <div class="ac-stock">台積電 2330</div>
+        <div class="ac-reason">主力大量買進，日線多頭排列 ✅</div>
+      </div>
+      <div style="text-align:right">
+        <div class="ac-price" style="color:#00b894">978</div>
+        <div class="ac-change" style="color:#00b894">▲ 3.8%</div>
+      </div>
+      <button class="ac-btn btn-green" onclick="alert('確認買進 978？')">買進</button>
+    </div>
+
+    <div class="action-card buy">
+      <div class="ac-icon">🟢</div>
+      <div class="ac-body">
+        <div class="ac-stock">鴻海 2317</div>
+        <div class="ac-reason">假跌破後強力反彈，量能配合</div>
+      </div>
+      <div style="text-align:right">
+        <div class="ac-price" style="color:#00b894">196</div>
+        <div class="ac-change" style="color:#00b894">▲ 4.3%</div>
+      </div>
+      <button class="ac-btn btn-green" onclick="alert('確認買進 196？')">買進</button>
+    </div>
+
+    <div class="action-card sell">
+      <div class="ac-icon">🔴</div>
+      <div class="ac-body">
+        <div class="ac-stock">廣達 2382</div>
+        <div class="ac-reason">跌破均價線超過 4 分鐘，賣出保護獲利</div>
+      </div>
+      <div style="text-align:right">
+        <div class="ac-price" style="color:#e17055">243</div>
+        <div class="ac-change" style="color:#e17055">▼ 1.2%</div>
+      </div>
+      <button class="ac-btn btn-red" onclick="alert('確認賣出 243？')">出場</button>
+    </div>
+
+    <div class="action-card warn">
+      <div class="ac-icon">⚠️</div>
+      <div class="ac-body">
+        <div class="ac-stock">緯創 3231</div>
+        <div class="ac-reason">漲太多了（+17.9%），系統已鎖定，不要追</div>
+      </div>
+      <div style="text-align:right">
+        <div class="ac-price" style="color:#f0b429">158</div>
+        <div class="ac-change" style="color:#e17055">▲ 2.6%</div>
+      </div>
+      <button class="ac-btn btn-gray" disabled>觀望</button>
+    </div>
+
+  </div>
+
+  <!-- 4. 持倉狀況 -->
+  <div class="section-title">💼 持倉狀況</div>
+  <div class="position-cards">
+
+    <div class="pos-card">
+      <div class="pos-top">
+        <div>
+          <div class="pos-name">台積電</div>
+          <div class="pos-code">2330 · 3張</div>
+        </div>
+        <span class="pos-status status-ok">賺錢中 📈</span>
+      </div>
+      <div class="pos-pnl" style="color:#00b894">+$11,400</div>
+      <div class="pos-detail">買進 940 → 現在 978（+3.8%）</div>
+      <div class="pos-bar-label">
+        <span>移動止盈進度</span>
+        <span style="color:#00b894">需回落 2% 才出場</span>
+      </div>
+      <div class="pos-bar">
+        <div class="pos-bar-fill" style="width:80%;background:#00b894"></div>
+      </div>
+    </div>
+
+    <div class="pos-card">
+      <div class="pos-top">
+        <div>
+          <div class="pos-name">鴻海</div>
+          <div class="pos-code">2317 · 5張</div>
+        </div>
+        <span class="pos-status status-ok">賺錢中 📈</span>
+      </div>
+      <div class="pos-pnl" style="color:#00b894">+$4,000</div>
+      <div class="pos-detail">買進 188 → 現在 196（+4.3%）</div>
+      <div class="pos-bar-label">
+        <span>移動止盈進度</span>
+        <span>尚未達觸發點</span>
+      </div>
+      <div class="pos-bar">
+        <div class="pos-bar-fill" style="width:40%;background:#f0b429"></div>
+      </div>
+    </div>
+
+    <div class="pos-card danger urgent">
+      <div class="pos-top">
+        <div>
+          <div class="pos-name">聯發科</div>
+          <div class="pos-code">2454 · 2張</div>
+        </div>
+        <span class="pos-status status-danger">⚠️ 快停損</span>
+      </div>
+      <div class="pos-pnl" style="color:#e17055">-$7,000</div>
+      <div class="pos-detail">買進 1,320 → 現在 1,285（-2.7%）</div>
+      <div class="pos-bar-label">
+        <span style="color:#e17055">停損還剩</span>
+        <span style="color:#e17055">-5% 自動出場</span>
+      </div>
+      <div class="pos-bar">
+        <div class="pos-bar-fill" style="width:54%;background:linear-gradient(90deg,#f0b429,#e17055)"></div>
+      </div>
+      <div class="pos-action">
+        <button style="background:#e17055;color:white" onclick="alert('確認賣出？')">現在出場（減少損失）</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 5. 觀察清單 -->
+  <div class="section-title">👀 觀察中的股票</div>
+  <div class="watch-list">
+
+    <div class="watch-item">
+      <div>
+        <div class="wi-name">台積電</div>
+        <div class="wi-code">2330</div>
+      </div>
+      <div class="wi-indicator">
+        <div class="ind-label">日線趨勢</div>
+        <div class="ind-val" style="color:#00b894">多頭 ✅</div>
+      </div>
+      <div class="wi-indicator">
+        <div class="ind-label">動能</div>
+        <div class="ind-val" style="color:#00b894">強勢↑</div>
+      </div>
+      <div class="wi-price" style="color:#00b894">978</div>
+      <div class="wi-change" style="color:#00b894">▲3.8%</div>
+      <span class="wi-tag tag-buy">可買進</span>
+    </div>
+
+    <div class="watch-item">
+      <div>
+        <div class="wi-name">鴻海</div>
+        <div class="wi-code">2317</div>
+      </div>
+      <div class="wi-indicator">
+        <div class="ind-label">日線趨勢</div>
+        <div class="ind-val" style="color:#00b894">多頭 ✅</div>
+      </div>
+      <div class="wi-indicator">
+        <div class="ind-label">動能</div>
+        <div class="ind-val" style="color:#00b894">翻多↑</div>
+      </div>
+      <div class="wi-price" style="color:#00b894">196</div>
+      <div class="wi-change" style="color:#00b894">▲4.3%</div>
+      <span class="wi-tag tag-buy">可買進</span>
+    </div>
+
+    <div class="watch-item">
+      <div>
+        <div class="wi-name">聯發科</div>
+        <div class="wi-code">2454</div>
+      </div>
+      <div class="wi-indicator">
+        <div class="ind-label">日線趨勢</div>
+        <div class="ind-val" style="color:#e17055">偏空 ⚠️</div>
+      </div>
+      <div class="wi-indicator">
+        <div class="ind-label">動能</div>
+        <div class="ind-val" style="color:#e17055">轉弱↓</div>
+      </div>
+      <div class="wi-price" style="color:#e17055">1,285</div>
+      <div class="wi-change" style="color:#e17055">▼2.7%</div>
+      <span class="wi-tag tag-sell">考慮出場</span>
+    </div>
+
+    <div class="watch-item">
+      <div>
+        <div class="wi-name">廣達</div>
+        <div class="wi-code">2382</div>
+      </div>
+      <div class="wi-indicator">
+        <div class="ind-label">日線趨勢</div>
+        <div class="ind-val" style="color:#00b894">多頭 ✅</div>
+      </div>
+      <div class="wi-indicator">
+        <div class="ind-label">動能</div>
+        <div class="ind-val" style="color:#e17055">轉弱↓</div>
+      </div>
+      <div class="wi-price" style="color:#e17055">243</div>
+      <div class="wi-change" style="color:#e17055">▼1.2%</div>
+      <span class="wi-tag tag-sell">出場訊號</span>
+    </div>
+
+    <div class="watch-item">
+      <div>
+        <div class="wi-name">緯創</div>
+        <div class="wi-code">3231</div>
+      </div>
+      <div class="wi-indicator">
+        <div class="ind-label">日線趨勢</div>
+        <div class="ind-val" style="color:#00b894">多頭 ✅</div>
+      </div>
+      <div class="wi-indicator">
+        <div class="ind-label">乖離率</div>
+        <div class="ind-val" style="color:#f0b429">+17.9% 🔒</div>
+      </div>
+      <div class="wi-price">158</div>
+      <div class="wi-change" style="color:#00b894">▲2.6%</div>
+      <span class="wi-tag tag-lock">禁止追高</span>
+    </div>
+
+  </div>
+
+  <!-- 6. 明日推薦 -->
+  <div class="section-title">🌅 明天可以留意（盤後更新）</div>
+  <div class="tomorrow-cards">
+
+    <div class="tmr-card">
+      <div class="tmr-top">
+        <div>
+          <div class="tmr-name">力積電</div>
+          <div style="font-size:12px;color:#6b7280">6770</div>
+        </div>
+        <span class="tmr-reason r-squeeze">融券到期</span>
+      </div>
+      <div class="tmr-detail">融券強制回補剩 <strong style="color:#e17055">3天</strong>，空方要被逼回補</div>
+      <div class="tmr-upside">強制回補壓力大</div>
+    </div>
+
+    <div class="tmr-card">
+      <div class="tmr-top">
+        <div>
+          <div class="tmr-name">智原</div>
+          <div style="font-size:12px;color:#6b7280">3035</div>
+        </div>
+        <span class="tmr-reason r-inst">法人連買</span>
+      </div>
+      <div class="tmr-detail">投信連續買了 <strong style="color:#7c3aed">7天</strong>，法人看好持續加碼</div>
+      <div class="tmr-upside">+28.4% 目標空間</div>
+    </div>
+
+    <div class="tmr-card">
+      <div class="tmr-top">
+        <div>
+          <div class="tmr-name">矽力-KY</div>
+          <div style="font-size:12px;color:#6b7280">6415</div>
+        </div>
+        <span class="tmr-reason r-inst">法人連買</span>
+      </div>
+      <div class="tmr-detail">投信連續買了 <strong style="color:#7c3aed">5天</strong>，持股比例成長期</div>
+      <div class="tmr-upside">+22.1% 目標空間</div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav">
+  <div class="bn-item active">
+    <span class="bn-icon">🏠</span>首頁
+    <span class="bn-badge">2</span>
+  </div>
+  <div class="bn-item">
+    <span class="bn-icon">💼</span>持倉
+  </div>
+  <div class="bn-item">
+    <span class="bn-icon">🔔</span>訊號
+    <span class="bn-badge">5</span>
+  </div>
+  <div class="bn-item">
+    <span class="bn-icon">🌅</span>明日選股
+  </div>
+  <div class="bn-item">
+    <span class="bn-icon">⚙️</span>設定
+  </div>
+</div>
+
+<script>
+// Bottom nav click
+document.querySelectorAll('.bn-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.bn-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

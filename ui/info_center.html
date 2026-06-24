@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>智慧投資資訊中心</title>
+<style>
+:root{
+  --bg:#0d1117;--card:#161b22;--border:#30363d;--accent:#58a6ff;
+  --green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#bc8cff;
+  --text:#e6edf3;--muted:#8b949e;--hover:#1c2128;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;display:flex;min-height:100vh}
+
+/* ── Sidebar ── */
+#sidebar{width:56px;background:var(--card);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px;
+  transition:width .2s;overflow:hidden;flex-shrink:0}
+#sidebar.expanded{width:180px}
+.nav-item{width:100%;display:flex;align-items:center;gap:12px;padding:10px 16px;
+  cursor:pointer;border-radius:6px;transition:.15s;white-space:nowrap;color:var(--muted)}
+.nav-item:hover,.nav-item.active{background:var(--hover);color:var(--text)}
+.nav-item.active{color:var(--accent)}
+.nav-item .icon{font-size:18px;flex-shrink:0;width:20px;text-align:center}
+.nav-label{font-size:13px;opacity:0;transition:opacity .2s}
+#sidebar.expanded .nav-label{opacity:1}
+#toggle-sidebar{background:none;border:none;color:var(--muted);cursor:pointer;
+  padding:8px;font-size:16px;align-self:flex-end;margin-right:4px}
+
+/* ── Main ── */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#topbar{background:var(--card);border-bottom:1px solid var(--border);
+  padding:10px 20px;display:flex;align-items:center;gap:12px}
+#topbar h1{font-size:15px;font-weight:600;color:var(--text)}
+.topbar-sub{font-size:12px;color:var(--muted)}
+#refresh-all{margin-left:auto;background:var(--accent);color:#000;border:none;
+  padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600}
+
+#content{flex:1;overflow-y:auto;padding:20px}
+
+/* ── Pages ── */
+.page{display:none}
+.page.active{display:block}
+
+/* ── Cards & Grid ── */
+.section-title{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.6px;margin-bottom:12px;margin-top:24px}
+.section-title:first-child{margin-top:0}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media(max-width:900px){.grid-4,.grid-3{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px}
+.metric-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px}
+.metric-label{font-size:11px;color:var(--muted);margin-bottom:4px}
+.metric-value{font-size:20px;font-weight:700}
+.metric-change{font-size:12px;margin-top:3px}
+.up{color:var(--green)} .down{color:var(--red)} .flat{color:var(--muted)}
+
+/* ── Score Badge ── */
+.score-badge{display:inline-block;padding:3px 8px;border-radius:12px;font-size:12px;font-weight:700}
+.score-buy{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green)}
+.score-sell{background:rgba(248,81,73,.15);color:var(--red);border:1px solid var(--red)}
+.score-hold{background:rgba(210,153,34,.15);color:var(--yellow);border:1px solid var(--yellow)}
+
+/* ── Rec Card ── */
+.rec-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;
+  display:flex;flex-direction:column;gap:10px}
+.rec-card.buy-card{border-left:3px solid var(--red)}
+.rec-card.sell-card{border-left:3px solid var(--green)}
+.rec-card.hold-card{border-left:3px solid var(--yellow)}
+.rec-header{display:flex;align-items:center;gap:8px}
+.rec-code{font-size:16px;font-weight:700}
+.rec-name{font-size:12px;color:var(--muted)}
+.rec-mkt{font-size:10px;background:var(--hover);border:1px solid var(--border);
+  padding:2px 6px;border-radius:4px;color:var(--muted)}
+.score-bar-wrap{background:var(--bg);border-radius:4px;height:6px;width:100%}
+.score-bar{height:6px;border-radius:4px;transition:width .3s}
+.signals-wrap{display:flex;flex-wrap:wrap;gap:4px}
+.signal-chip{font-size:11px;background:var(--hover);border:1px solid var(--border);
+  padding:2px 7px;border-radius:10px;color:var(--muted)}
+.ai-text{font-size:12px;color:var(--text);background:var(--bg);border:1px solid var(--border);
+  border-radius:6px;padding:10px;white-space:pre-wrap;line-height:1.6}
+.analyze-btn{background:var(--accent);color:#000;border:none;padding:5px 12px;
+  border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;align-self:flex-start}
+.analyze-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Sector Table ── */
+.sector-table{width:100%;border-collapse:collapse;font-size:13px}
+.sector-table th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:500;
+  border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase}
+.sector-table td{padding:8px 10px;border-bottom:1px solid var(--hover)}
+.sector-table tr:hover td{background:var(--hover)}
+.bar-cell{display:flex;align-items:center;gap:6px}
+.inline-bar{height:4px;border-radius:2px;min-width:2px}
+
+/* ── Settings ── */
+.form-group{margin-bottom:16px}
+.form-label{font-size:12px;color:var(--muted);margin-bottom:6px;display:block}
+.form-input{background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:8px 12px;border-radius:6px;width:100%;font-size:13px}
+.form-input:focus{outline:none;border-color:var(--accent)}
+.chip-group{display:flex;flex-wrap:wrap;gap:6px}
+.chip-toggle{padding:4px 12px;border-radius:12px;font-size:12px;cursor:pointer;
+  border:1px solid var(--border);background:var(--bg);color:var(--muted);transition:.15s}
+.chip-toggle.active{background:rgba(88,166,255,.15);color:var(--accent);border-color:var(--accent)}
+.save-btn{background:var(--accent);color:#000;border:none;padding:8px 20px;
+  border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;margin-top:8px}
+
+/* ── Macro Group ── */
+.macro-group-title{font-size:11px;color:var(--purple);font-weight:600;letter-spacing:.5px;
+  text-transform:uppercase;margin:16px 0 8px;padding-bottom:4px;
+  border-bottom:1px solid var(--border)}
+.macro-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+
+/* ── Loading ── */
+.loading{text-align:center;padding:40px;color:var(--muted);font-size:13px}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;
+  margin-right:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Empty ── */
+.empty-msg{text-align:center;padding:40px;color:var(--muted);font-size:13px}
+
+/* ── Env Banner ── */
+.env-banner{border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;
+  align-items:center;gap:14px;flex-wrap:wrap}
+.env-banner.green{background:rgba(63,185,80,.1);border:1px solid var(--green)}
+.env-banner.yellow{background:rgba(210,153,34,.1);border:1px solid var(--yellow)}
+.env-banner.red{background:rgba(248,81,73,.1);border:1px solid var(--red)}
+.env-tag{font-size:18px;font-weight:800;white-space:nowrap}
+.env-tag.green{color:var(--green)}.env-tag.yellow{color:var(--yellow)}.env-tag.red{color:var(--red)}
+.env-advice{font-size:13px;color:var(--text);flex:1}
+.env-sigs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;width:100%}
+.env-sig{font-size:11px;padding:3px 8px;border-radius:10px;border:1px solid}
+.env-sig.green{color:var(--green);border-color:var(--green);background:rgba(63,185,80,.08)}
+.env-sig.yellow{color:var(--yellow);border-color:var(--yellow);background:rgba(210,153,34,.08)}
+.env-sig.red{color:var(--red);border-color:var(--red);background:rgba(248,81,73,.08)}
+
+/* ── History Table ── */
+.hist-table{width:100%;border-collapse:collapse;font-size:12px}
+.hist-table th{text-align:left;padding:7px 10px;color:var(--muted);font-weight:500;
+  border-bottom:1px solid var(--border);font-size:11px;white-space:nowrap}
+.hist-table td{padding:7px 10px;border-bottom:1px solid var(--hover);vertical-align:middle}
+.hist-table tr:hover td{background:var(--hover)}
+.outcome-win{color:var(--green);font-weight:700}
+.outcome-loss{color:var(--red);font-weight:700}
+.outcome-neutral{color:var(--yellow)}
+.outcome-pending{color:var(--muted);font-style:italic}
+
+/* ── Batch Input ── */
+.batch-input{width:100%;min-height:80px;resize:vertical}
+.batch-results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:14px}
+
+/* ── Inst Table ── */
+.inst-table{width:100%;border-collapse:collapse;font-size:12px}
+.inst-table th{text-align:right;padding:7px 10px;color:var(--muted);font-weight:500;
+  border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase}
+.inst-table th:first-child,.inst-table td:first-child,.inst-table td:nth-child(2){text-align:left}
+.inst-table td{padding:7px 10px;border-bottom:1px solid var(--hover);text-align:right}
+.inst-table tr:hover td{background:var(--hover)}
+
+/* ── Source Badges ── */
+.src-badge{font-size:10px;padding:2px 6px;border-radius:8px;font-weight:600;white-space:nowrap}
+.src-system{background:rgba(88,166,255,.12);color:var(--accent);border:1px solid rgba(88,166,255,.3)}
+.src-user{background:rgba(188,140,255,.12);color:var(--purple);border:1px solid rgba(188,140,255,.3)}
+.src-badges-row{display:flex;flex-wrap:wrap;gap:4px}
+/* ── Confidence Bar ── */
+.conf-bar-wrap{background:var(--bg);border-radius:4px;height:4px;width:100%}
+.conf-bar{height:4px;border-radius:4px;background:var(--purple);transition:width .3s}
+/* ── Sources Table ── */
+.src-table{width:100%;border-collapse:collapse;font-size:12px}
+.src-table th{text-align:left;padding:8px 10px;color:var(--muted);font-weight:500;
+  border-bottom:1px solid var(--border);font-size:11px}
+.src-table td{padding:8px 10px;border-bottom:1px solid var(--hover);vertical-align:middle}
+.src-table tr:hover td{background:var(--hover)}
+
+/* ── Backtest Modal ── */
+#bt-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;
+  align-items:center;justify-content:center}
+#bt-modal.show{display:flex}
+#bt-box{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  width:min(620px,95vw);max-height:80vh;overflow-y:auto;padding:20px}
+#bt-box h3{font-size:15px;margin-bottom:14px;display:flex;justify-content:space-between}
+#bt-box h3 button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px}
+.bt-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.bt-stat{background:var(--bg);border-radius:6px;padding:10px;text-align:center}
+.bt-stat-label{font-size:10px;color:var(--muted);margin-bottom:3px}
+.bt-stat-val{font-size:16px;font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav id="sidebar">
+  <button id="toggle-sidebar" onclick="toggleSidebar()" title="展開/收合">☰</button>
+  <div class="nav-item active" data-page="overview" onclick="nav(this)">
+    <span class="icon">📊</span><span class="nav-label">總覽</span>
+  </div>
+  <div class="nav-item" data-page="macro" onclick="nav(this)">
+    <span class="icon">🌐</span><span class="nav-label">總經</span>
+  </div>
+  <div class="nav-item" data-page="tw-market" onclick="nav(this)">
+    <span class="icon">🇹🇼</span><span class="nav-label">台股</span>
+  </div>
+  <div class="nav-item" data-page="us-market" onclick="nav(this)">
+    <span class="icon">🇺🇸</span><span class="nav-label">美股</span>
+  </div>
+  <div class="nav-item" data-page="ai-recs" onclick="nav(this)">
+    <span class="icon">🤖</span><span class="nav-label">AI建議</span>
+  </div>
+  <div class="nav-item" data-page="sources" onclick="nav(this)">
+    <span class="icon">📡</span><span class="nav-label">資料來源</span>
+  </div>
+  <div class="nav-item" data-page="settings" onclick="nav(this)">
+    <span class="icon">⚙️</span><span class="nav-label">設定</span>
+  </div>
+  <div class="nav-item" style="margin-top:auto" onclick="window.open('/','_blank')">
+    <span class="icon">↩</span><span class="nav-label">回主系統</span>
+  </div>
+</nav>
+
+<!-- Main -->
+<div id="main">
+  <div id="topbar">
+    <h1>智慧投資資訊中心</h1>
+    <span class="topbar-sub" id="last-update">尚未載入</span>
+    <button id="refresh-all" onclick="refreshAll()">⟳ 全部刷新</button>
+  </div>
+  <div id="content">
+
+    <!-- 總覽 -->
+    <div class="page active" id="page-overview">
+      <div id="env-banner-overview">
+        <div class="loading"><span class="spinner"></span>環境解讀中</div>
+      </div>
+
+      <div class="section-title">總經快覽</div>
+      <div id="overview-macro-grid" class="macro-grid">
+        <div class="loading"><span class="spinner"></span>載入中</div>
+      </div>
+
+      <div class="section-title">今日推薦標的</div>
+      <div id="overview-recs">
+        <div class="empty-msg">尚無推薦，請至「AI建議」頁面產生</div>
+      </div>
+    </div>
+
+    <!-- 總經 -->
+    <div class="page" id="page-macro">
+      <button class="save-btn" style="margin-bottom:16px" onclick="loadMacro(true);loadInterpretation()">⟳ 刷新總經數據</button>
+
+      <div id="env-banner-macro">
+        <div class="loading"><span class="spinner"></span>環境解讀中</div>
+      </div>
+
+      <div class="macro-group-title">風險指標</div>
+      <div id="macro-risk" class="macro-grid"></div>
+
+      <div class="macro-group-title">美股指數</div>
+      <div id="macro-us" class="macro-grid"></div>
+
+      <div class="macro-group-title">債券 / 匯率</div>
+      <div id="macro-fx" class="macro-grid"></div>
+
+      <div class="macro-group-title">大宗商品</div>
+      <div id="macro-commodity" class="macro-grid"></div>
+    </div>
+
+    <!-- 台股 -->
+    <div class="page" id="page-tw-market">
+      <div class="section-title">持倉 + 自選股技術評分</div>
+      <div id="tw-recs-wrap">
+        <div class="empty-msg">尚無資料，請至「AI建議」頁刷新後回來查看</div>
+      </div>
+
+      <div class="section-title">法人買超排行</div>
+      <div id="tw-inst-wrap">
+        <div class="loading"><span class="spinner"></span>載入籌碼資料</div>
+      </div>
+
+      <div class="section-title">批次評分</div>
+      <div class="card">
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">代碼清單（每行一個，或逗號分隔）</label>
+          <textarea class="form-input batch-input" id="tw-batch-input"
+            placeholder="2330&#10;2317&#10;2454&#10;2382"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="chip-toggle" id="tw-batch-ai" onclick="toggleChip(this)">🤖 AI 分析</label>
+          <button class="save-btn" style="margin:0" onclick="batchScore('TW')">批次評分</button>
+        </div>
+        <div id="tw-batch-result" class="batch-results-grid"></div>
+      </div>
+
+      <div class="section-title">單股快速分析</div>
+      <div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="margin:0;flex:1;min-width:120px">
+          <label class="form-label">股票代碼</label>
+          <input class="form-input" id="tw-single-code" placeholder="2330" maxlength="8">
+        </div>
+        <label class="chip-toggle active" id="tw-ai-toggle" onclick="toggleChip(this)" style="align-self:center">
+          🤖 使用 AI 分析
+        </label>
+        <button class="save-btn" style="margin:0" onclick="analyzeSingle('TW')">分析</button>
+      </div>
+      <div id="tw-single-result" style="margin-top:12px"></div>
+    </div>
+
+    <!-- 美股 -->
+    <div class="page" id="page-us-market">
+      <div class="section-title">板塊輪動（ETF 月績效）</div>
+      <div id="us-sectors-wrap">
+        <div class="loading"><span class="spinner"></span>載入中</div>
+      </div>
+
+      <div class="section-title">單股快速分析</div>
+      <div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="margin:0;flex:1;min-width:120px">
+          <label class="form-label">股票代號</label>
+          <input class="form-input" id="us-single-code" placeholder="NVDA" maxlength="10" style="text-transform:uppercase">
+        </div>
+        <label class="chip-toggle active" id="us-ai-toggle" onclick="toggleChip(this)" style="align-self:center">
+          🤖 使用 AI 分析
+        </label>
+        <button class="save-btn" style="margin:0" onclick="analyzeSingle('US')">分析</button>
+      </div>
+      <div id="us-single-result" style="margin-top:12px"></div>
+
+      <div class="section-title">批次評分</div>
+      <div class="card">
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">代號清單（每行一個，或逗號分隔）</label>
+          <textarea class="form-input batch-input" id="us-batch-input"
+            placeholder="NVDA&#10;AAPL&#10;MSFT&#10;TSLA&#10;AMD"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="chip-toggle" id="us-batch-ai" onclick="toggleChip(this)">🤖 AI 分析</label>
+          <button class="save-btn" style="margin:0" onclick="batchScore('US')">批次評分</button>
+        </div>
+        <div id="us-batch-result" class="batch-results-grid"></div>
+      </div>
+    </div>
+
+    <!-- AI建議 -->
+    <div class="page" id="page-ai-recs">
+      <div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+        <div style="font-size:13px;color:var(--muted)">市場篩選：</div>
+        <div class="chip-group" id="market-filter-chips">
+          <span class="chip-toggle active" data-market="ALL" onclick="setMarketFilter(this)">全部</span>
+          <span class="chip-toggle" data-market="TW" onclick="setMarketFilter(this)">台股</span>
+          <span class="chip-toggle" data-market="US" onclick="setMarketFilter(this)">美股</span>
+        </div>
+        <label class="chip-toggle" id="ai-rec-toggle" onclick="toggleChip(this)" style="margin-left:auto">
+          🤖 含 AI 深度分析
+        </label>
+        <button class="save-btn" style="margin:0" onclick="refreshRecs()">產生推薦</button>
+      </div>
+
+      <div id="recs-loading" style="display:none">
+        <div class="loading"><span class="spinner"></span>分析中，請稍候…</div>
+      </div>
+      <div id="recs-grid" class="grid-3">
+        <div class="empty-msg">點擊「產生推薦」開始分析</div>
+      </div>
+
+      <!-- 歷史記錄 -->
+      <div style="display:flex;align-items:center;gap:10px;margin-top:28px;margin-bottom:12px">
+        <div class="section-title" style="margin:0">歷史推薦記錄</div>
+        <button class="save-btn" style="margin:0;font-size:11px;padding:4px 12px"
+          onclick="evaluateHistory()">評估結果</button>
+        <span id="eval-msg" style="font-size:11px;color:var(--green);display:none"></span>
+        <button class="analyze-btn" style="margin-left:auto" onclick="loadHistory()">⟳ 刷新</button>
+      </div>
+      <div id="history-wrap">
+        <div class="loading"><span class="spinner"></span>載入中</div>
+      </div>
+    </div>
+
+    <!-- 資料來源 -->
+    <div class="page" id="page-sources">
+      <div class="section-title" style="margin-top:0">系統內建來源 <span style="font-size:10px;color:var(--muted);text-transform:none;font-weight:normal">（唯讀）</span></div>
+      <div id="sys-sources-wrap" class="card" style="overflow-x:auto">
+        <div class="loading"><span class="spinner"></span>載入中</div>
+      </div>
+
+      <div class="section-title">新增自定義來源</div>
+      <div class="card" style="max-width:620px;margin-bottom:14px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">名稱 *</label>
+            <input class="form-input" id="src-name" placeholder="我的財經新聞">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">類型</label>
+            <select class="form-input" id="src-type">
+              <option value="HTML">HTML (網頁)</option>
+              <option value="RSS">RSS Feed</option>
+              <option value="API">API</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;grid-column:1/-1">
+            <label class="form-label">URL</label>
+            <input class="form-input" id="src-url" placeholder="https://...">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">市場</label>
+            <select class="form-input" id="src-market">
+              <option value="ALL">全部</option>
+              <option value="TW">台股</option>
+              <option value="US">美股</option>
+              <option value="MACRO">總經</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">可靠性</label>
+            <select class="form-input" id="src-reliability">
+              <option value="reference">參考</option>
+              <option value="confirmed">確認</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;grid-column:1/-1">
+            <label class="form-label">說明（選填）</label>
+            <input class="form-input" id="src-desc" placeholder="用途說明">
+          </div>
+        </div>
+        <button class="save-btn" style="margin-top:12px" onclick="addSource()">＋ 新增來源</button>
+        <span id="src-msg" style="font-size:12px;color:var(--green);margin-left:10px;display:none">已新增</span>
+      </div>
+
+      <div class="section-title" style="display:flex;align-items:center;gap:10px">
+        已新增的自定義來源
+        <button class="save-btn" style="margin:0;font-size:11px;padding:4px 12px"
+          onclick="fetchAllSources()">⟳ 全部刷新新聞</button>
+        <span id="fetch-all-msg" style="font-size:11px;color:var(--green);display:none"></span>
+      </div>
+      <div id="user-sources-wrap" class="card" style="overflow-x:auto">
+        <div class="loading"><span class="spinner"></span>載入中</div>
+      </div>
+
+      <div class="section-title">新聞快取預覽</div>
+      <div id="news-cache-wrap">
+        <div class="empty-msg" style="font-size:12px">尚無快取，點擊來源的「抓取」按鈕後會顯示</div>
+      </div>
+    </div>
+
+    <!-- 設定 -->
+    <div class="page" id="page-settings">
+      <div class="card" style="max-width:560px">
+        <div class="section-title" style="margin-top:0">投資風格設定</div>
+
+        <div class="form-group">
+          <label class="form-label">操作週期</label>
+          <div class="chip-group" id="holding-chips">
+            <span class="chip-toggle" data-val="當沖" onclick="selectHolding(this)">當沖</span>
+            <span class="chip-toggle active" data-val="波段" onclick="selectHolding(this)">波段</span>
+            <span class="chip-toggle" data-val="中長線" onclick="selectHolding(this)">中長線</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">風險偏好</label>
+          <div class="chip-group" id="risk-chips">
+            <span class="chip-toggle" data-val="保守" onclick="selectRisk(this)">保守</span>
+            <span class="chip-toggle active" data-val="穩健" onclick="selectRisk(this)">穩健</span>
+            <span class="chip-toggle" data-val="積極" onclick="selectRisk(this)">積極</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">偏好指標（可多選）</label>
+          <div class="chip-group" id="indicator-chips">
+            <span class="chip-toggle active" data-val="KD" onclick="toggleIndicator(this)">KD</span>
+            <span class="chip-toggle active" data-val="MACD" onclick="toggleIndicator(this)">MACD</span>
+            <span class="chip-toggle active" data-val="MA" onclick="toggleIndicator(this)">均線</span>
+            <span class="chip-toggle active" data-val="VOL" onclick="toggleIndicator(this)">量能</span>
+            <span class="chip-toggle" data-val="RSI" onclick="toggleIndicator(this)">RSI</span>
+            <span class="chip-toggle" data-val="籌碼" onclick="toggleIndicator(this)">籌碼</span>
+            <span class="chip-toggle" data-val="法人" onclick="toggleIndicator(this)">法人</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Claude API Key（用於 AI 深度分析）</label>
+          <input class="form-input" id="claude-api-key" type="password" placeholder="sk-ant-…">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">
+            取得：<a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a>
+            &nbsp;|&nbsp; 每次分析約 $0.01–0.03 USD
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:18px">
+          <label class="form-label">各功能 AI 模型選擇</label>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Haiku 快且省 token，Sonnet 較精準，Opus 最強但最貴</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:3px">單支股票深度分析</div>
+              <select class="form-input" id="model-stock-analyze" style="padding:4px 8px;font-size:12px">
+                <option value="claude-haiku-4-5-20251001">Haiku 4.5（最省）</option>
+                <option value="claude-sonnet-4-6">Sonnet 4.6（建議）</option>
+                <option value="claude-opus-4-8">Opus 4.8（最強）</option>
+              </select>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:3px">批次推薦掃描</div>
+              <select class="form-input" id="model-rec-scan" style="padding:4px 8px;font-size:12px">
+                <option value="claude-haiku-4-5-20251001">Haiku 4.5（建議）</option>
+                <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+                <option value="claude-opus-4-8">Opus 4.8</option>
+              </select>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:3px">批次評分</div>
+              <select class="form-input" id="model-batch-score" style="padding:4px 8px;font-size:12px">
+                <option value="claude-haiku-4-5-20251001">Haiku 4.5（建議）</option>
+                <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+                <option value="claude-opus-4-8">Opus 4.8</option>
+              </select>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:3px">總經 AI 解讀</div>
+              <select class="form-input" id="model-macro-ai" style="padding:4px 8px;font-size:12px">
+                <option value="claude-haiku-4-5-20251001">Haiku 4.5（建議）</option>
+                <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+                <option value="claude-opus-4-8">Opus 4.8</option>
+              </select>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:3px">新聞情緒分析</div>
+              <select class="form-input" id="model-sentiment" style="padding:4px 8px;font-size:12px">
+                <option value="claude-haiku-4-5-20251001">Haiku 4.5（建議）</option>
+                <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+                <option value="claude-opus-4-8">Opus 4.8</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:18px">
+          <label class="form-label">AI 建議推播通知</label>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="ic-notify-enabled" onchange="saveNotifyConfig()" style="width:16px;height:16px">
+              啟用高信心度 BUY 訊號推播
+            </label>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+            <span style="font-size:12px;color:var(--muted)">最低信心度門檻：</span>
+            <input type="range" id="ic-notify-threshold" min="0.5" max="1.0" step="0.05"
+                   value="0.70" style="width:120px" oninput="updateThresholdLabel(this.value)" onchange="saveNotifyConfig()">
+            <span id="ic-threshold-label" style="font-size:13px;font-weight:600;color:var(--accent);min-width:36px">70%</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">
+            推播管道（Telegram / Email / Webhook）請在主頁「設定」中配置。
+          </div>
+        </div>
+
+        <div style="font-size:12px;color:var(--muted);padding:4px 0 12px">
+          資訊來源管理請至側邊欄「📡 資料來源」頁面新增 / 刪除 / 抓取。
+        </div>
+
+        <button class="save-btn" onclick="saveSettings()">💾 儲存設定</button>
+        <span id="save-msg" style="font-size:12px;color:var(--green);margin-left:10px;display:none">已儲存</span>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- Backtest Modal -->
+<div id="bt-modal" onclick="if(event.target===this)closeBtModal()">
+  <div id="bt-box">
+    <h3>
+      <span id="bt-title">回測結果</span>
+      <button onclick="closeBtModal()">✕</button>
+    </h3>
+    <div id="bt-loading" style="display:none" class="loading"><span class="spinner"></span>回測運算中…</div>
+    <div id="bt-content"></div>
+  </div>
+</div>
+
+<script>
+// ── Auth token ──
+let _token = '';
+async function getToken() {
+  if (_token) return _token;
+  const r = await fetch('/api/auth/token');
+  const d = await r.json();
+  _token = d.token;
+  return _token;
+}
+function authHeaders(extra) {
+  const h = { 'Content-Type': 'application/json', 'X-API-Token': _token, 'ngrok-skip-browser-warning': '1' };
+  return Object.assign(h, extra || {});
+}
+async function icFetch(url, opts) {
+  await getToken();
+  opts = opts || {};
+  opts.headers = Object.assign({'X-API-Token': _token, 'ngrok-skip-browser-warning': '1'}, opts.headers || {});
+  return fetch(url, opts);
+}
+
+// ── Navigation ──
+function nav(el) {
+  document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('page-' + el.dataset.page).classList.add('active');
+  if (el.dataset.page === 'macro') { if (!macroLoaded) loadMacro(); loadInterpretation(); }
+  if (el.dataset.page === 'us-market') { if (!sectorsLoaded) loadUsSectors(); }
+  if (el.dataset.page === 'settings') loadSettings();
+  if (el.dataset.page === 'ai-recs') { loadRecs(); loadHistory(); }
+  if (el.dataset.page === 'tw-market') { loadTwRecs(); loadTwInstitutional(); }
+  if (el.dataset.page === 'sources') loadSources();
+}
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('expanded');
+}
+
+// ── Helpers ──
+function fmt(v, decimals=2) { return v==null?'—':Number(v).toFixed(decimals); }
+function pct(v) {
+  if (v==null) return '<span class="flat">—</span>';
+  const cls = v>0?'up':v<0?'down':'flat';
+  return `<span class="${cls}">${v>0?'+':''}${fmt(v)}%</span>`;
+}
+function scoreClass(dir) {
+  return dir==='BUY'?'score-buy':dir==='SELL'?'score-sell':'score-hold';
+}
+function scoreBarColor(score) {
+  if (score>=62) return 'var(--green)';
+  if (score<=38) return 'var(--red)';
+  return 'var(--yellow)';
+}
+function toggleChip(el) { el.classList.toggle('active'); }
+
+// ── Market filter ──
+let _marketFilter = 'ALL';
+function setMarketFilter(el) {
+  document.querySelectorAll('#market-filter-chips .chip-toggle')
+    .forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  _marketFilter = el.dataset.market;
+}
+
+// ── Macro ──
+let macroLoaded = false;
+const MACRO_GROUPS = {
+  risk:      ['VIX','DXY','US10Y','US2Y'],
+  us:        ['SPX','NDX','DJI','SOX'],
+  fx:        ['TWD','JPY','EUR','CNY'],
+  commodity: ['WTI','BRENT','GOLD','SILVER','COPPER'],
+};
+const MACRO_LABELS = {
+  VIX:'波動率 VIX',DXY:'美元指數 DXY',US10Y:'美債10年',US2Y:'美債2年',
+  SPX:'標普500',NDX:'那斯達克',DJI:'道瓊',SOX:'費城半導體',
+  TWD:'美元/台幣',JPY:'美元/日圓',EUR:'歐元/美元',CNY:'美元/人民幣',
+  WTI:'WTI 原油',BRENT:'布蘭特原油',GOLD:'黃金',SILVER:'白銀',COPPER:'銅',
+};
+const MACRO_UNIT = {
+  US10Y:'%',US2Y:'%',VIX:'',DXY:'',SPX:'',NDX:'',DJI:'',SOX:'',
+  TWD:'',JPY:'',EUR:'',CNY:'',WTI:'$',BRENT:'$',GOLD:'$',SILVER:'$',COPPER:'$',
+};
+
+function macroCard(key, data) {
+  if (!data) return '';
+  const isVIX   = key==='VIX';
+  const chgCls  = isVIX
+    ? (data.change_pct>0?'down':'up')   // VIX 漲 = 壞
+    : (data.change_pct>0?'up':'down');
+  return `<div class="metric-card">
+    <div class="metric-label">${MACRO_LABELS[key]||key}</div>
+    <div class="metric-value">${MACRO_UNIT[key]||''}${fmt(data.price,2)}</div>
+    <div class="metric-change"><span class="${chgCls}">${data.change_pct>0?'+':''}${fmt(data.change_pct)}%</span></div>
+  </div>`;
+}
+
+async function loadMacro(force=false) {
+  const url = force ? '/api/ic/macro/refresh' : '/api/ic/macro';
+  const method = force ? 'POST' : 'GET';
+  ['overview-macro-grid','macro-risk','macro-us','macro-fx','macro-commodity'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="loading"><span class="spinner"></span>載入中</div>';
+  });
+  try {
+    const r = await icFetch(url, { method, headers: force?authHeaders():{} });
+    const d = await r.json();
+
+    // Overview: show subset
+    const ovKeys = ['VIX','US10Y','DXY','SPX','NDX','TWD','GOLD','WTI'];
+    document.getElementById('overview-macro-grid').innerHTML =
+      ovKeys.map(k => macroCard(k, d[k])).join('');
+
+    // Macro page groups
+    for (const [grp, keys] of Object.entries(MACRO_GROUPS)) {
+      const el = document.getElementById('macro-'+grp);
+      if (el) el.innerHTML = keys.map(k => macroCard(k, d[k])).join('');
+    }
+    macroLoaded = true;
+    document.getElementById('last-update').textContent =
+      '更新：' + new Date().toLocaleTimeString('zh-TW');
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+// ── US Sectors ──
+let sectorsLoaded = false;
+async function loadUsSectors() {
+  const wrap = document.getElementById('us-sectors-wrap');
+  wrap.innerHTML = '<div class="loading"><span class="spinner"></span>載入板塊數據…</div>';
+  try {
+    const r = await icFetch('/api/ic/us/sectors');
+    const data = await r.json();
+    if (!data.length) { wrap.innerHTML = '<div class="empty-msg">無法取得板塊數據</div>'; return; }
+    const maxAbs = Math.max(...data.map(d => Math.abs(d.m1_pct||0)), 0.01);
+    wrap.innerHTML = `<table class="sector-table">
+      <thead><tr>
+        <th>板塊</th><th>ETF</th><th>今日</th><th>近1月</th><th>近3月</th><th>MA20</th>
+      </tr></thead>
+      <tbody>${data.map(s => {
+        const barW = Math.min(100, Math.abs(s.m1_pct||0) / maxAbs * 100);
+        const barClr = (s.m1_pct||0)>=0 ? 'var(--green)' : 'var(--red)';
+        return `<tr>
+          <td><b>${s.sector}</b></td>
+          <td style="color:var(--muted)">${s.symbol}</td>
+          <td>${pct(s.change_pct)}</td>
+          <td><div class="bar-cell">${pct(s.m1_pct)}
+            <div class="inline-bar" style="width:${barW}px;background:${barClr}"></div>
+          </div></td>
+          <td>${pct(s.m3_pct)}</td>
+          <td>${s.above_ma20?'<span class="up">↑ 多頭</span>':'<span class="down">↓ 空頭</span>'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+    sectorsLoaded = true;
+  } catch(e) {
+    wrap.innerHTML = '<div class="empty-msg">載入失敗</div>';
+  }
+}
+
+// ── Recommendations ──
+let _recsData = [];
+function recCard(r) {
+  const dir    = r.direction;
+  const scoreW = (r.score||0) + '%';
+  const scoreC = scoreBarColor(r.score);
+  const confPct = Math.round((r.confidence||0)*100);
+  const confW  = confPct + '%';
+  const srcBadges = (r.sources||[]).map(s =>
+    `<span class="src-badge ${s.source_type==='system'?'src-system':'src-user'}">${s.source_type==='system'?'✦':'◈'} ${s.name}</span>`
+  ).join('');
+  const safeName = (r.name||r.code).replace(/'/g,'&#39;');
+  return `<div class="rec-card ${dir.toLowerCase()}-card">
+    <div class="rec-header">
+      <span class="rec-code">${r.code}</span>
+      <span class="rec-name">${r.name||''}</span>
+      <span class="rec-mkt">${r.market||''}</span>
+      <span class="score-badge ${scoreClass(dir)}" style="margin-left:auto">${dir}</span>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:11px;color:var(--muted)">技術評分</span>
+        <span style="font-size:12px;font-weight:700">${r.score}/100</span>
+      </div>
+      <div class="score-bar-wrap">
+        <div class="score-bar" style="width:${scoreW};background:${scoreC}"></div>
+      </div>
+      ${r.confidence!=null?`<div style="display:flex;justify-content:space-between;margin:6px 0 4px">
+        <span style="font-size:11px;color:var(--muted)">AI 信心度</span>
+        <span style="font-size:11px;color:var(--purple)">${confPct}%</span>
+      </div>
+      <div class="conf-bar-wrap"><div class="conf-bar" style="width:${confW}"></div></div>`:''}
+    </div>
+    ${srcBadges?`<div class="src-badges-row">${srcBadges}</div>`:''}
+    ${(r.signals||[]).length ? `<div class="signals-wrap">
+      ${r.signals.map(s=>`<span class="signal-chip">${s}</span>`).join('')}
+    </div>` : ''}
+    ${r.ai_analysis
+      ? `<div class="ai-text">${escHtml(r.ai_analysis)}</div>`
+      : `<button class="analyze-btn" onclick="analyzeOne('${r.code}','${r.market}',this)">
+          🤖 AI 分析
+        </button>`
+    }
+    ${r.disclaimer?`<div style="font-size:10px;color:var(--muted);line-height:1.4">${r.disclaimer}</div>`:''}
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <button class="analyze-btn" style="background:var(--purple);color:#fff"
+        onclick="runBacktest('${r.code}','${r.market}','${safeName}')"
+      >▶ 回測</button>
+      <span style="font-size:10px;color:var(--muted)">${(r.created_at||'').slice(0,16)}</span>
+    </div>
+  </div>`;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function loadRecs() {
+  const grid = document.getElementById('recs-grid');
+  try {
+    const r = await icFetch('/api/ic/recommendations');
+    const data = await r.json();
+    _recsData = data;
+    renderRecs();
+  } catch(e) {
+    grid.innerHTML = '<div class="empty-msg">載入失敗</div>';
+  }
+}
+
+function renderRecs() {
+  const grid = document.getElementById('recs-grid');
+  const filtered = _marketFilter === 'ALL'
+    ? _recsData
+    : _recsData.filter(r => r.market === _marketFilter);
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="empty-msg">尚無推薦，點擊「產生推薦」</div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(recCard).join('');
+  // also render overview
+  const ovRecs = document.getElementById('overview-recs');
+  if (ovRecs) {
+    const top5 = _recsData.filter(r=>r.direction==='BUY').slice(0,3);
+    ovRecs.innerHTML = top5.length
+      ? `<div class="grid-3">${top5.map(recCard).join('')}</div>`
+      : '<div class="empty-msg">尚無買入推薦</div>';
+  }
+}
+
+async function refreshRecs() {
+  await getToken();
+  const useAI = document.getElementById('ai-rec-toggle').classList.contains('active');
+  document.getElementById('recs-loading').style.display = '';
+  document.getElementById('recs-grid').innerHTML = '';
+  try {
+    const r = await icFetch('/api/ic/recommendations/refresh', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ use_ai: useAI, market: _marketFilter }),
+    });
+    const data = await r.json();
+    _recsData = data.results || [];
+    renderRecs();
+  } catch(e) {
+    document.getElementById('recs-grid').innerHTML = '<div class="empty-msg">產生失敗</div>';
+  } finally {
+    document.getElementById('recs-loading').style.display = 'none';
+  }
+}
+
+async function analyzeOne(code, market, btn) {
+  await getToken();
+  btn.disabled = true;
+  btn.textContent = '分析中…';
+  try {
+    const r = await icFetch('/api/ic/analyze', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ code, market, use_ai: true }),
+    });
+    const d = await r.json();
+    const card = btn.closest('.rec-card');
+    btn.replaceWith(Object.assign(document.createElement('div'), {
+      className: 'ai-text',
+      textContent: d.ai_analysis || '（無分析結果）',
+    }));
+    // update cache
+    const idx = _recsData.findIndex(x => x.code===code);
+    if (idx>=0) _recsData[idx].ai_analysis = d.ai_analysis;
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '🤖 AI 分析';
+  }
+}
+
+// ── TW recs ──
+async function loadTwRecs() {
+  const wrap = document.getElementById('tw-recs-wrap');
+  const twData = _recsData.filter(r => r.market === 'TW');
+  if (!twData.length) {
+    wrap.innerHTML = '<div class="empty-msg">尚無台股數據，請至「AI建議」頁產生</div>';
+    return;
+  }
+  wrap.innerHTML = `<div class="grid-3">${twData.map(recCard).join('')}</div>`;
+}
+
+// ── Single stock analysis ──
+async function analyzeSingle(market) {
+  await getToken();
+  const codeEl = document.getElementById(market==='TW'?'tw-single-code':'us-single-code');
+  const aiEl   = document.getElementById(market==='TW'?'tw-ai-toggle':'us-ai-toggle');
+  const resEl  = document.getElementById(market==='TW'?'tw-single-result':'us-single-result');
+  const code   = codeEl.value.trim().toUpperCase();
+  if (!code) { resEl.innerHTML = '<div class="empty-msg">請輸入代碼</div>'; return; }
+  const useAI  = aiEl.classList.contains('active');
+  resEl.innerHTML = '<div class="loading"><span class="spinner"></span>分析中…</div>';
+  try {
+    const r = await icFetch('/api/ic/analyze', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ code, market, use_ai: useAI }),
+    });
+    const d = await r.json();
+    if (d.error) { resEl.innerHTML = `<div class="empty-msg">${d.error}</div>`; return; }
+    const t = d.tech || {};
+    const ind = t.indicators || {};
+    const confPct = Math.round((d.confidence||0)*100);
+    const srcBadges = (d.sources||[]).map(s =>
+      `<span class="src-badge ${s.source_type==='system'?'src-system':'src-user'}">${s.source_type==='system'?'✦':'◈'} ${s.name}</span>`
+    ).join('');
+    resEl.innerHTML = `<div class="rec-card ${(t.direction||'hold').toLowerCase()}-card">
+      <div class="rec-header">
+        <span class="rec-code">${d.code}</span>
+        <span class="rec-name">${d.name||''}</span>
+        <span class="rec-mkt">${d.market}</span>
+        <span class="score-badge ${scoreClass(t.direction||'HOLD')}" style="margin-left:auto">
+          ${t.direction||'HOLD'} · ${t.score||0}/100
+        </span>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:11px;color:var(--muted)">技術評分</span>
+          <span style="font-size:12px;font-weight:700">${t.score||0}/100</span>
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-bar" style="width:${t.score||0}%;background:${scoreBarColor(t.score||0)}"></div>
+        </div>
+        ${d.confidence!=null?`<div style="display:flex;justify-content:space-between;margin:6px 0 4px">
+          <span style="font-size:11px;color:var(--muted)">AI 信心度</span>
+          <span style="font-size:11px;color:var(--purple)">${confPct}%</span>
+        </div>
+        <div class="conf-bar-wrap"><div class="conf-bar" style="width:${confPct}%"></div></div>`:''}
+      </div>
+      ${srcBadges?`<div class="src-badges-row">${srcBadges}</div>`:''}
+      ${(t.signals||[]).length?`<div class="signals-wrap">
+        ${t.signals.map(s=>`<span class="signal-chip">${s}</span>`).join('')}
+      </div>`:''}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;font-size:12px">
+        ${Object.entries(ind).map(([k,v])=>`<div class="card" style="padding:8px">
+          <b>${k}</b><br>${Object.entries(v).map(([kk,vv])=>`${kk}: ${typeof vv==='boolean'?(vv?'是':'否'):vv}`).join(' | ')}
+        </div>`).join('')}
+      </div>
+      ${d.ai_analysis?`<div class="ai-text">${escHtml(d.ai_analysis)}</div>`:''}
+      ${d.disclaimer?`<div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.4">${d.disclaimer}</div>`:''}
+    </div>`;
+  } catch(e) {
+    resEl.innerHTML = '<div class="empty-msg">分析失敗</div>';
+  }
+}
+
+// ── Settings ──
+function selectHolding(el) {
+  document.querySelectorAll('#holding-chips .chip-toggle').forEach(e=>e.classList.remove('active'));
+  el.classList.add('active');
+}
+function selectRisk(el) {
+  document.querySelectorAll('#risk-chips .chip-toggle').forEach(e=>e.classList.remove('active'));
+  el.classList.add('active');
+}
+function toggleIndicator(el) { el.classList.toggle('active'); }
+
+async function loadSettings() {
+  try {
+    const r = await icFetch('/api/ic/settings');
+    const d = await r.json();
+    // holding
+    document.querySelectorAll('#holding-chips .chip-toggle').forEach(el => {
+      el.classList.toggle('active', el.dataset.val === d.holding_period);
+    });
+    // risk
+    document.querySelectorAll('#risk-chips .chip-toggle').forEach(el => {
+      el.classList.toggle('active', el.dataset.val === d.risk_level);
+    });
+    // indicators
+    const inds = Array.isArray(d.preferred_indicators) ? d.preferred_indicators : [];
+    document.querySelectorAll('#indicator-chips .chip-toggle').forEach(el => {
+      el.classList.toggle('active', inds.includes(el.dataset.val));
+    });
+    // api key
+    if (d.claude_api_key) document.getElementById('claude-api-key').value = d.claude_api_key;
+    // model selection
+    const modelMap = {
+      'model_stock_analyze': 'model-stock-analyze',
+      'model_rec_scan':      'model-rec-scan',
+      'model_batch_score':   'model-batch-score',
+      'model_macro_ai':      'model-macro-ai',
+      'model_sentiment':     'model-sentiment',
+    };
+    for (const [key, elId] of Object.entries(modelMap)) {
+      const el = document.getElementById(elId);
+      if (el && d[key]) el.value = d[key];
+    }
+  } catch(e) { console.error(e); }
+  await loadNotifyConfig();
+}
+
+function updateThresholdLabel(val) {
+  const el = document.getElementById('ic-threshold-label');
+  if (el) el.textContent = Math.round(val * 100) + '%';
+}
+
+async function loadNotifyConfig() {
+  try {
+    const r = await icFetch('/api/ic/notify-config');
+    const d = await r.json();
+    const cb = document.getElementById('ic-notify-enabled');
+    const sl = document.getElementById('ic-notify-threshold');
+    if (cb) cb.checked = d.ic_notify_enabled;
+    if (sl) {
+      sl.value = d.ic_notify_threshold;
+      updateThresholdLabel(d.ic_notify_threshold);
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function saveNotifyConfig() {
+  await getToken();
+  const cb = document.getElementById('ic-notify-enabled');
+  const sl = document.getElementById('ic-notify-threshold');
+  if (!cb || !sl) return;
+  try {
+    await icFetch('/api/ic/notify-config', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        ic_notify_enabled:   cb.checked,
+        ic_notify_threshold: parseFloat(sl.value),
+      }),
+    });
+  } catch(e) { console.error('saveNotifyConfig:', e); }
+}
+
+async function saveSettings() {
+  await getToken();
+  const holding = document.querySelector('#holding-chips .chip-toggle.active')?.dataset.val || '波段';
+  const risk    = document.querySelector('#risk-chips .chip-toggle.active')?.dataset.val  || '穩健';
+  const inds    = [...document.querySelectorAll('#indicator-chips .chip-toggle.active')].map(e=>e.dataset.val);
+  const apiKey  = document.getElementById('claude-api-key').value.trim();
+  try {
+    await icFetch('/api/ic/settings', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        holding_period:       holding,
+        risk_level:           risk,
+        preferred_indicators: inds,
+        claude_api_key:       apiKey,
+        model_stock_analyze:  document.getElementById('model-stock-analyze').value,
+        model_rec_scan:       document.getElementById('model-rec-scan').value,
+        model_batch_score:    document.getElementById('model-batch-score').value,
+        model_macro_ai:       document.getElementById('model-macro-ai').value,
+        model_sentiment:      document.getElementById('model-sentiment').value,
+      }),
+    });
+    const msg = document.getElementById('save-msg');
+    msg.style.display = '';
+    setTimeout(() => msg.style.display='none', 2500);
+  } catch(e) { alert('儲存失敗'); }
+}
+
+// ── Refresh all ──
+async function refreshAll() {
+  await loadMacro(true);
+  await loadUsSectors();
+}
+
+// ── Macro Interpretation ──
+async function loadInterpretation() {
+  try {
+    const r = await icFetch('/api/ic/macro/interpretation');
+    const d = await r.json();
+    const html = envBannerHtml(d);
+    const ov = document.getElementById('env-banner-overview');
+    const mc = document.getElementById('env-banner-macro');
+    if (ov) ov.innerHTML = html;
+    if (mc) mc.innerHTML = html;
+  } catch(e) {
+    ['env-banner-overview','env-banner-macro'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
+  }
+}
+
+function envBannerHtml(d) {
+  const c = ({'green':1,'yellow':1,'red':1}[d.color]) ? d.color : 'yellow';
+  const sigsHtml = (d.signals||[]).map(s => {
+    const sc = ({'green':1,'yellow':1,'red':1}[s.color]) ? s.color : '';
+    return `<span class="env-sig ${sc}">${escHtml(s.key||'')}: ${escHtml(s.status||'')} — ${escHtml(s.detail||'')}</span>`;
+  }).join('');
+  return `<div class="env-banner ${c}">
+    <span class="env-tag ${c}">${escHtml(d.label||'')}</span>
+    <span class="env-advice">${escHtml(d.advice||'')}</span>
+    <div class="env-sigs">${sigsHtml}</div>
+  </div>`;
+}
+
+// ── TW Institutional ──
+async function loadTwInstitutional() {
+  const wrap = document.getElementById('tw-inst-wrap');
+  if (!wrap) return;
+  try {
+    const r = await icFetch('/api/ic/tw/institutional-top');
+    const data = await r.json();
+    if (!data.length) {
+      wrap.innerHTML = '<div class="empty-msg">尚無籌碼資料（請先至主系統抓取法人資料）</div>';
+      return;
+    }
+    wrap.innerHTML = `<div class="card" style="overflow-x:auto"><table class="inst-table">
+      <thead><tr>
+        <th>代碼</th><th>名稱</th><th>外資(張)</th><th>投信(張)</th><th>自營(張)</th>
+        <th>三大合計</th><th>融資</th><th>日期</th>
+      </tr></thead>
+      <tbody>${data.map(r => `<tr>
+        <td><b>${r.code}</b></td>
+        <td>${r.name}</td>
+        <td class="${r.foreign>0?'up':'down'}">${r.foreign>0?'+':''}${r.foreign}</td>
+        <td class="${r.trust>0?'up':'down'}">${r.trust>0?'+':''}${r.trust}</td>
+        <td class="${r.dealer>0?'up':'down'}">${r.dealer>0?'+':''}${r.dealer}</td>
+        <td class="${r.total>0?'up':r.total<0?'down':'flat'}" style="font-weight:700">
+          ${r.total>0?'+':''}${r.total}
+        </td>
+        <td class="flat">${r.margin}</td>
+        <td class="flat" style="font-size:10px">${(r.date||'').slice(0,10)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch(e) {
+    wrap.innerHTML = '<div class="empty-msg">載入失敗</div>';
+  }
+}
+
+// ── Batch Score ──
+async function batchScore(market) {
+  await getToken();
+  const inputId  = market==='TW' ? 'tw-batch-input' : 'us-batch-input';
+  const aiId     = market==='TW' ? 'tw-batch-ai'    : 'us-batch-ai';
+  const resultId = market==='TW' ? 'tw-batch-result': 'us-batch-result';
+  const raw    = document.getElementById(inputId).value;
+  const useAI  = document.getElementById(aiId).classList.contains('active');
+  const codes  = raw.split(/[\n,，\s]+/).map(s=>s.trim().toUpperCase()).filter(Boolean);
+  if (!codes.length) return;
+  const resEl = document.getElementById(resultId);
+  resEl.innerHTML = '<div class="loading" style="grid-column:1/-1"><span class="spinner"></span>評分中…</div>';
+  try {
+    const r = await icFetch('/api/ic/batch-score', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ stocks: codes.map(c=>({code:c,market})), use_ai: useAI }),
+    });
+    const d = await r.json();
+    const results = d.results || [];
+    if (!results.length) { resEl.innerHTML = '<div class="empty-msg">無法取得數據</div>'; return; }
+    resEl.innerHTML = results.map(r => recCard({...r, created_at:''})).join('');
+  } catch(e) {
+    resEl.innerHTML = '<div class="empty-msg">評分失敗</div>';
+  }
+}
+
+// ── Backtest ──
+function closeBtModal() {
+  document.getElementById('bt-modal').classList.remove('show');
+}
+
+async function runBacktest(code, market, name) {
+  await getToken();
+  document.getElementById('bt-title').textContent = `回測：${name||code} (${market})`;
+  document.getElementById('bt-content').innerHTML = '';
+  document.getElementById('bt-loading').style.display = '';
+  document.getElementById('bt-modal').classList.add('show');
+
+  const startYear = new Date();
+  startYear.setFullYear(startYear.getFullYear() - 2);
+  const start = startYear.toISOString().slice(0,10);
+
+  try {
+    const r = await icFetch('/api/ic/backtest-preview', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ code, market, start }),
+    });
+    const d = await r.json();
+    document.getElementById('bt-loading').style.display = 'none';
+    const sum = d.summary || {};
+    const ret = sum.total_return_pct || 0;
+    const retCls = ret>=0?'up':'down';
+
+    let tradesHtml = '';
+    const trades = (d.trades||[]).slice(-10).reverse();
+    if (trades.length) {
+      tradesHtml = `<div style="font-size:12px;color:var(--muted);margin:12px 0 6px">最近10筆交易</div>
+        <table class="inst-table">
+          <thead><tr><th>日期</th><th>類型</th><th>訊號</th><th>價格</th><th>獲利</th></tr></thead>
+          <tbody>${trades.map(t=>`<tr>
+            <td>${(t.date||'').slice(0,10)}</td>
+            <td>${t.action||''}</td>
+            <td style="font-size:11px">${t.signal||''}</td>
+            <td>$${t.price||0}</td>
+            <td class="${(t.pnl||0)>=0?'up':'down'}">${(t.pnl||0)>=0?'+':''}${((t.pnl||0)).toFixed(0)}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+    }
+
+    document.getElementById('bt-content').innerHTML = `
+      <div class="bt-stat-grid">
+        <div class="bt-stat">
+          <div class="bt-stat-label">總報酬</div>
+          <div class="bt-stat-val ${retCls}">${ret>=0?'+':''}${ret.toFixed(1)}%</div>
+        </div>
+        <div class="bt-stat">
+          <div class="bt-stat-label">CAGR</div>
+          <div class="bt-stat-val ${(sum.cagr_pct||0)>=0?'up':'down'}">${(sum.cagr_pct||0).toFixed(1)}%</div>
+        </div>
+        <div class="bt-stat">
+          <div class="bt-stat-label">交易次數</div>
+          <div class="bt-stat-val">${sum.total_trades||0}</div>
+        </div>
+        <div class="bt-stat">
+          <div class="bt-stat-label">勝率</div>
+          <div class="bt-stat-val">${(sum.win_rate_pct||0).toFixed(1)}%</div>
+        </div>
+        <div class="bt-stat">
+          <div class="bt-stat-label">最大回撤</div>
+          <div class="bt-stat-val down">-${(sum.max_drawdown_pct||0).toFixed(1)}%</div>
+        </div>
+        <div class="bt-stat">
+          <div class="bt-stat-label">Sharpe</div>
+          <div class="bt-stat-val">${(sum.sharpe||0).toFixed(2)}</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">
+        回測期間：${start} ～ 今日　本金：$1,000,000
+      </div>
+      ${tradesHtml}`;
+  } catch(e) {
+    document.getElementById('bt-loading').style.display = 'none';
+    document.getElementById('bt-content').innerHTML = '<div class="empty-msg">回測失敗</div>';
+  }
+}
+
+// ── History Tracking ──
+async function loadHistory() {
+  const wrap = document.getElementById('history-wrap');
+  if (!wrap) return;
+  try {
+    const r = await icFetch('/api/ic/recommendations/history');
+    const data = await r.json();
+    if (!data.length) {
+      wrap.innerHTML = '<div class="empty-msg" style="font-size:12px">尚無歷史記錄（產生推薦後自動存入）</div>';
+      return;
+    }
+    const outcomeLabel = {WIN:'勝','LOSS':'敗','NEUTRAL':'持平','PENDING':'待評估'};
+    const outcomeClass = {WIN:'outcome-win',LOSS:'outcome-loss',NEUTRAL:'outcome-neutral',PENDING:'outcome-pending'};
+    wrap.innerHTML = `<div class="card" style="overflow-x:auto"><table class="hist-table">
+      <thead><tr>
+        <th>代碼</th><th>名稱</th><th>市場</th><th>方向</th><th>評分</th><th>信心</th>
+        <th>進場價</th><th>評估價</th><th>損益%</th><th>結果</th><th>建議時間</th><th>評估時間</th>
+      </tr></thead>
+      <tbody>${data.map(h => {
+        const oc = h.outcome || 'PENDING';
+        const pnl = h.pnl_pct != null ? `<span class="${h.pnl_pct>=0?'up':'down'}">${h.pnl_pct>=0?'+':''}${h.pnl_pct.toFixed(1)}%</span>` : '—';
+        return `<tr>
+          <td><b>${h.code}</b></td>
+          <td style="color:var(--muted)">${h.name||''}</td>
+          <td style="color:var(--muted)">${h.market}</td>
+          <td><span class="score-badge ${scoreClass(h.direction)}">${h.direction}</span></td>
+          <td>${h.score||0}</td>
+          <td style="color:var(--purple)">${Math.round((h.confidence||0.5)*100)}%</td>
+          <td>${h.entry_price!=null?h.entry_price.toFixed(2):'—'}</td>
+          <td>${h.eval_price!=null?h.eval_price.toFixed(2):'—'}</td>
+          <td>${pnl}</td>
+          <td class="${outcomeClass[oc]||'outcome-pending'}">${outcomeLabel[oc]||oc}</td>
+          <td style="font-size:10px;color:var(--muted)">${(h.created_at||'').slice(0,16)}</td>
+          <td style="font-size:10px;color:var(--muted)">${(h.eval_at||'').slice(0,16)||'—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  } catch(e) {
+    wrap.innerHTML = '<div class="empty-msg">載入失敗</div>';
+  }
+}
+
+async function evaluateHistory() {
+  await getToken();
+  const msg = document.getElementById('eval-msg');
+  msg.style.display = ''; msg.textContent = '評估中…';
+  try {
+    const r = await icFetch('/api/ic/recommendations/evaluate', {method:'POST', headers: authHeaders()});
+    const d = await r.json();
+    msg.textContent = `完成 ${d.count} 筆`;
+    setTimeout(() => msg.style.display='none', 3000);
+    loadHistory();
+  } catch(e) {
+    msg.textContent = '失敗'; setTimeout(() => msg.style.display='none', 2000);
+  }
+}
+
+// ── Sources Management ──
+async function loadSources() {
+  try {
+    const r = await icFetch('/api/ic/sources');
+    const d = await r.json();
+    renderSysSources(d.system || []);
+    renderUserSources(d.user || []);
+    loadNewsCache();
+  } catch(e) {
+    document.getElementById('sys-sources-wrap').innerHTML = '<div class="empty-msg">載入失敗</div>';
+    document.getElementById('user-sources-wrap').innerHTML = '<div class="empty-msg">載入失敗</div>';
+  }
+}
+
+function renderSysSources(sources) {
+  const wrap = document.getElementById('sys-sources-wrap');
+  if (!sources.length) { wrap.innerHTML = '<div class="empty-msg">無系統來源</div>'; return; }
+  wrap.innerHTML = `<table class="src-table">
+    <thead><tr><th>名稱</th><th>市場</th><th>類型</th><th>說明</th><th>可靠性</th></tr></thead>
+    <tbody>${sources.map(s=>`<tr>
+      <td><span class="src-badge src-system">✦ ${s.name}</span></td>
+      <td style="color:var(--muted)">${s.market}</td>
+      <td style="color:var(--muted)">${s.type}</td>
+      <td style="color:var(--muted);font-size:11px">${s.description||''}</td>
+      <td><span class="src-badge ${s.reliability==='confirmed'?'src-system':'src-user'}">${s.reliability==='confirmed'?'確認':'參考'}</span></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function renderUserSources(sources) {
+  const wrap = document.getElementById('user-sources-wrap');
+  if (!sources.length) { wrap.innerHTML = '<div class="empty-msg">尚無自定義來源</div>'; return; }
+  wrap.innerHTML = `<table class="src-table">
+    <thead><tr><th>名稱</th><th>市場</th><th>URL</th><th>類型</th><th>最後抓取</th><th>操作</th></tr></thead>
+    <tbody>${sources.map(s=>`<tr>
+      <td><span class="src-badge src-user">◈ ${s.name}</span></td>
+      <td style="color:var(--muted)">${s.market}</td>
+      <td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        ${s.url?`<a href="${s.url}" target="_blank" style="color:var(--accent)">${s.url}</a>`:'—'}</td>
+      <td style="color:var(--muted)">${s.type}</td>
+      <td style="font-size:10px;color:var(--muted)">${s.last_fetched?(s.last_fetched||'').slice(0,16):'—'}</td>
+      <td style="display:flex;gap:4px">
+        <button class="analyze-btn" style="padding:3px 8px" id="fetch-btn-${s.db_id}"
+            onclick="fetchOneSource(${s.db_id})">抓取</button>
+        <button class="analyze-btn" style="background:var(--red);color:#fff;padding:3px 8px"
+            onclick="deleteSource(${s.db_id})">刪除</button>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function fetchOneSource(dbId) {
+  await getToken();
+  const btn = document.getElementById(`fetch-btn-${dbId}`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const r = await fetch(`/api/ic/sources/${dbId}/fetch`, {method:'POST', headers: authHeaders()});
+    const d = await r.json();
+    if (btn) { btn.disabled = false; btn.textContent = d.ok ? '✓' : '✗'; }
+    loadSources();
+    loadNewsCache();
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '✗'; }
+  }
+}
+
+async function fetchAllSources() {
+  await getToken();
+  const msg = document.getElementById('fetch-all-msg');
+  msg.style.display = ''; msg.textContent = '抓取中…';
+  try {
+    const r = await icFetch('/api/ic/sources/fetch-all', {method:'POST', headers: authHeaders()});
+    const d = await r.json();
+    msg.textContent = `完成 ${d.count} 筆`;
+    setTimeout(() => msg.style.display='none', 3000);
+    loadSources();
+    loadNewsCache();
+  } catch(e) {
+    msg.textContent = '失敗'; setTimeout(() => msg.style.display='none', 2000);
+  }
+}
+
+async function loadNewsCache() {
+  const wrap = document.getElementById('news-cache-wrap');
+  if (!wrap) return;
+  try {
+    const r = await icFetch('/api/ic/sources/news');
+    const data = await r.json();
+    if (!data.length) {
+      wrap.innerHTML = '<div class="empty-msg" style="font-size:12px">尚無快取內容</div>';
+      return;
+    }
+    wrap.innerHTML = data.map(n => `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="src-badge src-user">◈ ${n.name}</span>
+        <span style="font-size:10px;color:var(--muted)">${n.market} · ${n.type}</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:auto">${(n.fetched_at||'').slice(0,16)}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);white-space:pre-wrap;line-height:1.5;background:var(--bg);border-radius:4px;padding:8px;max-height:120px;overflow-y:auto">${escHtml(n.content||'')}</div>
+    </div>`).join('');
+  } catch(e) {
+    wrap.innerHTML = '<div class="empty-msg">載入失敗</div>';
+  }
+}
+
+async function addSource() {
+  await getToken();
+  const name = document.getElementById('src-name').value.trim();
+  if (!name) { alert('請填寫名稱'); return; }
+  try {
+    await icFetch('/api/ic/sources', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({
+        name,
+        url:         document.getElementById('src-url').value.trim(),
+        type:        document.getElementById('src-type').value,
+        market:      document.getElementById('src-market').value,
+        reliability: document.getElementById('src-reliability').value,
+        description: document.getElementById('src-desc').value.trim(),
+      }),
+    });
+    ['src-name','src-url','src-desc'].forEach(id => document.getElementById(id).value = '');
+    const msg = document.getElementById('src-msg');
+    msg.style.display = '';
+    setTimeout(() => msg.style.display='none', 2000);
+    loadSources();
+  } catch(e) { alert('新增失敗'); }
+}
+
+async function deleteSource(dbId) {
+  if (!confirm('確定刪除此來源？')) return;
+  await getToken();
+  try {
+    await fetch(`/api/ic/sources/${dbId}`, { method: 'DELETE', headers: authHeaders() });
+    loadSources();
+  } catch(e) { alert('刪除失敗'); }
+}
+
+// ── Init ──
+(async () => {
+  await getToken();
+  await Promise.all([loadMacro(), loadInterpretation(), loadRecs()]);
+})();
+</script>
+</body>
+</html>
