@@ -2527,15 +2527,49 @@ def scan_after_hours():
 
 # ── Phase 3: 籌碼模組 ────────────────────────────
 
+# ── TWSE 抓取共用層：明確跟隨 307/308 轉址 + 把「節流型 307」標為可重試 ───────────────
+# 根因（2026-06-25 cockpit 全量回補 2020 大量 HTTP 307）：TWSE WAF/CDN 在高併發全區間回補時，
+# 對該 IP 丟出『307 Temporary Redirect 但不帶 Location』的暫時性節流訊號。Python urllib 的
+# HTTPRedirectHandler 只有在帶 Location 時才跟隨；無 Location → 落到 http_error_default →
+# 原樣上拋 HTTPError 307。隔離複驗(Py3.12)：2020 日期單打/40 併發 hammer 皆 200，證實 307 是
+# 「負載觸發的暫時節流」而非舊日期端點搬移（端點未變）。修法：①帶 Location 的 307/308 照樣跟隨
+# 到目標 URL；②無 Location 的節流 307/308 與 403/429/5xx 一律轉 _TwseThrottle → 由 guard 退避重試。
+class _TwseThrottle(Exception):
+    """TWSE 暫時性節流/轉址訊號（307/308 無 Location、403、429、5xx）。
+    獨立型別 → _twse_fetch_with_guard 視為「該退避重試」而非永久失敗。"""
+    pass
+
+class _TwseRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """帶 Location 的 307/308 → 沿用 urllib 既有邏輯跟隨到目標 URL（GET 無 body，安全）；
+    無 Location 的 307/308（TWSE 節流）→ 上拋 _TwseThrottle。只作用於 TWSE opener，不動全域 urllib。"""
+    def http_error_307(self, req, fp, code, msg, headers):
+        if "location" not in headers and "uri" not in headers:
+            raise _TwseThrottle(f"HTTP {code} {msg}: no Location（TWSE 節流）")
+        return urllib.request.HTTPRedirectHandler.http_error_302(
+            self, req, fp, code, msg, headers)
+    http_error_308 = http_error_307
+
+_twse_opener = urllib.request.build_opener(_TwseRedirectHandler)
+
+def _twse_urlopen(url: str, timeout: int = 15) -> dict:
+    """TWSE 抓取單一入口：帶 UA、跟隨 307/308 至目標、把節流類 HTTP 錯誤統一轉 _TwseThrottle
+    供 guard 退避重試；回傳已 decode 的 JSON dict。非節流錯誤（如 404）原樣上拋（不浪費重試）。"""
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        resp = _twse_opener.open(req, timeout=timeout)
+        return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code in (307, 308, 403, 429, 500, 502, 503, 504):
+            raise _TwseThrottle(f"HTTP {e.code} {e.reason}（TWSE 節流/轉址）") from e
+        raise
+
 def _fetch_twse_institutional(date_str: str, raise_on_error: bool = False) -> list:
     """從台灣證交所抓三大法人買賣超（個股）。
     raise_on_error=True 時，網路/限流等例外會上拋（供歷史回補管線區分「該重試的網路錯誤」
     vs「該跳過的非交易日/未發布」）；stat!=OK（節假日/無資料）仍回 []（不上拋，不該重試）。"""
     url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALLBUT0999&response=json"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        resp = urllib.request.urlopen(req, timeout=15)
-        data = json.loads(resp.read().decode("utf-8"))
+        data = _twse_urlopen(url, timeout=15)
         if data.get("stat") != "OK" or "data" not in data:
             return []
         results = []
@@ -2580,9 +2614,7 @@ def _fetch_twse_margin(date_str: str, raise_on_error: bool = False) -> list:
     """從台灣證交所抓融資融券餘額。raise_on_error 語意同 _fetch_twse_institutional。"""
     url = f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=STOCK&response=json"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        resp = urllib.request.urlopen(req, timeout=15)
-        data = json.loads(resp.read().decode("utf-8"))
+        data = _twse_urlopen(url, timeout=15)
         if data.get("stat") != "OK":
             return []
         tables = data.get("tables", [])
@@ -2841,11 +2873,12 @@ def _reconcile_chip_backfill_on_startup():
 
 _reconcile_chip_backfill_on_startup()
 
-def _twse_fetch_with_guard(fn, date_str: str, max_retries: int = 4):
-    """對單一 TWSE 抓取套護欄：token-bucket 限流 + 指數退避重試。
-    只對「網路/限流例外」重試（fn 以 raise_on_error=True 上拋）；
+def _twse_fetch_with_guard(fn, date_str: str, max_retries: int = 6):
+    """對單一 TWSE 抓取套護欄：token-bucket 限流 + 指數退避(+jitter)重試。
+    只對「網路/限流例外」重試（fn 以 raise_on_error=True 上拋，含 _TwseThrottle：307/308/429/5xx）；
     genuine no-data（節假日/未發布）由 fn 回 [] → 不重試。
-    退避：1.5s, 3s, 6s, 12s（上限 30s）。重試耗盡才上拋。"""
+    退避：1.5/3/6/12/24s（上限 45s）+ 0~1.5s 抖動 —— 抖動化解 thread pool 重試對齊的
+    thundering-herd（cockpit 高併發全區間回補觸發 TWSE 307 暫時節流時，足以撐過節流窗）。重試耗盡才上拋。"""
     last_err = None
     for attempt in range(max_retries):
         wait = _rl_twse.consume(1)
@@ -2856,7 +2889,7 @@ def _twse_fetch_with_guard(fn, date_str: str, max_retries: int = 4):
         except Exception as e:
             last_err = e
             if attempt < max_retries - 1:
-                backoff = min(2 ** attempt * 1.5, 30.0)
+                backoff = min(2 ** attempt * 1.5, 45.0) + random.uniform(0, 1.5)
                 print(f"[T86回補] {date_str} 抓取第{attempt+1}次失敗({e})，{backoff:.1f}s 後重試")
                 time.sleep(backoff)
     raise RuntimeError(f"TWSE fetch failed after {max_retries} retries: {last_err}")
