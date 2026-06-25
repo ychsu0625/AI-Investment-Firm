@@ -10381,8 +10381,12 @@ def _ic_detect_sources(code: str, market: str) -> list:
     return sources
 
 
-def _ic_calc_confidence(tech: dict, sources: list, macro: dict) -> float:
-    """計算 AI 信心度 0.0~0.82（永遠不會是 1.0）"""
+def _ic_calc_confidence(tech: dict, sources: list, macro: dict, cal_row: dict = None) -> float:
+    """計算 AI 信心度 0.0~0.82（永遠不會是 1.0）。
+
+    cal_row=None → 沿用既有手調公式（零回歸：行為與改版前 byte-equal）。
+    cal_row 提供（MVP 引擎複合桶命中）→ R-PROD-2：信心度 = 分條件回測勝率(地基)
+      × 即時確認係數微調，套誠實上限（桶未過閘/N<30 → 上限 0.45）。"""
     score = tech.get("score", 50)
     n_confirmed = sum(1 for s in sources if s.get("reliability") == "confirmed")
     n_total     = max(len(sources), 1)
@@ -10391,7 +10395,17 @@ def _ic_calc_confidence(tech: dict, sources: list, macro: dict) -> float:
     vix         = (macro.get("VIX") or {}).get("price", 20)
     risk_pen    = 0.08 if vix > 25 else 0.0   # 高 VIX 降低信心
     conf = 0.50 + base * 0.28 + src_bonus - risk_pen
-    return round(max(0.28, min(0.82, conf)), 2)
+    conf = round(max(0.28, min(0.82, conf)), 2)
+    if cal_row is None:
+        return conf                            # ── 零回歸：未啟用 MVP 背書 ──
+    # ── MVP 背書：勝率地基 × 即時確認係數（確認源最多 +9%），套誠實上限 ──
+    wr = cal_row.get("win_rate")
+    if wr is None:
+        return conf
+    backed = (wr / 100.0) * (1.0 + min(n_confirmed, 3) * 0.03)
+    if (cal_row.get("n") or 0) < 30 or cal_row.get("status") == "FAIL":
+        backed = min(backed, 0.45)             # 桶未過閘/資料不足 → 硬上限 0.45
+    return round(max(0.28, min(0.82, backed)), 2)
 
 
 def _call_claude_analysis(prompt: str, max_tokens: int = 1000) -> str:
@@ -10603,13 +10617,269 @@ def _detect_market(code: str) -> str:
         return "TW"
     return "US"
 
+# ══════════════════════════════════════════════════════════════════════════
+# 量產引擎 MVP（production-engine-plan §七）— additive / 可關，預設不破壞既有輸出
+#   R-PROD-1 regime 閘 + R-PROD-2 信心度 base-rate 背書 + R-PROD-3 A4 接 runtime
+#   所有新邏輯僅在 mvp_engine=True 時啟動；off 時既有 IC 路徑 byte-equal。
+# ══════════════════════════════════════════════════════════════════════════
+
+# regime → 倉位係數（regime-rulebook §3，單一真實來源寫死在 code）
+_REGIME_POS_COEF = {"TREND_UP": 1.0, "MEAN_REVERT": 0.8, "CRISIS": 0.3,
+                    "RISK_OFF": 0.0, "UNKNOWN": 0.0}
+
+def _regime_position_coef(regime: str) -> float:
+    return _REGIME_POS_COEF.get((regime or "UNKNOWN").upper(), 0.0)
+
+
+def _ensure_ic_calibration_table():
+    """R-PROD-2/R-PROD-7：信心度校準表（regime×複合桶 → 勝率/超額/CI/N/status）。
+    冪等建表 + 種入 MVP 硬寫的 A4 TREND_UP 桶當地基（夜間 base-rate job 之後會覆寫）。"""
+    con = db()
+    con.execute("""CREATE TABLE IF NOT EXISTS ic_confidence_calibration(
+        regime     TEXT NOT NULL,
+        bucket     TEXT NOT NULL,
+        win_rate   REAL,           -- 條件切片勝率 %
+        excess_avg REAL,           -- 對公平基準平均超額 %
+        ci_low     REAL,           -- 超額 95% CI 下界
+        ci_high    REAL,           -- 超額 95% CI 上界
+        n          INTEGER,        -- 樣本筆數
+        status     TEXT,           -- ALPHA_CANDIDATE / KEEPER / FAIL / HEURISTIC
+        benchmark  TEXT,           -- 超額對照基準（equal_weight / twii / 0050）
+        note       TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(regime, bucket)
+    )""")
+    seed = con.execute(
+        "SELECT 1 FROM ic_confidence_calibration WHERE regime='TREND_UP' AND bucket='A4topsec'"
+    ).fetchone()
+    if not seed:
+        con.execute("""INSERT INTO ic_confidence_calibration
+            (regime,bucket,win_rate,excess_avg,ci_low,ci_high,n,status,benchmark,note,updated_at)
+            VALUES('TREND_UP','A4topsec',58.0,0.83,0.29,1.43,2748,'ALPHA_CANDIDATE','equal_weight',?,?)""",
+            ("MVP 硬寫地基：A4 板塊兩層複合 TREND_UP 條件切片，對等權公平基準超額（公司唯一過 ALPHA 閘的候選 alpha）",
+             datetime.now().isoformat()))
+    con.commit(); con.close()
+
+
+def _ic_calibration_lookup(regime: str, bucket: str) -> dict | None:
+    """查校準表；查無回 None（→ 信心度走既有手調公式）。"""
+    if not regime or not bucket:
+        return None
+    try:
+        _ensure_ic_calibration_table()
+        con = db(); cur = con.cursor()
+        cur.execute("""SELECT win_rate,excess_avg,ci_low,ci_high,n,status,benchmark,note
+                       FROM ic_confidence_calibration WHERE regime=? AND bucket=?""",
+                    (regime, bucket))
+        r = cur.fetchone(); con.close()
+    except Exception:
+        return None
+    if not r:
+        return None
+    return {"regime": regime, "bucket": bucket, "win_rate": r[0], "excess_avg": r[1],
+            "ci_low": r[2], "ci_high": r[3], "n": r[4], "status": r[5],
+            "benchmark": r[6], "note": r[7]}
+
+
+def _a4_latest_from_smom(smom_by_code: dict, sector_of: dict) -> dict:
+    """A4 runtime 抽取核心（純函式，無 DB/網路）：把各股 N 日報酬序列 + 產業映射
+    丟進 base-rate 同一支 _compute_sector_factors，取『最新交易日』的 topsec/sector_rel，
+    並在前段板塊成員內算橫斷面 rank_pct（與 base-rate 進場濾網排名同邏輯）。
+    → runtime 與 base-rate 對同股同日 byte-equal 的單一真實來源。"""
+    out = {"date": None, "topsec": {}, "sector_rel": {}, "rank_pct": {}}
+    sec_fv = _compute_sector_factors(smom_by_code, sector_of,
+                                     {"sector_rel", "sector_rel_topsec"})
+    topsec = sec_fv.get("sector_rel_topsec", {})
+    secrel = sec_fv.get("sector_rel", {})
+    all_ds = sorted(set(topsec.keys()) | set(secrel.keys()))
+    latest = all_ds[-1] if all_ds else None
+    out["date"] = latest
+    if latest:
+        ts = dict(topsec.get(latest, {}))
+        out["topsec"] = ts
+        out["sector_rel"] = dict(secrel.get(latest, {}))
+        if len(ts) >= _CS_MIN_XSECTION:                     # 同 base-rate 暖身樣本門檻
+            items = sorted(ts.items(), key=lambda kv: kv[1])
+            denom = (len(ts) - 1) if len(ts) > 1 else 1
+            for ri, (cc, _v) in enumerate(items):
+                out["rank_pct"][cc] = ri / denom
+    return out
+
+
+_A4_RUNTIME_CACHE = {}  # (market, asof_date) -> (ts, map)
+
+def _a4_topsec_runtime_map(market: str, asof_date: str = "", _window_days: int = 220) -> dict:
+    """R-PROD-3：把過閘的 A4 sector_rel_topsec 接成 runtime 個股組件分數。
+
+    與 base-rate 引擎『同源同邏輯』：複用同一組純函式
+      get_universe → _load_backtest_data → _compute_stock_features['c']
+      → _nday_return_pct_series(_CS_REL_N) → _compute_sector_factors（板塊中位+前段板塊濾網）
+    回傳最新交易日的 {code: topsec_rel} + 橫斷面 rank_pct（與 base-rate 進場濾網同排名）。
+    只取最新日值（N 日窗只需 c[d] 與 c[d-N]，與 base-rate 該日值 byte-equal）。整 universe 算一次、快取。"""
+    market = (market or "TW").upper()
+    if not asof_date:
+        asof_date = datetime.now().strftime("%Y-%m-%d")
+    cache_key = (market, asof_date)
+    cached = _A4_RUNTIME_CACHE.get(cache_key)
+    if cached and time.time() - cached[0] < 3600:
+        return cached[1]
+    out = {"date": None, "topsec": {}, "sector_rel": {}, "rank_pct": {},
+           "n_universe": 0, "n_sectored": 0, "market": market}
+    try:
+        uni = get_universe(market)
+        if isinstance(uni, JSONResponse):
+            _A4_RUNTIME_CACHE[cache_key] = (time.time(), out); return out
+        raw = uni.get("data", uni.get("stocks", []))
+        codes = [s if isinstance(s, str) else s.get("code", "") for s in raw]
+        codes = [c for c in codes if c]
+        if not codes:
+            _A4_RUNTIME_CACHE[cache_key] = (time.time(), out); return out
+        out["n_universe"] = len(codes)
+        from datetime import timedelta as _td
+        start = (datetime.strptime(asof_date, "%Y-%m-%d") - _td(days=_window_days)).strftime("%Y-%m-%d")
+        all_dates, bar_data = _load_backtest_data(codes, market, start, asof_date)
+        sector_of = _get_sector_map(market, codes)          # 同 base-rate 產業映射
+        smom_by_code = {}
+        for code in codes:
+            if code not in sector_of:                       # 僅有 sector 的個股參與 A4（同 base-rate）
+                continue
+            f = _compute_stock_features(code, all_dates, bar_data)
+            if not f:
+                continue
+            smom_by_code[code] = (f["dates"], _nday_return_pct_series(f["c"], _CS_REL_N))
+        out["n_sectored"] = len(smom_by_code)
+        ext = _a4_latest_from_smom(smom_by_code, sector_of)   # 與 base-rate 同源抽取核心
+        out["date"] = ext["date"]
+        out["topsec"] = ext["topsec"]
+        out["sector_rel"] = ext["sector_rel"]
+        out["rank_pct"] = ext["rank_pct"]
+    except Exception as e:
+        out["error"] = str(e)
+    _A4_RUNTIME_CACHE[cache_key] = (time.time(), out)
+    return out
+
+
+def _ic_chip_consecutive_buy(code: str, market: str = "TW") -> int:
+    """法人（外資）連續買超天數（R-PROD-4 最小版，TW 限定，讀 chip_snapshot）。"""
+    if (market or "TW").upper() != "TW":
+        return 0
+    try:
+        con = db(); cur = con.cursor()
+        cur.execute("SELECT foreign_buy FROM chip_snapshot WHERE code=? ORDER BY date DESC LIMIT 10",
+                    (code,))
+        rows = cur.fetchall(); con.close()
+    except Exception:
+        return 0
+    consec = 0
+    for (fb,) in rows:
+        if (fb or 0) > 0:
+            consec += 1
+        else:
+            break
+    return consec
+
+
+def _ic_mvp_assess(code: str, name: str, market: str, tech: dict,
+                   regime: str, a4_map: dict) -> dict:
+    """組裝個股 MVP 評估：複合桶判定 + A4 runtime 組件 + 倉位係數 + 信心度背書。
+    純組裝，不改 tech['score']（技術分數零擾動 → 零回歸）。
+    複合桶＝ TREND_UP × A4topsec ∧ 技術多頭 ∧ (情緒不惡化 ∨ 法人連買)。"""
+    regime = (regime or "UNKNOWN").upper()
+    pos_coef = _regime_position_coef(regime)
+    inds = tech.get("indicators", {}) or {}
+    a4_map = a4_map or {}
+
+    a4_rel    = (a4_map.get("topsec") or {}).get(code)        # 前段板塊 ∧ 板塊內相對
+    a4_secrel = (a4_map.get("sector_rel") or {}).get(code)    # 板塊內相對（不論板塊排名）
+    a4_rank   = (a4_map.get("rank_pct") or {}).get(code)
+    in_top_sector = a4_rel is not None
+    beats_sector  = in_top_sector and a4_rel > 0              # 屬前段強板塊 ∧ 贏過自己板塊
+    a4_component = {
+        "present": in_top_sector,
+        "in_top_sector": in_top_sector,
+        "topsec_rel": round(a4_rel, 4) if a4_rel is not None else None,
+        "sector_rel": round(a4_secrel, 4) if a4_secrel is not None else None,
+        "rank_pct": round(a4_rank, 4) if a4_rank is not None else None,
+        "sub_score": round(a4_rank, 4) if a4_rank is not None else None,
+        "beats_sector": beats_sector,
+        "asof": a4_map.get("date"),
+        "source": "runtime_sector_rel_topsec (= base-rate cs_overlay 同源)",
+    }
+
+    # 確認層
+    tech_bullish = (tech.get("score", 50) >= 55)
+    sm = inds.get("sentiment_momentum", {}) or {}
+    sentiment_ok = sm.get("trend") != "deteriorating"
+    consec_buy = _ic_chip_consecutive_buy(code, market)
+    chip_confirm = consec_buy >= 2
+
+    # 複合桶判定
+    bucket = None
+    if regime == "TREND_UP" and beats_sector and tech_bullish and (sentiment_ok or chip_confirm):
+        bucket = "A4topsec"
+    cal_row = _ic_calibration_lookup(regime, bucket) if bucket else None
+
+    badge = "🧪 啟發式"
+    if cal_row:
+        st = cal_row.get("status")
+        badge = "🎓 過閘keeper" if st == "KEEPER" else ("🎓 候選" if st == "ALPHA_CANDIDATE" else "🧪 啟發式")
+
+    return {
+        "regime": regime,
+        "position_coef": pos_coef,
+        "bucket": bucket,
+        "bucket_desc": "TREND_UP × A4topsec ∧ 技術多頭 ∧ (情緒不惡化 ∨ 法人連買)" if bucket else None,
+        "bucket_factors": {
+            "a4_topsec": beats_sector, "tech_bullish": tech_bullish,
+            "sentiment_ok": sentiment_ok, "chip_consecutive_buy": consec_buy,
+        },
+        "a4": a4_component,
+        "confidence_backing": cal_row,
+        "grad_badge": badge,
+        "candidate_note": (
+            "A4 為 ALPHA 候選（順勢型·2022 破功·單市場·CI 邊際）→ 候選級信心，RISK_OFF 自動降曝險"
+            if bucket else None),
+    }
+
+
+@app.get("/api/ic/confidence-calibration")
+def ic_confidence_calibration():
+    """R-PROD-2：唯讀查信心度校準表（regime×複合桶 → 勝率/超額/CI/N/status）。"""
+    _ensure_ic_calibration_table()
+    con = db(); cur = con.cursor()
+    cur.execute("""SELECT regime,bucket,win_rate,excess_avg,ci_low,ci_high,n,status,benchmark,note,updated_at
+                   FROM ic_confidence_calibration ORDER BY regime,bucket""")
+    rows = cur.fetchall(); con.close()
+    return {"data": [{
+        "regime": r[0], "bucket": r[1], "win_rate": r[2], "excess_avg": r[3],
+        "ci_low": r[4], "ci_high": r[5], "n": r[6], "status": r[7],
+        "benchmark": r[8], "note": r[9], "updated_at": r[10],
+    } for r in rows]}
+
+
 @app.post("/api/ic/recommendations/refresh")
 def ic_refresh_recs(data: dict = {}, _: None = Depends(require_token)):
-    """掃描自選股+持倉+市場精選，產生推薦清單。data: {use_ai, market, scope}"""
+    """掃描自選股+持倉+市場精選，產生推薦清單。data: {use_ai, market, scope, mvp_engine}"""
     use_ai  = bool(data.get("use_ai", False))
     mkt_f   = data.get("market", "ALL")
     scope   = data.get("scope", "all")  # "watchlist", "universe", "all"
     macro   = _fetch_macro_data()
+
+    # ── 量產引擎 MVP 開關（additive / 可關，預設 off → 既有路徑 byte-equal）──
+    mvp_engine = bool(data.get("mvp_engine", False))
+    _regime_cache: dict = {}
+    _a4_cache: dict = {}
+    def _regime_for(_m):
+        if _m not in _regime_cache:
+            try:
+                _regime_cache[_m] = _calc_regime(_m)
+            except Exception as e:
+                _regime_cache[_m] = {"regime": "UNKNOWN", "reason": f"error: {e}"}
+        return _regime_cache[_m]
+    def _a4_for(_m):
+        if _m not in _a4_cache:
+            _a4_cache[_m] = _a4_topsec_runtime_map(_m) if mvp_engine else {}
+        return _a4_cache[_m]
 
     con = db()
     cur = con.cursor()
@@ -10659,21 +10929,35 @@ def ic_refresh_recs(data: dict = {}, _: None = Depends(require_token)):
         if not tech:
             continue
         sources    = _ic_detect_sources(code, mkt)
-        confidence = _ic_calc_confidence(tech, sources, macro)
+        direction  = tech["direction"]
+        mvp = None; cal_row = None
+        if mvp_engine:
+            regime = _regime_for(mkt).get("regime", "UNKNOWN")
+            mvp = _ic_mvp_assess(code, name, mkt, tech, regime, _a4_for(mkt))
+            cal_row = mvp.get("confidence_backing")
+            # R-PROD-1 regime 閘：非 TREND_UP 不輸出新 BUY（降為 HOLD，僅持倉管理）
+            if mvp["regime"] != "TREND_UP" and direction == "BUY":
+                direction = "HOLD"
+                mvp["regime_gated"] = True
+            tech["indicators"]["_mvp"] = mvp   # 隨 indicators 落地，重啟不丟、GET 可取回
+        confidence = _ic_calc_confidence(tech, sources, macro, cal_row)
         _s = _ic_get_settings()
         ai_txt     = _ic_ai_analyze(code, name, mkt, tech, macro, sources, model=_s.get("model_rec_scan","claude-haiku-4-5-20251001"), source=_s.get("source_rec_scan","api")) if use_ai else ""
-        _ic_record_sentiment(code, mkt, tech["score"], tech["direction"], confidence)
+        _ic_record_sentiment(code, mkt, tech["score"], direction, confidence)
         disclaimer = "⚠ 以上分析僅供參考，基於有限數據與AI推論，可能有誤，請獨立判斷後再操作。"
-        results.append({
+        rec = {
             "code": code, "name": name, "market": mkt,
-            "score": tech["score"], "direction": tech["direction"],
+            "score": tech["score"], "direction": direction,
             "signals": tech["signals"], "indicators": tech["indicators"],
             "sources": sources, "confidence": confidence,
             "ai_analysis": ai_txt, "disclaimer": disclaimer,
             "entry_price": tech.get("price"),
             "created_at": now_ts,
             "rec_source": src_map.get(code, "universe"),
-        })
+        }
+        if mvp:
+            rec["mvp"] = mvp
+        results.append(rec)
 
     results.sort(key=lambda x: (x["direction"] == "BUY", x["score"]), reverse=True)
 
@@ -10748,7 +11032,19 @@ def ic_refresh_recs(data: dict = {}, _: None = Depends(require_token)):
 
     threading.Thread(target=_notify_buys, daemon=True, name="ic-notify").start()
 
-    return {"ok": True, "count": len(results), "data": results, "results": results}
+    regime_summary = {}
+    if mvp_engine:
+        for _m, _rv in _regime_cache.items():
+            _rg = _rv.get("regime", "UNKNOWN")
+            regime_summary[_m] = {
+                "regime": _rg, "reason": _rv.get("reason"),
+                "position_coef": _regime_position_coef(_rg),
+                "date": _rv.get("date"),
+                "tradeable": _rg == "TREND_UP",
+                "a4_asof": (_a4_cache.get(_m) or {}).get("date"),
+            }
+    return {"ok": True, "count": len(results), "data": results, "results": results,
+            "mvp_engine": mvp_engine, "regime": regime_summary}
 
 @app.get("/api/ic/recommendations")
 def ic_get_recs(market: str = ""):
@@ -10776,19 +11072,37 @@ def ic_get_recs(market: str = ""):
         if code in pos_codes: return "position"
         if code in wl_codes: return "watchlist"
         return "universe"
-    _recs = [{
-        "id": r[0], "market": r[1], "code": r[2], "name": r[3],
-        "direction": r[4], "score": r[5],
-        "signals":    json.loads(r[6]) if r[6] else [],
-        "indicators": json.loads(r[7]) if r[7] else {},
-        "ai_analysis": r[8] or "",
-        "sources":    json.loads(r[9]) if r[9] else [],
-        "confidence": r[10] or 0.5,
-        "disclaimer": r[11] or "",
-        "created_at": r[12] or "",
-        "rec_source": _src(r[2]),
-    } for r in rows]
-    return {"data": _recs}
+    _recs = []
+    for r in rows:
+        ind = json.loads(r[7]) if r[7] else {}
+        mvp = ind.pop("_mvp", None) if isinstance(ind, dict) else None  # 從 indicators 取回 MVP 區塊
+        _recs.append({
+            "id": r[0], "market": r[1], "code": r[2], "name": r[3],
+            "direction": r[4], "score": r[5],
+            "signals":    json.loads(r[6]) if r[6] else [],
+            "indicators": ind,
+            "ai_analysis": r[8] or "",
+            "sources":    json.loads(r[9]) if r[9] else [],
+            "confidence": r[10] or 0.5,
+            "disclaimer": r[11] or "",
+            "created_at": r[12] or "",
+            "rec_source": _src(r[2]),
+            "mvp": mvp,
+        })
+    # 若任一筆帶 MVP，附上各市場當前 regime 橫幅資料（reload 後 UI 仍能顯示）
+    regime_summary = {}
+    if any(x.get("mvp") for x in _recs):
+        for _m in {x["market"] for x in _recs if x.get("mvp")}:
+            try:
+                _rv = _calc_regime(_m); _rg = _rv.get("regime", "UNKNOWN")
+                regime_summary[_m] = {
+                    "regime": _rg, "reason": _rv.get("reason"),
+                    "position_coef": _regime_position_coef(_rg),
+                    "tradeable": _rg == "TREND_UP",
+                }
+            except Exception:
+                pass
+    return {"data": _recs, "mvp_engine": bool(regime_summary), "regime": regime_summary}
 
 def _ic_get_current_price(code: str, market: str) -> float | None:
     """Fetch latest close price for evaluation."""

@@ -2152,8 +2152,12 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
                   <option value="watchlist">僅自選/持倉</option>
                   <option value="universe">僅市場精選</option>
                 </select>
+                <label title="量產引擎 MVP：regime 閘 + A4 板塊兩層複合 + 分條件回測背書" style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px;margin:0 8px 4px 8px;cursor:pointer">
+                  <input type="checkbox" id="ic-mvp-toggle" style="margin:0">🏭 量產引擎
+                </label>
                 <button class="ic-save-btn" style="margin:0;margin-bottom:4px" onclick="icRefreshRecs()">產生推薦</button>
               </div>
+              <div id="ic-regime-banner"></div>
               <div id="ic-recs-loading" style="display:none">
                 <div class="ic-loading"><span class="ic-spinner"></span>分析中，請稍候…</div>
               </div>
@@ -6473,6 +6477,69 @@ async function icLoadSectorRotation() {
 
 // ── IC Rec Card ──
 let _icRecsData = [];
+let _icRegimeData = {};   // 量產引擎：各市場當前 regime 橫幅資料
+
+// 量產引擎 regime 橫幅（S1）— 非 TREND_UP 標示僅持倉管理
+function icRegimeBanner(mkt) {
+  const rg = _icRegimeData && _icRegimeData[mkt];
+  if (!rg) return '';
+  const r = rg.regime || 'UNKNOWN';
+  const coef = (rg.position_coef != null) ? rg.position_coef : '—';
+  const map = {
+    TREND_UP:    {ico:'🌤', label:'TREND_UP 順勢', col:'var(--green)', bg:'rgba(63,185,80,.12)', note:'動量+板塊族啟用'},
+    MEAN_REVERT: {ico:'🌥', label:'MEAN_REVERT 震盪', col:'var(--yellow)', bg:'rgba(210,153,34,.12)', note:'反轉族，趨勢族停用'},
+    RISK_OFF:    {ico:'🌧', label:'RISK_OFF 避險', col:'var(--red)', bg:'rgba(248,81,73,.14)', note:'今日不開新倉，僅持倉管理'},
+    CRISIS:      {ico:'⛈', label:'CRISIS 危機', col:'var(--red)', bg:'rgba(248,81,73,.18)', note:'極度精選逆向'},
+    UNKNOWN:     {ico:'❔', label:'UNKNOWN', col:'var(--text2)', bg:'var(--bg3)', note:'資料不足，暫不開新倉'},
+  };
+  const m = map[r] || map.UNKNOWN;
+  const blocked = (r !== 'TREND_UP');
+  return `<div style="border:1px solid ${m.col};background:${m.bg};border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:16px">${m.ico}</span>
+    <b style="color:${m.col}">${m.label}</b>
+    <span style="color:var(--text2)">｜${m.note}｜倉位係數 ${coef}</span>
+    ${blocked?`<span style="margin-left:auto;color:var(--red);font-weight:700">⛔ 非 TREND_UP → 不輸出新 BUY（既有 BUY 降為 HOLD/持倉管理）</span>`
+             :`<span style="margin-left:auto;color:var(--green)">✅ 可輸出新 BUY · A4 板塊兩層複合主脊</span>`}
+  </div>`;
+}
+
+// 量產引擎：推薦卡 MVP 背書區塊（複合桶 + 信心度背書 + A4 組件 + 倉位係數 + 畢業徽章）
+function icMvpBlock(r) {
+  const m = r.mvp;
+  if (!m) return '';
+  const a4 = m.a4 || {};
+  const cb = m.confidence_backing;
+  const badge = m.grad_badge || '';
+  let html = `<div style="margin-top:6px;border-top:1px dashed var(--border);padding-top:6px">`;
+  // 桶 + 徽章 + 倉位係數
+  html += `<div style="font-size:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+    <span style="font-weight:700;color:var(--purple)">🏭 ${m.bucket?('複合桶 '+m.bucket):'未命中複合桶'}</span>
+    ${badge?`<span style="background:var(--bg3);border:1px solid var(--border);padding:1px 6px;border-radius:8px">${badge}</span>`:''}
+    <span style="color:var(--text2)">倉位係數 ${m.position_coef!=null?m.position_coef:'—'}</span>
+    ${m.regime_gated?`<span style="color:var(--red)">⛔ regime 閘：降為 HOLD</span>`:''}
+  </div>`;
+  // A4 runtime 組件
+  if (a4.present) {
+    const sub = (a4.sub_score!=null)?(Math.round(a4.sub_score*100)+'%'):'—';
+    html += `<div style="font-size:12px;color:var(--text2);margin-top:3px">
+      📊 A4 板塊兩層複合：前段板塊內相對 ${a4.topsec_rel!=null?(a4.topsec_rel>0?'+':'')+a4.topsec_rel:'—'}
+      ｜橫斷面強度 ${sub}${a4.beats_sector?' ✅贏過板塊':''}</div>`;
+  }
+  // 信心度背書一行（桶名｜N｜勝率｜對等權超額 CI）
+  if (cb) {
+    const ci = (cb.ci_low!=null&&cb.ci_high!=null)?`CI[${cb.ci_low},${cb.ci_high}]`:'';
+    const lb = (cb.ci_low!=null&&cb.ci_low>0)?' (下界>0)':'';
+    html += `<div style="font-size:12px;color:var(--text2);margin-top:3px;line-height:1.5">
+      📈 背書：${cb.regime}×${cb.bucket}｜N=${cb.n}｜勝率 ${cb.win_rate}%｜
+      ${cb.benchmark||'公平基準'}超額 ${cb.excess_avg>0?'+':''}${cb.excess_avg}% ${ci}${lb}</div>`;
+  }
+  if (m.candidate_note) {
+    html += `<div style="font-size:12px;color:var(--yellow);margin-top:3px">⚠️ ${m.candidate_note}</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
 function icRecCard(r, currency) {
   const dir     = r.direction;
   const scoreW  = (r.score||0) + '%';
@@ -6540,6 +6607,7 @@ function icRecCard(r, currency) {
     ${(r.signals||[]).length?`<div class="ic-signals-wrap">
       ${r.signals.map(s=>`<span class="ic-signal-chip">${s}</span>`).join('')}
     </div>`:''}
+    ${icMvpBlock(r)}
     <div id="ic-card-ai-${r.code}" style="margin-top:6px">
       ${r.ai_analysis
         ? `<div class="ic-ai-text" style="border-left:2px solid var(--purple);padding-left:10px">${icEscHtml(r.ai_analysis)}</div>`
@@ -6566,6 +6634,7 @@ async function icLoadRecs() {
     const r = await fetch('/api/ic/recommendations');
     const data = await r.json();
     _icRecsData = data.data || data;
+    _icRegimeData = data.regime || {};
     icRenderRecs();
   } catch(e) {
     if (grid) grid.innerHTML = '<div class="ic-empty-msg">載入失敗</div>';
@@ -6576,6 +6645,8 @@ function icRenderRecs() {
   const grid = document.getElementById('ic-recs-grid');
   if (!grid) return;
   icUpdateTabCounts();
+  const banner = document.getElementById('ic-regime-banner');
+  if (banner) banner.innerHTML = icRegimeBanner(_icMarketFilter);
   const filtered = _icRecsData.filter(r => r.market === _icMarketFilter);
   const mktLabel = _icMarketFilter === 'TW' ? '台股' : '美股';
   const currency = _icMarketFilter === 'TW' ? 'NT$' : 'US$';
@@ -6601,16 +6672,18 @@ async function icRefreshRecs() {
   if (loadEl) loadEl.style.display = '';
   if (grid)   grid.innerHTML = '';
   try {
+    const mvpOn = !!(document.getElementById('ic-mvp-toggle')||{}).checked;
     const r = await fetch('/api/ic/recommendations/refresh', {
       method: 'POST',
       headers: icAuthHeaders(),
-      body: JSON.stringify({ use_ai: false, market: _icMarketFilter, scope: (document.getElementById('ic-rec-scope')||{}).value||'all' }),
+      body: JSON.stringify({ use_ai: false, market: _icMarketFilter, scope: (document.getElementById('ic-rec-scope')||{}).value||'all', mvp_engine: mvpOn }),
     });
     const data = await r.json();
     const newResults = data.data || data.results || [];
     // Merge: keep other market's data, replace current market
     const otherMarket = _icRecsData.filter(r => r.market !== _icMarketFilter);
     _icRecsData = [...otherMarket, ...newResults];
+    if (data.regime) _icRegimeData = Object.assign({}, _icRegimeData, data.regime);
     icRenderRecs();
   } catch(e) {
     if (grid) grid.innerHTML = '<div class="ic-empty-msg">產生失敗</div>';
