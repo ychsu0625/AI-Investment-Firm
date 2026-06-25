@@ -146,6 +146,94 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 .page.flex-page{display:none;flex:1;flex-direction:column;overflow:hidden;padding:0;position:relative}
 .page.flex-page.active{display:flex}
 
+/* ══ 收斂導覽：5 組可展開（漸進揭露；所有 page 仍全部可達）══ */
+.nav-group{display:flex;flex-direction:column;align-items:center;width:100%;flex-shrink:0}
+.nav-grp-hdr{width:48px;min-height:40px;padding:5px 0;margin:1px 0;border:none;background:none;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:var(--text3);font-size:12px;line-height:1.15;border-radius:var(--r);position:relative;
+  transition:background .15s,color .15s}
+.nav-grp-hdr:hover{background:var(--bg4);color:var(--text2)}
+.nav-grp-hdr svg{width:18px;height:18px;fill:currentColor}
+.nav-grp-hdr .ng-caret{position:absolute;right:3px;top:3px;font-size:9px;opacity:.55;transition:transform .15s}
+.nav-group.expanded .nav-grp-hdr .ng-caret,
+.nav-group:has(.nav-btn.active) .nav-grp-hdr .ng-caret{transform:rotate(90deg)}
+/* 含當前頁的組 → 標題高亮（即使收合也看得出在哪一組）*/
+.nav-group:has(.nav-btn.active) .nav-grp-hdr{color:var(--blue)}
+.nav-grp-items{display:none;flex-direction:column;align-items:center;gap:3px;width:100%;
+  padding:2px 0 5px;margin-bottom:3px;border-bottom:1px solid var(--border)}
+.nav-group:last-child .nav-grp-items{border-bottom:none}
+/* 使用者手動展開，或該組含當前頁 → 顯示子項 */
+.nav-group.expanded .nav-grp-items,
+.nav-group:has(.nav-btn.active) .nav-grp-items{display:flex}
+
+/* ══ P1 決策台 (cockpit)：投資 loop 三塊 ══ */
+/* ① 風險閘 banner */
+.ck-gate{display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px;
+  background:var(--bg2);border:1px solid var(--border);border-left:4px solid var(--text3);
+  border-radius:var(--r);padding:14px 16px;margin-bottom:14px}
+.ck-gate[data-regime=TREND_UP]{border-left-color:var(--green)}
+.ck-gate[data-regime=MEAN_REVERT]{border-left-color:var(--yellow)}
+.ck-gate[data-regime=RISK_OFF]{border-left-color:var(--orange)}
+.ck-gate[data-regime=CRISIS]{border-left-color:var(--red)}
+.ck-gate-main{display:flex;align-items:center;gap:12px;min-width:240px;flex:1}
+.ck-gate-light{width:14px;height:14px;border-radius:50%;background:var(--text3);flex-shrink:0;box-shadow:0 0 0 4px rgba(110,118,129,.15)}
+.ck-gate-light.TREND_UP{background:var(--green);box-shadow:0 0 0 4px rgba(63,185,80,.18)}
+.ck-gate-light.MEAN_REVERT{background:var(--yellow);box-shadow:0 0 0 4px rgba(210,153,34,.18)}
+.ck-gate-light.RISK_OFF{background:var(--orange);box-shadow:0 0 0 4px rgba(255,166,87,.18)}
+.ck-gate-light.CRISIS{background:var(--red);box-shadow:0 0 0 4px rgba(248,81,73,.2)}
+.ck-gate-verdict{font-size:19px;font-weight:800;color:var(--text);letter-spacing:.3px;line-height:1.25}
+.ck-gate-sub{font-size:12px;color:var(--text2);margin-top:3px;line-height:1.5}
+.ck-gate-metrics{display:flex;flex-wrap:wrap;gap:8px}
+.ck-chip{display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 10px;min-width:60px}
+.ck-chip-l{font-size:12px;color:var(--text3);letter-spacing:.3px}
+.ck-chip-v{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
+.ck-chip-s{font-size:12px;color:var(--text3)}
+.ck-drill{font-size:12px;color:var(--blue);cursor:pointer;white-space:nowrap;text-decoration:none}
+.ck-drill:hover{text-decoration:underline}
+/* ② 今日該買 / 該賣 兩欄 */
+.ck-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.ck-col{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;min-width:0}
+.ck-col-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;flex-wrap:wrap}
+.ck-hint{font-size:12px;font-weight:400;color:var(--text3)}
+.ck-cards{display:flex;flex-direction:column;gap:8px}
+.ck-card{background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--border2);border-radius:5px;padding:9px 11px;cursor:pointer;transition:border-color .15s,background .15s}
+.ck-card:hover{background:var(--bg4);border-color:var(--border2)}
+.ck-card.buy{border-left-color:var(--red)}
+.ck-card.dual{border-left-color:var(--blue)}
+.ck-card.ai{border-left-color:var(--purple)}
+.ck-card.exitc{border-left-color:var(--purple)}
+.ck-card.exitd{border-left-color:var(--red)}
+.ck-card.closed{border-left-color:var(--green)}
+.ck-card-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ck-tk{font-size:14px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.ck-nm{font-size:12px;color:var(--text2)}
+.ck-tag{font-size:12px;padding:1px 6px;border-radius:3px;font-weight:600;background:var(--bg);color:var(--text2);border:1px solid var(--border)}
+.ck-tag.dual{background:var(--blue-bg);color:var(--blue);border-color:var(--blue)}
+.ck-tag.ai{background:var(--purple-bg);color:var(--purple);border-color:var(--purple)}
+.ck-tag.fwd{background:rgba(63,185,80,.10);color:var(--green)}
+.ck-tag.exitc{background:var(--purple-bg);color:var(--purple)}
+.ck-tag.exitd{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+.ck-card-meta{font-size:12px;color:var(--text3);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+/* ③ 戰績 KPI strip */
+.ck-kpi-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.ck-kpi-hd{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px}
+.ck-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.ck-kpi{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:10px 12px;min-width:0}
+.ck-kpi-l{font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ck-kpi-v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--text);margin-top:3px;line-height:1.1}
+.ck-kpi-s{font-size:12px;color:var(--text3);margin-top:3px}
+/* 漲跌雙編碼：TW 慣例 up=紅 / dn=綠（與全站 .up/.dn 一致），KPI/chip 用較高特異性覆寫 */
+.ck-kpi-v.up,.ck-chip-v.up,.ck-card-meta .up{color:var(--red)}
+.ck-kpi-v.dn,.ck-chip-v.dn,.ck-card-meta .dn{color:var(--green)}
+@media(max-width:760px){
+  .ck-cols{grid-template-columns:1fr}
+  .ck-kpis{grid-template-columns:repeat(2,1fr)}
+  .ck-gate-verdict{font-size:17px}
+}
+@media(max-width:420px){
+  .ck-kpis{grid-template-columns:1fr}
+}
+
 /* cards */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
 .card-title{font-size:12px;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
@@ -667,93 +755,176 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 
   <div id="main">
     <div id="nav">
-      <!-- Z1 駕駛艙 -->
-      <span class="nav-zone-label">駕駛艙</span>
-      <button class="nav-btn active" id="nav-home" onclick="showPage('home')">
-        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-        總覽
-      </button>
-      <button class="nav-btn" id="nav-macro" onclick="showPage('macro')">
-        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-        風控
-      </button>
-      <!-- Z2 研究台 -->
-      <div class="nav-zone-sep"></div>
-      <span class="nav-zone-label">研究台</span>
-      <button class="nav-btn" id="nav-chart" onclick="showPage('chart')">
-        <svg viewBox="0 0 24 24"><path d="M3.5 18.5l6-6 4 4 8-9.58M22 6.92V12M22 6.92H17" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-        K線
-      </button>
-      <button class="nav-btn" id="nav-analysis" onclick="showPage('analysis')">
-        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
-        盤後
-      </button>
-      <button class="nav-btn" id="nav-ic" onclick="showPage('ic')">
-        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" fill="currentColor"/></svg>
-        資訊中心
-      </button>
-      <!-- Z3 決策引擎 -->
-      <div class="nav-zone-sep"></div>
-      <span class="nav-zone-label">決策引擎</span>
-      <button class="nav-btn" id="nav-expert" onclick="showPage('expert')">
-        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/></svg>
-        專家
-      </button>
-      <!-- Z4 驗證台 -->
-      <div class="nav-zone-sep"></div>
-      <span class="nav-zone-label">驗證台</span>
-      <button class="nav-btn" id="nav-backtest" onclick="showPage('backtest')">
-        <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" fill="currentColor"/></svg>
-        回測
-      </button>
-      <button class="nav-btn" id="nav-iter" onclick="showPage('iter')">
-        <svg viewBox="0 0 24 24"><path d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z" fill="currentColor"/></svg>
-        策略實驗室
-      </button>
-      <button class="nav-btn" id="nav-factory" onclick="showPage('factory')">
-        <svg viewBox="0 0 24 24"><path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3h7zM7 9H4V5h3v4zm10 6h3v4h-3v-4zm0-10h3v4h-3V5z" fill="currentColor"/></svg>
-        策略工廠
-      </button>
-      <button class="nav-btn" id="nav-strategy" onclick="showPage('strategy')">
-        <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z" fill="currentColor"/></svg>
-        策略
-      </button>
-      <!-- Z5 投資組合 -->
-      <div class="nav-zone-sep"></div>
-      <span class="nav-zone-label">投資組合</span>
-      <button class="nav-btn" id="nav-pos" onclick="showPage('pos')">
-        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
-        持倉
-      </button>
-      <button class="nav-btn" id="nav-trade" onclick="showPage('trade')">
-        <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" fill="currentColor"/></svg>
-        交易紀錄
-      </button>
-      <!-- Z6 系統 -->
-      <div class="nav-zone-sep"></div>
-      <span class="nav-zone-label">系統</span>
-      <button class="nav-btn" id="nav-datasrc" onclick="showPage('datasrc')">
-        <svg viewBox="0 0 24 24"><path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4zm0 2c3.87 0 6 1.5 6 2s-2.13 2-6 2-6-1.5-6-2 2.13-2 6-2zM4 17v-2.34c1.52 1.1 4.28 1.84 8 1.84s6.48-.75 8-1.84V17c0 .5-2.13 2-6 2s-6-1.5-6-2z" fill="currentColor"/><path d="M4 12v-2.34c1.52 1.1 4.28 1.84 8 1.84s6.48-.75 8-1.84V12c0 .5-2.13 2-6 2s-6-1.5-6-2z" fill="currentColor"/></svg>
-        資料源
-      </button>
-      <button class="nav-btn" id="nav-reports" onclick="showPage('reports')">
-        <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" fill="currentColor"/></svg>
-        報告中心
-      </button>
-      <button class="nav-btn" id="nav-settings" onclick="showPage('settings')">
-        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-        設定
-      </button>
-      <button class="nav-btn" id="nav-manual" onclick="showPage('manual')">
-        <svg viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z" fill="currentColor"/></svg>
-        手冊
-      </button>
+      <!-- ══ 收斂導覽：16 顆平鋪 → 5 組可展開（漸進揭露；showPage 目標頁 id 全不變、每頁仍可達）══ -->
+
+      <!-- G1 決策台（預設展開：cockpit + 總覽 + 風控）-->
+      <div class="nav-group" data-group="desk">
+        <button class="nav-grp-hdr" onclick="toggleNavGroup(this)" title="決策台">
+          <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3zm10 0h8v5h-8V3zM3 13h8v8H3v-8zm10 2h8v6h-8v-6z"/></svg>
+          決策<span class="ng-caret">▸</span>
+        </button>
+        <div class="nav-grp-items">
+          <button class="nav-btn active" id="nav-cockpit" onclick="showPage('cockpit');cockpitLoad()">
+            <svg viewBox="0 0 24 24"><path d="M3 9h2V7H3v2zm0 4h2v-2H3v2zm0 4h2v-2H3v2zM7 9h14V7H7v2zm0 4h14v-2H7v2zm0 4h14v-2H7v2z"/></svg>
+            決策台
+          </button>
+          <button class="nav-btn" id="nav-home" onclick="showPage('home')">
+            <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            總覽
+          </button>
+          <button class="nav-btn" id="nav-macro" onclick="showPage('macro')">
+            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+            風控
+          </button>
+        </div>
+      </div>
+
+      <!-- G2 投資組合（持倉 + 交易紀錄）-->
+      <div class="nav-group" data-group="book">
+        <button class="nav-grp-hdr" onclick="toggleNavGroup(this)" title="投資組合">
+          <svg viewBox="0 0 24 24"><path d="M20 7h-4V5l-2-2h-4L8 5v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zm-6 0h-4V5h4v2z"/></svg>
+          組合<span class="ng-caret">▸</span>
+        </button>
+        <div class="nav-grp-items">
+          <button class="nav-btn" id="nav-pos" onclick="showPage('pos')">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+            持倉
+          </button>
+          <button class="nav-btn" id="nav-trade" onclick="showPage('trade')">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" fill="currentColor"/></svg>
+            交易紀錄
+          </button>
+        </div>
+      </div>
+
+      <!-- G3 研究台（K線 + 盤後 + 資訊中心）-->
+      <div class="nav-group" data-group="research">
+        <button class="nav-grp-hdr" onclick="toggleNavGroup(this)" title="研究台">
+          <svg viewBox="0 0 24 24"><path d="M3.5 18.5l6-6 4 4 8-9.58M22 6.92V12M22 6.92H17" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+          研究<span class="ng-caret">▸</span>
+        </button>
+        <div class="nav-grp-items">
+          <button class="nav-btn" id="nav-chart" onclick="showPage('chart')">
+            <svg viewBox="0 0 24 24"><path d="M3.5 18.5l6-6 4 4 8-9.58M22 6.92V12M22 6.92H17" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+            K線
+          </button>
+          <button class="nav-btn" id="nav-analysis" onclick="showPage('analysis')">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+            盤後
+          </button>
+          <button class="nav-btn" id="nav-ic" onclick="showPage('ic')">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" fill="currentColor"/></svg>
+            資訊中心
+          </button>
+        </div>
+      </div>
+
+      <!-- G4 研發實驗室（專家 + 回測 + 實驗室 + 工廠 + 策略庫 + 報告）-->
+      <div class="nav-group" data-group="lab">
+        <button class="nav-grp-hdr" onclick="toggleNavGroup(this)" title="研發實驗室">
+          <svg viewBox="0 0 24 24"><path d="M9 2v2h1v5.59l-4.7 7.05A2 2 0 0 0 7 19h10a2 2 0 0 0 1.7-2.36L14 9.59V4h1V2H9zm3 5.5L15.5 13h-7L12 7.5z"/></svg>
+          研發<span class="ng-caret">▸</span>
+        </button>
+        <div class="nav-grp-items">
+          <button class="nav-btn" id="nav-expert" onclick="showPage('expert')">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" fill="currentColor"/></svg>
+            專家
+          </button>
+          <button class="nav-btn" id="nav-backtest" onclick="showPage('backtest')">
+            <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" fill="currentColor"/></svg>
+            回測
+          </button>
+          <button class="nav-btn" id="nav-iter" onclick="showPage('iter')">
+            <svg viewBox="0 0 24 24"><path d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z" fill="currentColor"/></svg>
+            策略實驗室
+          </button>
+          <button class="nav-btn" id="nav-factory" onclick="showPage('factory')">
+            <svg viewBox="0 0 24 24"><path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3h7zM7 9H4V5h3v4zm10 6h3v4h-3v-4zm0-10h3v4h-3V5z" fill="currentColor"/></svg>
+            策略工廠
+          </button>
+          <button class="nav-btn" id="nav-strategy" onclick="showPage('strategy')">
+            <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z" fill="currentColor"/></svg>
+            策略
+          </button>
+          <button class="nav-btn" id="nav-reports" onclick="showPage('reports')">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" fill="currentColor"/></svg>
+            報告中心
+          </button>
+        </div>
+      </div>
+
+      <!-- G5 系統（資料源 + 設定 + 手冊）-->
+      <div class="nav-group" data-group="sys">
+        <button class="nav-grp-hdr" onclick="toggleNavGroup(this)" title="系統">
+          <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          系統<span class="ng-caret">▸</span>
+        </button>
+        <div class="nav-grp-items">
+          <button class="nav-btn" id="nav-datasrc" onclick="showPage('datasrc')">
+            <svg viewBox="0 0 24 24"><path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4zm0 2c3.87 0 6 1.5 6 2s-2.13 2-6 2-6-1.5-6-2 2.13-2 6-2zM4 17v-2.34c1.52 1.1 4.28 1.84 8 1.84s6.48-.75 8-1.84V17c0 .5-2.13 2-6 2s-6-1.5-6-2z" fill="currentColor"/><path d="M4 12v-2.34c1.52 1.1 4.28 1.84 8 1.84s6.48-.75 8-1.84V12c0 .5-2.13 2-6 2s-6-1.5-6-2z" fill="currentColor"/></svg>
+            資料源
+          </button>
+          <button class="nav-btn" id="nav-settings" onclick="showPage('settings')">
+            <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            設定
+          </button>
+          <button class="nav-btn" id="nav-manual" onclick="showPage('manual')">
+            <svg viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5z" fill="currentColor"/></svg>
+            手冊
+          </button>
+        </div>
+      </div>
     </div>
 
     <div id="content">
 
+      <!-- ═══ P1 決策台（cockpit）— 投資 loop 三塊：①能不能進場 ②今日買/賣 ③做得好不好 ═══ -->
+      <div class="page active" id="page-cockpit">
+
+        <!-- ① 風險閘 banner -->
+        <div class="ck-gate" id="ck-gate" data-regime="">
+          <div class="ck-gate-main">
+            <span class="ck-gate-light" id="ck-gate-light"></span>
+            <div>
+              <div class="ck-gate-verdict" id="ck-gate-verdict">風險閘載入中…</div>
+              <div class="ck-gate-sub" id="ck-gate-sub">正在判斷今日市場環境（regime + VIX）</div>
+            </div>
+          </div>
+          <div class="ck-gate-metrics" id="ck-gate-metrics"></div>
+          <span class="ck-drill" onclick="showPage('macro')">風控詳情 →</span>
+        </div>
+
+        <!-- ② 今日該買 / 今日該賣 -->
+        <div class="ck-cols">
+          <div class="ck-col">
+            <div class="ck-col-hd">
+              <span>② 今日該買 <span class="ck-hint">前向實盤 picks + AI 建議</span></span>
+              <span class="ck-drill" onclick="showPage('expert')">建議論證 →</span>
+            </div>
+            <div class="ck-cards" id="ck-buy-list"><div class="empty-state">載入中…</div></div>
+          </div>
+          <div class="ck-col">
+            <div class="ck-col-hd">
+              <span>今日該賣 / 出場警示 <span class="ck-hint">EXIT 到期 + 已結算</span></span>
+              <span class="ck-drill" onclick="showPage('pos')">持倉 →</span>
+            </div>
+            <div class="ck-cards" id="ck-sell-list"><div class="empty-state">載入中…</div></div>
+          </div>
+        </div>
+
+        <!-- ③ 戰績 KPI strip -->
+        <div class="ck-kpi-wrap">
+          <div class="ck-kpi-hd">
+            <span>③ 做得好不好 <span class="ck-hint">前向實盤 OOS + 持倉</span></span>
+            <span class="ck-drill" onclick="showPage('pos')">投資組合戰績 →</span>
+          </div>
+          <div class="ck-kpis" id="ck-kpis"><div class="empty-state">載入中…</div></div>
+        </div>
+
+      </div>
+
       <!-- ═══ 首頁總覽 ═══ -->
-      <div class="page active" id="page-home">
+      <div class="page" id="page-home">
         <div class="macro-bar" id="macro-bar-chips">
           <div class="macro-chip"><span class="mc-label">VIX</span><span class="mc-val" id="mc-vix">--</span></div>
           <div class="macro-chip"><span class="mc-label">DXY</span><span class="mc-val" id="mc-dxy">--</span></div>
@@ -2543,7 +2714,7 @@ async function pingBackend() {
 setInterval(pingBackend, 15000);
 
 // ── Nav history (back/forward) ────────────────────
-const _navPageNames = {home:'總覽',chart:'K線',pos:'持倉',trade:'交易紀錄',analysis:'盤後',macro:'風控',datasrc:'資料源',strategy:'策略',backtest:'回測',iter:'策略實驗室',expert:'專家',ic:'資訊中心',settings:'設定'};
+const _navPageNames = {cockpit:'決策台',home:'總覽',chart:'K線',pos:'持倉',trade:'交易紀錄',analysis:'盤後',macro:'風控',datasrc:'資料源',strategy:'策略',backtest:'回測',iter:'策略實驗室',expert:'專家',ic:'資訊中心',settings:'設定'};
 let _navHistory = [{page:'home', sub:null}];
 let _navIdx = 0;
 let _navPushing = true;
@@ -8550,6 +8721,218 @@ async function _rhRescan() {
   await fetch('/api/reports/rescan', {method:'POST'});
   await _rhLoad();
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  收斂導覽 — 5 組可展開（純加法：toggle .expanded；含當前頁的組由 CSS :has 自動展開）
+// ══════════════════════════════════════════════════════════════════════════
+function toggleNavGroup(hdr){
+  const grp = hdr.closest('.nav-group'); if(!grp) return;
+  const open = !grp.classList.contains('expanded');
+  // 手風琴：點開一組時收起其他「手動展開」的組（含當前頁的組仍由 :has 保持可見）
+  document.querySelectorAll('#nav .nav-group').forEach(g=>{ if(g!==grp) g.classList.remove('expanded'); });
+  grp.classList.toggle('expanded', open);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  P1 決策台（cockpit）— 投資 loop 三塊；全接現成 GET endpoint、零新後端、graceful empty
+// ══════════════════════════════════════════════════════════════════════════
+function _ckEsc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function _ckPct(v,d){ if(v==null||v===''||isNaN(v))return '--'; var n=Number(v); return (n>=0?'+':'')+n.toFixed(d==null?2:d)+'%'; }
+function _ckSignCls(v){ if(v==null||v===''||isNaN(v))return ''; var n=Number(v); return n>0?'up':(n<0?'dn':''); }
+function _ckArrow(v){ if(v==null||v===''||isNaN(v))return ''; var n=Number(v); return n>0?'▲':(n<0?'▼':''); }
+
+const _CK_GATE = {
+  TREND_UP:{txt:'🟢 可進場 · 順勢操作', sub:'趨勢上行：維持正常部位水位'},
+  MEAN_REVERT:{txt:'🟡 謹慎 · 區間操作', sub:'震盪回歸：減碼、嚴設停損'},
+  RISK_OFF:{txt:'🟠 避險 · 減碼', sub:'風險規避：降低部位、保留現金'},
+  CRISIS:{txt:'🔴 危機 · 建議空手', sub:'危機模式：避險為先、停止新進場'},
+  UNKNOWN:{txt:'⚪ 無法判斷', sub:'指數資料不足，暫不給進場結論'}
+};
+const _CK_VIXZH = {VIX_LOW:'低波(自滿)', VIX_MID:'中性', VIX_HIGH:'高波(恐懼)'};
+
+let _ckBusy=false;
+async function cockpitLoad(){
+  if(_ckBusy) return; _ckBusy=true;
+  try{ await Promise.all([ckLoadGate(), ckLoadPicks(), ckLoadKpis()]); }
+  catch(e){ console.warn('[cockpit] load error', e); }
+  finally{ _ckBusy=false; }
+}
+
+function ckChip(label,val,sub,cls){
+  return '<div class="ck-chip"><span class="ck-chip-l">'+_ckEsc(label)+'</span>'+
+    '<span class="ck-chip-v '+(cls||'')+'">'+_ckEsc(val)+'</span>'+
+    (sub?('<span class="ck-chip-s">'+_ckEsc(sub)+'</span>'):'')+'</div>';
+}
+
+// ① 風險閘 banner
+async function ckLoadGate(){
+  const mkt=(typeof currentMarket!=='undefined'?currentMarket:'TW');
+  const vEl=document.getElementById('ck-gate-verdict');
+  const sEl=document.getElementById('ck-gate-sub');
+  const lEl=document.getElementById('ck-gate-light');
+  const mEl=document.getElementById('ck-gate-metrics');
+  const gEl=document.getElementById('ck-gate');
+  if(!gEl) return;
+  try{
+    const d=await fetch(API+'/api/regime?market='+mkt,{headers:authHeaders()}).then(r=>r.json());
+    const reg=d.regime||'UNKNOWN'; const inp=d.inputs||{};
+    const g=_CK_GATE[reg]||_CK_GATE.UNKNOWN;
+    gEl.setAttribute('data-regime', reg);
+    lEl.className='ck-gate-light '+reg;
+    vEl.textContent=g.txt+'  ·  '+((typeof _REGIME_ZH!=='undefined'&&_REGIME_ZH[reg])||reg)+'（'+mkt+'）';
+    let bucket='';
+    try{
+      const sv=await fetch(API+'/api/sentiment/regime?source=vix',{headers:authHeaders()}).then(r=>r.json());
+      const rs=(sv&&sv.recent_sample)||{}; const ks=Object.keys(rs).sort();
+      if(ks.length) bucket=rs[ks[ks.length-1]];
+    }catch(e){}
+    sEl.textContent=g.sub+(bucket?(' · VIX 桶：'+(_CK_VIXZH[bucket]||bucket)):'')+(d.date?(' · '+d.date):'');
+    const chips=[];
+    chips.push(ckChip('VIX', inp.vix!=null?Number(inp.vix).toFixed(1):'--', bucket?(_CK_VIXZH[bucket]||''):''));
+    chips.push(ckChip('大盤收盤', inp.close!=null?Number(inp.close).toLocaleString():'--', inp.index||''));
+    chips.push(ckChip('MA20', inp.ma20!=null?Number(inp.ma20).toLocaleString():'--', ''));
+    chips.push(ckChip('MA60', inp.ma60!=null?Number(inp.ma60).toLocaleString():'--', ''));
+    chips.push(ckChip('日漲跌', _ckPct(inp.daily_change_pct), '', _ckSignCls(inp.daily_change_pct)));
+    mEl.innerHTML=chips.join('');
+  }catch(e){
+    gEl.setAttribute('data-regime','');
+    lEl.className='ck-gate-light';
+    vEl.textContent='⚠️ 風險閘暫時無法載入';
+    sEl.textContent='無法連線後端 /api/regime（將自動重試）';
+    mEl.innerHTML='';
+  }
+}
+
+function ckIsDue(p){
+  try{
+    const base=p.entry_date||p.pick_date; if(!base||!p._horizon) return false;
+    const days=(Date.now()-new Date(base+'T00:00:00').getTime())/86400000;
+    return days>=Number(p._horizon);
+  }catch(e){ return false; }
+}
+
+function ckPickCard(p, cls, tags, statusZh, excess){
+  const tk=_ckEsc(p.ticker); const nm=_ckEsc(p.name||'');
+  const ref=p.ref_price!=null?Number(p.ref_price).toLocaleString(undefined,{maximumFractionDigits:2}):'--';
+  const excCls=_ckSignCls(excess); const excTxt=(excess!=null&&excess!=='')?(_ckArrow(excess)+_ckPct(excess)):'';
+  const m=((p._mkt||'TW')==='US')?'US':'TW';
+  return '<div class="ck-card '+cls+'" onclick="openChart(\''+tk+'\',\''+m+'\')">'+
+    '<div class="ck-card-top"><span class="ck-tk">'+tk+'</span><span class="ck-nm">'+nm+'</span>'+tags+'</div>'+
+    '<div class="ck-card-meta">'+
+      (p._strat?'<span>'+_ckEsc(p._strat)+'</span>':'')+
+      '<span>參考價 '+ref+'</span>'+
+      (excTxt?'<span class="'+excCls+'">超額 '+excTxt+'</span>':'')+
+      '<span>'+_ckEsc(statusZh)+'</span>'+
+    '</div></div>';
+}
+
+function ckAiCard(x){
+  const tk=_ckEsc(x.code); const nm=_ckEsc(x.name||'');
+  const conf=x.confidence!=null?Math.round(Number(x.confidence)*100)+'%':'';
+  const score=x.score!=null?Number(x.score).toFixed(0):'';
+  const m=((x.market||'TW')==='US')?'US':'TW';
+  return '<div class="ck-card ai" onclick="openChart(\''+tk+'\',\''+m+'\')">'+
+    '<div class="ck-card-top"><span class="ck-tk">'+tk+'</span><span class="ck-nm">'+nm+'</span>'+
+      '<span class="ck-tag ai">AI建議</span></div>'+
+    '<div class="ck-card-meta">'+
+      (score?'<span>分數 '+score+'</span>':'')+
+      (conf?'<span>信心 '+conf+'</span>':'')+
+      '<span>BUY</span>'+
+    '</div></div>';
+}
+
+// ② 今日該買 / 今日該賣
+async function ckLoadPicks(){
+  const buyEl=document.getElementById('ck-buy-list');
+  const sellEl=document.getElementById('ck-sell-list');
+  if(!buyEl||!sellEl) return;
+  const mkt=(typeof currentMarket!=='undefined'?currentMarket:'TW');
+  let strategies=[];
+  try{
+    const t=await fetch(API+'/api/forward/track',{headers:authHeaders()}).then(r=>r.json());
+    strategies=((t&&t.strategies)||[]).filter(s=>s.status==='active');
+  }catch(e){}
+  let allPicks=[];
+  if(strategies.length){
+    try{
+      const lists=await Promise.all(strategies.map(s=>
+        fetch(API+'/api/forward/picks?strategy='+s.strategy_id,{headers:authHeaders()})
+          .then(r=>r.json()).then(j=>({s,picks:(j&&j.picks)||[]})).catch(()=>({s,picks:[]}))));
+      lists.forEach(o=>o.picks.forEach(p=>{ p._strat=o.s.name; p._horizon=o.s.horizon_days; p._mkt=o.s.market; allPicks.push(p); }));
+    }catch(e){}
+  }
+  let aiBuy=[];
+  try{
+    const rr=await fetch(API+'/api/ic/recommendations?market='+mkt,{headers:authHeaders()}).then(r=>r.json());
+    aiBuy=(((rr&&rr.data)||[]).filter(x=>String(x.direction||'').toUpperCase()==='BUY'));
+  }catch(e){}
+
+  // ── BUY ──
+  const fwdBuy=allPicks.filter(p=>p.status==='pending'||p.status==='open');
+  const fwdTickers=new Set(fwdBuy.map(p=>String(p.ticker)));
+  const aiCodes=new Set(aiBuy.map(x=>String(x.code)));
+  fwdBuy.sort((a,b)=> ((a.status==='pending')?0:1)-((b.status==='pending')?0:1)
+    || String(b.pick_date||'').localeCompare(String(a.pick_date||'')));
+  const buyCards=[]; const seen=new Set();
+  fwdBuy.forEach(p=>{
+    const tk=String(p.ticker); if(seen.has(tk)) return; seen.add(tk);
+    const dual=aiCodes.has(tk);
+    const exc=(p.status==='closed'?p.realized_excess:p.mark_excess);
+    const tags=dual?'<span class="ck-tag dual">∧ 雙確認</span>':'<span class="ck-tag fwd">前向</span>';
+    const st=p.status==='pending'?'今日新選(待進場)':'持有中';
+    buyCards.push(ckPickCard(p,'buy'+(dual?' dual':''),tags,st,exc));
+  });
+  aiBuy.filter(x=>!fwdTickers.has(String(x.code))).slice(0,6).forEach(x=>buyCards.push(ckAiCard(x)));
+  buyEl.innerHTML=buyCards.length?buyCards.join('')
+    :'<div class="empty-state">今日無進場標的（風險閘可能未放行，或前向策略今日無 pick）</div>';
+
+  // ── SELL：open 到期 + closed ──
+  const sellCards=[];
+  allPicks.filter(p=>p.status==='open'&&ckIsDue(p)).forEach(p=>{
+    sellCards.push(ckPickCard(p,'exitc','<span class="ck-tag exitc">EXIT 到期</span>','持有≥horizon，建議檢視出場',p.mark_excess));
+  });
+  allPicks.filter(p=>p.status==='closed')
+    .sort((a,b)=>String(b.exit_date||'').localeCompare(String(a.exit_date||''))).slice(0,8)
+    .forEach(p=>{ sellCards.push(ckPickCard(p,'closed','<span class="ck-tag">已結算</span>','已出場',p.realized_excess)); });
+  sellEl.innerHTML=sellCards.length?sellCards.join('')
+    :'<div class="empty-state">✓ 無到期/出場訊號，持倉狀態安全</div>';
+}
+
+// ③ 戰績 KPI strip
+function ckKpi(label,val,sub,cls){
+  return '<div class="ck-kpi"><div class="ck-kpi-l">'+_ckEsc(label)+'</div>'+
+    '<div class="ck-kpi-v '+(cls||'')+'">'+_ckEsc(val)+'</div>'+
+    '<div class="ck-kpi-s">'+_ckEsc(sub||'')+'</div></div>';
+}
+async function ckLoadKpis(){
+  const el=document.getElementById('ck-kpis'); if(!el) return;
+  let track=null, port=null;
+  try{ track=await fetch(API+'/api/forward/track',{headers:authHeaders()}).then(r=>r.json()); }catch(e){}
+  try{ port =await fetch(API+'/api/portfolio/summary',{headers:authHeaders()}).then(r=>r.json()); }catch(e){}
+  const ov=(track&&track.overall)||{};
+  const strategies=(track&&track.strategies)||[];
+  const maxDays=strategies.reduce((m,s)=>Math.max(m,s.days_since_start||0),0);
+  const cards=[];
+  cards.push(ckKpi('前向實盤超額',
+    ov.closed_avg_excess!=null?(_ckArrow(ov.closed_avg_excess)+_ckPct(ov.closed_avg_excess)):(ov.n_picks?'追蹤中':'--'),
+    '已結算 '+(ov.closed||0)+' 檔 · 平均', _ckSignCls(ov.closed_avg_excess)));
+  cards.push(ckKpi('勝率',
+    ov.win_rate_pct!=null?(Number(ov.win_rate_pct).toFixed(0)+'%'):'--', 'OOS 已結算樣本', ''));
+  cards.push(ckKpi('持倉總損益',
+    (port&&port.total_pnl_pct!=null)?(_ckArrow(port.total_pnl_pct)+_ckPct(port.total_pnl_pct)):'--',
+    (port&&port.positions_count!=null)?(port.positions_count+' 檔持倉'):'', _ckSignCls(port&&port.total_pnl_pct)));
+  cards.push(ckKpi('追蹤 picks', (ov.n_picks||0)+' 檔',
+    'open '+(ov.open||0)+' · pend '+(ov.pending||0)+' · closed '+(ov.closed||0), ''));
+  cards.push(ckKpi('起跑天數', maxDays+' 天', (strategies.length||0)+' 個策略追蹤', ''));
+  el.innerHTML=cards.join('');
+}
+
+// 首屏即決策台 → 直接載入；每 60s 在決策台可見時刷新（含 header 切換 TW/US 後自動跟上）
+cockpitLoad();
+setInterval(function(){
+  var p=document.getElementById('page-cockpit');
+  if(p && p.classList.contains('active')) cockpitLoad();
+}, 60000);
 </script>
 </body>
 </html>
