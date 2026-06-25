@@ -132,6 +132,16 @@ def serve_manual():
         return FileResponse(str(p), media_type="text/html")
     return JSONResponse({"error": "manual.html not found"}, status_code=404)
 
+@app.get("/doc/{fname}", include_in_schema=False)
+def serve_doc(fname: str):
+    """服務 ui/ 下的 .html 報告文件（給手機/ngrok 閱讀）。路徑安全：僅 basename、僅 .html。"""
+    if (not fname.endswith(".html")) or ("/" in fname) or ("\\" in fname) or (".." in fname):
+        return JSONResponse({"error": "invalid"}, status_code=400)
+    p = Path(__file__).parent / fname
+    if p.is_file():
+        return FileResponse(str(p), media_type="text/html")
+    return JSONResponse({"error": "not found"}, status_code=404)
+
 @app.get("/api/auth/token")
 def get_api_token():
     """回傳本次啟動的 API Token（僅限 localhost 存取，用於前端高危操作）"""

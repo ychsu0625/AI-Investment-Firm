@@ -8378,6 +8378,15 @@ async function _rhInit() {
 
 function _debounce(fn, ms) { let t; return function(...a) { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
+function _rhDateTime(rpt) {
+  // 報告列表顯示「日期 + 時間」(來自檔案 mtime)，同一天多份才好找
+  if (rpt.mtime) {
+    var dt = new Date(rpt.mtime * 1000), p = function(n){ return String(n).padStart(2, '0'); };
+    return dt.getFullYear() + '-' + p(dt.getMonth()+1) + '-' + p(dt.getDate()) + ' ' + p(dt.getHours()) + ':' + p(dt.getMinutes());
+  }
+  return rpt.date || '';
+}
+
 async function _rhLoad() {
   const q = document.getElementById('rh-search').value;
   const status = document.getElementById('rh-status').value;
@@ -8387,7 +8396,7 @@ async function _rhLoad() {
   if (q) params.set('q', q);
   const r = await fetch('/api/reports?' + params);
   const d = await r.json();
-  const reports = d.data || [];
+  const reports = (d.data || []).slice().sort(function(a, b){ return (b.mtime || 0) - (a.mtime || 0); });  // 預設新到舊
   const cats = d.categories || {};
 
   let catHtml = '<button onclick="_rhCat=\'\';_rhLoad()" style="padding:4px 10px;border-radius:12px;border:1px solid var(--border);background:' + (!_rhCat ? 'var(--blue)' : 'var(--card-bg)') + ';color:' + (!_rhCat ? '#fff' : 'var(--text)') + ';cursor:pointer;font-size:12px">全部 (' + d.total + ')</button>';
@@ -8413,7 +8422,7 @@ async function _rhLoad() {
     html += '<div onclick="_rhOpen(\'' + rpt.id + '\')" style="padding:12px 16px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background=\'var(--hover)\'" onmouseout="this.style.background=\'var(--card-bg)\'">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center">';
     html += '<div style="font-weight:600">' + escHtml(rpt.title) + newBadge + statusBadge + '</div>';
-    html += '<div style="font-size:12px;color:var(--text-dim)">' + rpt.date + ' &middot; ' + size + '</div></div>';
+    html += '<div style="font-size:12px;color:var(--text-dim)">' + _rhDateTime(rpt) + ' &middot; ' + size + '</div></div>';
     html += '<div style="font-size:12px;color:var(--text-dim);margin-top:4px">';
     html += '<span style="background:var(--blue);color:#fff;padding:1px 6px;border-radius:4px;font-size:12px">' + catLabel + '</span> ' + tags;
     html += (rpt.summary ? ' &middot; ' + escHtml(rpt.summary) : '') + '</div></div>';
