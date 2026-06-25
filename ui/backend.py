@@ -15846,6 +15846,188 @@ def _slice_trades_by_regime(trades, regime_map):
     return out
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# P0-3a — 市場情緒「regime / 條件化軸」（市場級，非 cs 選股因子）
+# ──────────────────────────────────────────────────────────────────────────────
+# VIX / F&G / AAII 一天一個值、全市場共用 → 不能橫斷面排名個股（不是 cs 選股因子），
+# 而是「條件切片維度」。把 VIX 收盤 / F&G 指數轉成情緒桶（低波·貪婪 / 中性 / 高波·恐懼），
+# 複用既有 _slice_trades_by_regime 對 trade「進場日」分桶 → 讓 base-rate / composite 能切
+# 「A4 在 低VIX/貪婪 期 vs 高VIX/恐懼 期」找條件 alpha（與 A4 regime 條件 alpha 直接綜效）。
+#
+# ⚠ 設計鐵則：這是 regime 軸，「絕不」註冊進 _COMPOSITE_CS_FACTORS（市場級一天一值無法
+#   排名個股；若誤當 cs 會壞掉橫斷面語意）。它走獨立的 sentiment_map → per_sentiment 路徑，
+#   與既有 4-regime（per_regime）正交並存，互不影響。
+#
+# PIT：桶用「值[d]」標記進場日 d。VIX[d] 於 d 收盤已知（用於 d+1 進場不洩漏）、F&G[d] 為
+#   當日盤後值，與既有 _batch_calc_regime 用 vix_map.get(d) 完全同一對齊慣例。非交易日對齊用
+#   「最近一個 ≤ d 的值」前向填補（as-of，仍 PIT 安全：用昨日已知值，無 look-ahead）。
+#   mode='fixed' 用絕對門檻（無 look-ahead，可當 live 濾網）；mode='tercile' 用窗內 33/67
+#   分位（in-sample，僅供歷史樣本「條件化分析」分桶，精神同 per_regime，非 live 濾網）。
+# ══════════════════════════════════════════════════════════════════════════════
+_VIX_SENTIMENT_LABELS = ("VIX_LOW", "VIX_MID", "VIX_HIGH")     # 低波(自滿/貪婪)/中性/高波(恐懼)
+_FNG_SENTIMENT_LABELS = ("FNG_FEAR", "FNG_NEUTRAL", "FNG_GREED")  # 低值=恐懼 / 中性 / 高值=貪婪
+# 固定絕對門檻（PIT-clean，單一真實來源；VIX 25/35 與既有 4-regime 同尺，15 為常見低波界）
+_VIX_FIXED_LO, _VIX_FIXED_HI = 15.0, 25.0
+# F&G 0–100：恐懼 <25 / 中性 25–75 / 貪婪 >=75（CNN 常用 extreme 帶界，與老闆規格一致）
+_FNG_FIXED_LO, _FNG_FIXED_HI = 25.0, 75.0
+
+
+def _sentiment_buckets_from_series(rows, start, end, mode, fixed_lo, fixed_hi, labels):
+    """共用核心：sorted [(date, value)] → 前向填補(as-of)的 {date: label} + thresholds/counts。
+    labels=(low_label, mid_label, high_label)；value<lo→low / lo<=value<hi→mid / value>=hi→high。
+    mode='fixed' 用 fixed_lo/hi（PIT-clean）；'tercile' 用窗 [start,end] 內 33/67 分位（in-sample）。
+    前向填補：逐日曆日掃，缺值日沿用最近 ≤ d 的值（非交易日/休市對齊，PIT 安全）。"""
+    from datetime import timedelta as _td
+    low_l, mid_l, high_l = labels
+    if not rows:
+        return {"map": {}, "thresholds": None, "counts": {low_l: 0, mid_l: 0, high_l: 0}, "n_days": 0}
+    in_window = [v for (d, v) in rows if start <= d <= end and v is not None]
+    if mode == "tercile" and len(in_window) >= 3:
+        srt = sorted(in_window)
+        lo = srt[int(len(srt) * 0.33)]
+        hi = srt[int(len(srt) * 0.67)]
+        thr = {"lo": round(lo, 2), "hi": round(hi, 2), "basis": "in-sample 33/67 分位 [start,end]（非 live 濾網）"}
+    else:
+        lo, hi = fixed_lo, fixed_hi
+        thr = {"lo": lo, "hi": hi, "basis": "fixed 絕對門檻（PIT-clean）"}
+    smap = {}
+    counts = {low_l: 0, mid_l: 0, high_l: 0}
+    vi = 0
+    last_v = None
+    sdt = datetime.strptime(start, "%Y-%m-%d")
+    edt = datetime.strptime(end, "%Y-%m-%d")
+    d = sdt
+    while d <= edt:
+        ds = d.strftime("%Y-%m-%d")
+        while vi < len(rows) and rows[vi][0] <= ds:    # 吃掉所有 ≤ 當日的值（含 pre-window，建 as-of 起點）
+            if rows[vi][1] is not None:
+                last_v = rows[vi][1]
+            vi += 1
+        if last_v is not None:
+            lab = low_l if last_v < lo else (mid_l if last_v < hi else high_l)
+            smap[ds] = lab
+            counts[lab] += 1
+        d += _td(days=1)
+    return {"map": smap, "thresholds": thr, "counts": counts, "n_days": len(smap)}
+
+
+def _vix_sentiment_map(start, end, mode="fixed"):
+    """VIX 情緒條件軸 {date: VIX_LOW/VIX_MID/VIX_HIGH}（市場級，非 cs）。讀 daily_kbar ^VIX 收盤
+    （market.db；與 chip backfill 的 monitor.db 不同庫，零鎖競爭）。多拉 20 日前置供 as-of 起點。"""
+    from datetime import timedelta as _td
+    pre = (datetime.strptime(start, "%Y-%m-%d") - _td(days=20)).strftime("%Y-%m-%d")
+    con = market_db(); cur = con.cursor()
+    cur.execute("""SELECT date, close FROM daily_kbar
+                   WHERE code='^VIX' AND market='INDEX' AND date BETWEEN ? AND ?
+                   ORDER BY date""", (pre, end))
+    rows = cur.fetchall(); con.close()
+    out = _sentiment_buckets_from_series(rows, start, end, mode, _VIX_FIXED_LO, _VIX_FIXED_HI, _VIX_SENTIMENT_LABELS)
+    out.update({"axis": "vix", "mode": mode, "source": "daily_kbar ^VIX (market.db)"})
+    return out
+
+
+def _fng_sentiment_map(start, end, mode="fixed"):
+    """CNN Fear&Greed 情緒條件軸 {date: FNG_FEAR/FNG_NEUTRAL/FNG_GREED}（市場級，非 cs）。
+    讀 sentiment_daily(source='fng')（需先 _backfill_fng_history）。表缺/無資料 → 空 map（誠實，全 UNKNOWN）。"""
+    from datetime import timedelta as _td
+    pre = (datetime.strptime(start, "%Y-%m-%d") - _td(days=20)).strftime("%Y-%m-%d")
+    rows = []
+    try:
+        con = market_db(); cur = con.cursor()
+        cur.execute("""SELECT date, value FROM sentiment_daily
+                       WHERE source='fng' AND date BETWEEN ? AND ? ORDER BY date""", (pre, end))
+        rows = cur.fetchall(); con.close()
+    except Exception:
+        rows = []
+    out = _sentiment_buckets_from_series(rows, start, end, mode, _FNG_FIXED_LO, _FNG_FIXED_HI, _FNG_SENTIMENT_LABELS)
+    out.update({"axis": "fng", "mode": mode, "source": "sentiment_daily fng (market.db)"})
+    return out
+
+
+def _sentiment_regime_map(start, end, source="vix", mode="fixed"):
+    """情緒條件軸 dispatcher（market-agnostic：^VIX/F&G 為全球市場級，TW/US 共用同軸）。
+    source ∈ {'vix','fng'}（預設 vix）；回 {map, axis, mode, thresholds, counts, n_days, source}。"""
+    return _fng_sentiment_map(start, end, mode) if str(source).lower() == "fng" \
+        else _vix_sentiment_map(start, end, mode)
+
+
+def _ensure_sentiment_table():
+    """冪等建表：sentiment_daily（市場級日頻情緒，source 區分 fng/aaii…；market.db）。"""
+    con = market_db()
+    con.execute("""CREATE TABLE IF NOT EXISTS sentiment_daily(
+        date   TEXT NOT NULL,
+        source TEXT NOT NULL,
+        value  REAL,
+        rating TEXT,
+        PRIMARY KEY(date, source))""")
+    con.commit(); con.close()
+
+
+def _backfill_vix_history(start="2010-01-01", end=None):
+    """補 ^VIX 日線到 daily_kbar（market.db）。INSERT OR IGNORE → 不覆寫既有（純加法，零回歸）。
+    複用 yfinance（同 _bg_fetch_index 路徑）。回 {ok, added, range}。"""
+    end = end or datetime.now().strftime("%Y-%m-%d")
+    try:
+        import yfinance as yf
+        df = yf.download("^VIX", start=start, end=end, progress=False)
+    except Exception as e:
+        return {"ok": False, "added": 0, "error": f"yfinance: {e}"}
+    if df is None or df.empty:
+        return {"ok": False, "added": 0, "error": "yfinance ^VIX empty"}
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    con = market_db(); added = 0
+    for idx, row in df.iterrows():
+        d = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
+        try:
+            c = float(row.get("Close", 0) or 0)
+            if c == 0 or c != c:
+                continue
+            cur = con.execute(
+                "INSERT OR IGNORE INTO daily_kbar(code,market,date,open,high,low,close,volume) VALUES(?,?,?,?,?,?,?,?)",
+                ("^VIX", "INDEX", d, round(float(row.get("Open", 0) or 0), 2), round(float(row.get("High", 0) or 0), 2),
+                 round(float(row.get("Low", 0) or 0), 2), round(c, 2), 0))
+            added += cur.rowcount
+        except Exception:
+            pass
+    con.commit()
+    rng = con.execute("SELECT MIN(date),MAX(date),COUNT(*) FROM daily_kbar WHERE code='^VIX' AND market='INDEX'").fetchone()
+    con.close()
+    return {"ok": True, "added": added, "range": {"min": rng[0], "max": rng[1], "count": rng[2]}}
+
+
+def _backfill_fng_history():
+    """補 CNN Fear&Greed 日值到 sentiment_daily(source='fng')。免費 GitHub CSV（whit3rabbit）2011→今。
+    INSERT OR IGNORE（純加法）。回 {ok, added, range}。"""
+    _ensure_sentiment_table()
+    import urllib.request, csv as _csv
+    url = "https://raw.githubusercontent.com/whit3rabbit/fear-greed-data/main/fear-greed.csv"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        txt = urllib.request.urlopen(req, timeout=30).read().decode("utf-8", "ignore").splitlines()
+    except Exception as e:
+        return {"ok": False, "added": 0, "error": f"fetch: {e}"}
+    rdr = list(_csv.reader(txt))
+    body = rdr[1:] if rdr else []
+    con = market_db(); added = 0
+    for r in body:
+        if len(r) < 2:
+            continue
+        d = r[0][:10]
+        try:
+            v = float(r[1])
+        except Exception:
+            continue
+        rating = r[2].strip() if len(r) > 2 else None
+        cur = con.execute("INSERT OR IGNORE INTO sentiment_daily(date,source,value,rating) VALUES(?,?,?,?)",
+                          (d, "fng", round(v, 2), rating))
+        added += cur.rowcount
+    con.commit()
+    rng = con.execute("SELECT MIN(date),MAX(date),COUNT(*) FROM sentiment_daily WHERE source='fng'").fetchone()
+    con.close()
+    return {"ok": True, "added": added, "range": {"min": rng[0], "max": rng[1], "count": rng[2]}}
+
+
 # ── R-PROD-7a：複合進場（AND-stack）emission（與 _emit_trades trig=None+rank 分支同邏輯）──
 def _emit_composite_trades(f, eligible, dst):
     """複合進場：eligible = 該股「各層 AND 後」可進場日期集合。出場/淨成本/去重疊倉沿用
@@ -15961,7 +16143,7 @@ def _cs_layer_eligible(rmap: dict, top_k: float, direction: int = 1) -> set:
 # ── R-PROD-7a/7b 核心：複合 AND-stack 評估（全複用既有引擎原語）──────────────
 def _eval_composite_market(mkt, codes, start, end, layers, preloaded,
                            benchmark="equal_weight", regime_map=None,
-                           progress_cb=None, should_cancel=None):
+                           progress_cb=None, should_cancel=None, sentiment_map=None):
     """複合 AND-stack 評估：進場＝各層條件同時成立（AND），出場/淨成本/CI/公平基準/ALPHA 閘
     沿用 base-rate 同尺。複用 _compute_stock_features / _cs_rank_pct / _a5_pead_triggers /
     _chip_streak_dates / _emit_composite_trades / _summarize_trades / _extract_row / _slice_trades_by_regime。
@@ -16054,11 +16236,21 @@ def _eval_composite_market(mkt, codes, start, end, layers, preloaded,
                                    cs_factor=cs_factor, cs_top_k=cs_top_k)
             per_regime[reg] = _extract_row(rs, mkt, "COMPOSITE")
 
+    # P0-3a 市場情緒「條件軸」切片（VIX/F&G 桶；與 4-regime 正交並存，純加法）。
+    # 複用同一 _slice_trades_by_regime（按進場日分桶）→ 讓「A4 在 低VIX/貪婪 vs 高VIX/恐懼」可量測。
+    per_sentiment = {}
+    if sentiment_map:
+        for sb, trs in _slice_trades_by_regime(all_trades, sentiment_map).items():
+            rs = _summarize_trades(trs, mkt, excess_bench_map,
+                                   cs_factor=cs_factor, cs_top_k=cs_top_k)
+            per_sentiment[sb] = _extract_row(rs, mkt, "COMPOSITE")
+
     # layer_kinds：每 cs 層一筆（dir=−1 標 :dir-1）；單 cs dir+1 → "cs:<factor>"（與舊版逐字一致）
     cs_kinds = [("cs:" + L["factor"] + (":dir-1" if int(L.get("dir", 1)) < 0 else ""))
                 for L in cs_layers]
     layer_kinds = cs_kinds + (["pead"] if pead_layer else []) + (["chip"] if chip_layer else [])
     return {"row": row, "trades": all_trades, "per_regime": per_regime,
+            "per_sentiment": per_sentiment,
             "cs_factor": cs_factor, "cs_top_k": cs_top_k,
             "n_stocks": len(feats), "layer_kinds": layer_kinds}
 
@@ -16090,15 +16282,23 @@ def _ensure_composite_search_tables():
         pnl_blocks_json TEXT,
         notes          TEXT
     )""")
+    # P0-3a 冪等遷移：補 per_sentiment_json 欄（舊 DB 無此欄；ADD COLUMN 為 metadata-only，
+    # 既有 INSERT/UPDATE 不列此欄故零回歸；duplicate column 例外吞掉 → 重入安全）。
+    try:
+        con.execute("ALTER TABLE composite_candidates ADD COLUMN per_sentiment_json TEXT")
+    except Exception:
+        pass
     con.commit(); con.close()
 
 
 _COMPOSITE_JOBS: dict = {}   # job_id -> {status, progress, total, current, result, error, ...}
 
 
-def _composite_search_worker(job_id, market, codes, start, end, layers, benchmark, regime_slice, parent_id):
+def _composite_search_worker(job_id, market, codes, start, end, layers, benchmark, regime_slice, parent_id,
+                             sentiment_slice=False, sentiment_source="vix", sentiment_mode="fixed"):
     """背景：載入資料 → _eval_composite_market → DSR（對全持久化試驗 T 折減）→ 落地 →
-    PBO（CSCV，對本批 pnl_blocks）→ 更新該筆。全本地計算，零 token。"""
+    PBO（CSCV，對本批 pnl_blocks）→ 更新該筆。全本地計算，零 token。
+    P0-3a：sentiment_slice=True 時另建市場情緒條件軸（VIX/F&G 桶）切片 → per_sentiment（與 4-regime 正交）。"""
     import json
     job = _COMPOSITE_JOBS[job_id]
     try:
@@ -16112,6 +16312,15 @@ def _composite_search_worker(job_id, market, codes, start, end, layers, benchmar
                 regime_map = {r["date"]: r["regime"] for r in _batch_calc_regime(market, start, end)}
             except Exception as e:
                 print(f"[search] regime map failed: {e}", flush=True)
+        # P0-3a 情緒條件軸 map（市場級 VIX/F&G 桶；預設關閉 → 零回歸）
+        sentiment_map = {}; sentiment_meta = None
+        if sentiment_slice:
+            try:
+                _sm = _sentiment_regime_map(start, end, source=sentiment_source, mode=sentiment_mode)
+                sentiment_map = _sm.get("map", {})
+                sentiment_meta = {k: v for k, v in _sm.items() if k != "map"}
+            except Exception as e:
+                print(f"[search] sentiment map failed: {e}", flush=True)
 
         def _prog(done, tot):
             job["progress"] = done; job["total"] = tot
@@ -16119,7 +16328,8 @@ def _composite_search_worker(job_id, market, codes, start, end, layers, benchmar
 
         res = _eval_composite_market(market, codes, start, end, layers, preloaded,
                                      benchmark=benchmark, regime_map=regime_map,
-                                     progress_cb=_prog, should_cancel=lambda: job.get("cancelled"))
+                                     progress_cb=_prog, should_cancel=lambda: job.get("cancelled"),
+                                     sentiment_map=sentiment_map)
         row = res["row"]
         trades = res["trades"]
         returns = [t[2] for t in trades]
@@ -16171,6 +16381,10 @@ def _composite_search_worker(job_id, market, codes, start, end, layers, benchmar
 
         cur.execute("UPDATE composite_candidates SET dsr=?, pbo=?, trial_T=? WHERE cand_id=?",
                     (dsr_res.get("dsr"), pbo_res.get("pbo"), T, cand_id))
+        # P0-3a：per_sentiment 落地（獨立 UPDATE → 既有 INSERT/UPDATE 逐字不變，零回歸）
+        if res.get("per_sentiment"):
+            cur.execute("UPDATE composite_candidates SET per_sentiment_json=? WHERE cand_id=?",
+                        (json.dumps(res["per_sentiment"], ensure_ascii=False), cand_id))
         con.commit(); con.close()
 
         # ── 分級閘判讀（G1 既有 status；G2 DSR>0.95；G3 PBO<0.20）──
@@ -16190,6 +16404,7 @@ def _composite_search_worker(job_id, market, codes, start, end, layers, benchmar
             "g1_status": g1, "gate_grade": grade,
             "g1_row": row, "dsr": dsr_res, "pbo": pbo_res,
             "per_regime": res["per_regime"], "n_stocks": res["n_stocks"],
+            "per_sentiment": res.get("per_sentiment", {}), "sentiment_meta": sentiment_meta,
             "n_trades": row.get("N"), "cs_factor": res["cs_factor"], "cs_top_k": res["cs_top_k"],
         }
         job["status"] = "cancelled" if job.get("cancelled") else "done"
@@ -16226,6 +16441,14 @@ def run_composite_search(config: dict, _: None = Depends(require_token)):
     if benchmark not in _BENCHMARK_WHITELIST:
         benchmark = "equal_weight"
     regime_slice = bool(config.get("regime_slice", True))
+    # P0-3a 市場情緒條件軸切片（預設關閉 → 零回歸；開啟才另算 per_sentiment）
+    sentiment_slice = bool(config.get("sentiment_slice", False))
+    sentiment_source = str(config.get("sentiment_source", "vix")).lower()
+    if sentiment_source not in ("vix", "fng"):
+        sentiment_source = "vix"
+    sentiment_mode = str(config.get("sentiment_mode", "fixed")).lower()
+    if sentiment_mode not in ("fixed", "tercile"):
+        sentiment_mode = "fixed"
     parent_id = config.get("parent_id")
 
     # universe（複用 get_universe）
@@ -16250,11 +16473,15 @@ def run_composite_search(config: dict, _: None = Depends(require_token)):
         "status": "starting", "progress": 0, "total": 0, "current": "", "cancelled": False,
         "result": None, "error": None,
         "config": {"market": market, "start": start, "end": end, "benchmark": benchmark,
-                   "layers": layers, "regime_slice": regime_slice},
+                   "layers": layers, "regime_slice": regime_slice,
+                   "sentiment_slice": sentiment_slice, "sentiment_source": sentiment_source,
+                   "sentiment_mode": sentiment_mode},
         "started_at": datetime.now().isoformat(), "completed_at": None,
     }
     threading.Thread(target=_composite_search_worker,
                      args=(job_id, market, codes, start, end, layers, benchmark, regime_slice, parent_id),
+                     kwargs={"sentiment_slice": sentiment_slice, "sentiment_source": sentiment_source,
+                             "sentiment_mode": sentiment_mode},
                      daemon=True).start()
     return {"ok": True, "job_id": job_id, "layers": layers, "market": market,
             "message": f"Composite search started ({len(codes)} stocks). "
@@ -16278,6 +16505,50 @@ def get_composite_search(job_id: str):
     elif job["status"] == "error":
         resp["error"] = job.get("error")
     return resp
+
+
+# ── P0-3a：市場情緒條件軸 inspect + 資料補檔 endpoints ─────────────────────────
+@app.get("/api/sentiment/regime")
+def get_sentiment_regime(start: str = "2020-01-01", end: str = "", source: str = "vix", mode: str = "fixed"):
+    """市場情緒「條件軸」(VIX/F&G)分桶 inspect（市場級，非 cs 選股因子）。回 thresholds/counts/桶分佈
+    + 最近樣本，供 AIF 設計「A4 在 低VIX/貪婪 vs 高VIX/恐懼」條件切片。零 token、純本地計算。"""
+    if not end:
+        end = datetime.now().strftime("%Y-%m-%d")
+    source = str(source).lower(); mode = str(mode).lower()
+    if source not in ("vix", "fng"):
+        return JSONResponse({"error": "source 須為 vix 或 fng"}, status_code=400)
+    if mode not in ("fixed", "tercile"):
+        return JSONResponse({"error": "mode 須為 fixed 或 tercile"}, status_code=400)
+    try:
+        res = _sentiment_regime_map(start, end, source=source, mode=mode)
+        smap = res.pop("map", {})
+        res["recent_sample"] = dict(sorted(smap.items())[-15:])   # 不回整個 map（太大），回最近 15 日
+        res["window"] = {"start": start, "end": end}
+        return res
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/api/sentiment/backfill_vix")
+def backfill_vix(config: dict = None, _: None = Depends(require_token)):
+    """補 ^VIX 日線 2010→今 到 daily_kbar（market.db；INSERT OR IGNORE 純加法，與 chip backfill 的
+    monitor.db 不同庫，零鎖競爭）。body 可選 {start,end}。零 token。"""
+    config = config or {}
+    start = str(config.get("start", "2010-01-01"))
+    end = config.get("end") or None
+    try:
+        return _backfill_vix_history(start, end)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.post("/api/sentiment/backfill_fng")
+def backfill_fng(_: None = Depends(require_token)):
+    """補 CNN Fear&Greed 日值 2011→今 到 sentiment_daily（免費 GitHub CSV；INSERT OR IGNORE 純加法）。零 token。"""
+    try:
+        return _backfill_fng_history()
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
 @app.post("/api/search/overfit")
