@@ -17309,6 +17309,530 @@ def _fetch_us_universe() -> dict:
     except Exception as e:
         return {"market": "US", "count": 0, "data": [], "error": str(e)}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 前向模擬器 Phase 1 — live-forward 紙上實盤（多策略，每日循環）
+# ──────────────────────────────────────────────────────────────────────────────
+# 目的：把研發成果（過閘策略）變成每日循環 → 每日選股 → 模擬買進 → 累積真實 OOS 戰績。
+#       前向不可能 in-sample 造假，直接驗證/打掉 PBO 過擬合疑慮（憲章 §一‧五）。
+#
+# 【🔑選股與回測「同源」(核心，給 Reviewer)】選股「逐字複用」回測引擎
+#   _eval_composite_market 的同一批原語（單一真實來源，無另寫一套）：
+#     _compute_stock_features  — 個股特徵/outcome 表（與回測同函式）
+#     _cs_rank_pct             — 橫斷面因子百分位排名；內含 _compute_cs_factors /
+#                                _compute_sector_factors / _compute_chip_cs_factors /
+#                                _compute_revenue_cs_factors（與回測完全同一批因子函式）
+#     _cs_layer_eligible       — 每 cs 層 top/bottom K% 可進場集合（同函式、同門檻語意）
+#     _a5_pead_triggers / _chip_streak_dates — pead/chip 層（同函式）
+#     set.intersection         — AND-stack 交集（與回測同一行邏輯）
+#   差別僅：回測 _emit_composite_trades emit 整段交易（含 open_until 去重疊倉），
+#   live 只問「pick_date 是否 ∈ eligible」——這與回測「某一交易日是否進場」是完全同一判定
+#   （open_until 只關乎回測不重複堆疊倉位，與『今日這檔是否入選』無關）。
+#   故 live 選股 ≡ backtest 選股（同因子值、同排名、同 K% 門檻、同 AND 交集）。
+#
+# 【🔑PIT 防洩漏】
+#   (1) 選股只用 ≤ pick_date 的資料（pick_date = 「最新一個有足量橫斷面資料的交易日 ≤ 請求日」）。
+#       因子值在 pick_date 只用該股 ≤pick_date 的收盤；籌碼/月營收因子本身已 PIT 對齊次一交易日 /
+#       announce_date（見 _chip_factor_series / _revenue_factor_series docstring）。
+#   (2) 進場 = pick_date 之「次一交易日」開盤（entry_date/entry_price 次日）。次日 bar 尚未到時
+#       status='pending'，待 /api/forward/update 取得次日 bar 後才回填 entry → 對「未來」零洩漏，
+#       OOS 純度更強（下單前進場 bar 根本還不存在）。
+#
+# 全加法：ft_strategies / ft_picks / ft_runs 為全新表，新 endpoint，零碰既有（零回歸）。
+# ══════════════════════════════════════════════════════════════════════════════
+_FT_DEFAULT_HORIZON     = 20
+_FT_DEFAULT_REGIME_GATE = "TREND_UP"
+_FT_WARMUP_DAYS         = 540   # 選股資料載入回看天數（足供 resid_mom reg120+acc60 / sector_rel N60 暖身）
+
+
+def _ensure_ft_tables():
+    """冪等建表：ft_strategies（策略註冊表）/ ft_picks（每日選股）/ ft_runs（每次跑/跳過稽核）。"""
+    con = db(); cur = con.cursor()
+    cur.execute("""CREATE TABLE IF NOT EXISTS ft_strategies(
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        name         TEXT NOT NULL UNIQUE,
+        market       TEXT NOT NULL DEFAULT 'TW',
+        layers_json  TEXT NOT NULL,
+        regime_gate  TEXT DEFAULT 'TREND_UP',
+        vix_gate     TEXT,
+        horizon_days INTEGER DEFAULT 20,
+        benchmark    TEXT DEFAULT 'equal_weight',
+        status       TEXT DEFAULT 'active',
+        source       TEXT DEFAULT 'manual',
+        created_at   TEXT
+    )""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS ft_picks(
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        strategy_id     INTEGER NOT NULL,
+        pick_date       TEXT NOT NULL,
+        run_date        TEXT,
+        ticker          TEXT NOT NULL,
+        name            TEXT,
+        rank_json       TEXT,
+        ref_price       REAL,
+        regime          TEXT,
+        vix_bucket      TEXT,
+        horizon_days    INTEGER,
+        entry_date      TEXT,
+        entry_price     REAL,
+        mark_date       TEXT,
+        mark_price      REAL,
+        mark_return     REAL,
+        mark_excess     REAL,
+        exit_date       TEXT,
+        exit_price      REAL,
+        realized_return REAL,
+        realized_excess REAL,
+        status          TEXT DEFAULT 'pending',
+        created_at      TEXT,
+        updated_at      TEXT,
+        UNIQUE(strategy_id, pick_date, ticker)
+    )""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS ft_runs(
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        strategy_id  INTEGER NOT NULL,
+        run_date     TEXT,
+        pick_date    TEXT,
+        regime       TEXT,
+        vix_bucket   TEXT,
+        n_picks      INTEGER,
+        skipped      INTEGER DEFAULT 0,
+        skip_reason  TEXT,
+        created_at   TEXT,
+        UNIQUE(strategy_id, pick_date)
+    )""")
+    con.commit(); con.close()
+
+
+def _ft_universe_codes(market: str) -> list:
+    """複用 get_universe 取碼表（與回測/搜尋引擎同一 universe → 同源）。"""
+    uni = get_universe(market)
+    if isinstance(uni, JSONResponse):
+        return []
+    raw = uni.get("data", uni.get("stocks", []))
+    codes = [(s if isinstance(s, str) else s.get("code", "")) for s in raw]
+    return [c for c in codes if c]
+
+
+def _ft_resolve_asof(all_dates: list, codes: list, bar_data: dict, requested: str) -> str:
+    """as-of 解析（PIT）：最新一個 ≤ requested 且有 ≥ _CS_MIN_XSECTION 檔 universe 報價的交易日。
+    （資料落後請求日時，自動退回最近一個有橫斷面的收盤日 → live 在最近一收盤後選股。）"""
+    for d in reversed(all_dates):
+        if d > requested:
+            continue
+        n = 0
+        for c in codes:
+            if (c, d) in bar_data:
+                n += 1
+                if n >= _CS_MIN_XSECTION:
+                    return d
+    return None
+
+
+def _ft_resolve_entry(code: str, pick_date: str, all_dates: list, bar_data: dict):
+    """PIT 次一交易日進場：第一個 > pick_date 且該股有 bar 的交易日 → (entry_date, entry_open)。
+    次日 bar 尚未到（today 之後）→ (None, None) → pending，待 update 回填。"""
+    for d in all_dates:
+        if d > pick_date and (code, d) in bar_data:
+            b = bar_data[(code, d)]
+            op = b.get("open") or b.get("close")
+            return d, (float(op) if op else None)
+    return None, None
+
+
+def _ft_vix_bucket(asof: str) -> str:
+    """as-of 當日 VIX 情緒桶（複用 _vix_sentiment_map 同門檻；缺值回 None）。"""
+    try:
+        return _vix_sentiment_map(asof, asof, "fixed").get("map", {}).get(asof)
+    except Exception:
+        return None
+
+
+def _ft_compute_picks(mkt: str, codes: list, layers: list, pick_date: str, preloaded: tuple, bench_map: dict):
+    """🔑 與回測同源的當日選股：逐字鏡像 _eval_composite_market 的進場 pass（同原語、同 AND 交集），
+    但只回「pick_date 入選的個股」而非 emit 整段交易。回 (picks, n_ranked)。
+    picks = [{code, ref_price(=pick_date close), rank{factor:pct}}]。"""
+    all_dates, bar_data = preloaded
+    cs_layers = []; pead_layer = chip_layer = None
+    for L in layers:                                  # 解析層（與 _eval_composite_market 同）
+        if L.get("type") == "pead":
+            pead_layer = L
+        elif L.get("type") == "chip":
+            chip_layer = L
+        elif L.get("factor") in _COMPOSITE_CS_FACTORS:
+            cs_layers.append(L)
+    feats = {}
+    for code in codes:                                # 同回測 context pass
+        f = _compute_stock_features(code, all_dates, bar_data)
+        if f:
+            feats[code] = f
+    cs_needed = {L["factor"] for L in cs_layers}
+    rank_pct = _cs_rank_pct(mkt, codes, feats, cs_needed, bench_map) if cs_needed else {}
+    chip_elig = _chip_streak_dates(codes, chip_layer.get("window", 3),
+                                   chip_layer.get("min_net", 0.0)) if chip_layer else {}
+    earnings = _get_earnings_map(mkt, codes) if pead_layer else {}
+    picks = []
+    for code in codes:                                # 進場 pass（逐字鏡像回測，只查 pick_date）
+        f = feats.get(code)
+        if not f or (code, pick_date) not in bar_data:
+            continue
+        dts = f["dates"]
+        layer_sets = []; rankinfo = {}
+        for L in cs_layers:
+            rmap = rank_pct.get(L["factor"], {}).get(code, {})
+            layer_sets.append(_cs_layer_eligible(
+                rmap, float(L.get("top_k", _CS_DEFAULT_K)), int(L.get("dir", 1))))
+            rankinfo[L["factor"]] = (round(rmap[pick_date], 4) if pick_date in rmap else None)
+        if pead_layer:
+            trig = _a5_pead_triggers(dts, f["c"], bench_map, earnings.get(code, []))
+            layer_sets.append({dts[i] for i in range(len(dts)) if trig[i]})
+        if chip_layer:
+            layer_sets.append(chip_elig.get(code, set()))
+        if not layer_sets:
+            continue
+        eligible = set.intersection(*layer_sets) if len(layer_sets) > 1 else layer_sets[0]
+        if pick_date in eligible:                     # 與回測「某日是否進場」同一判定
+            picks.append({"code": code,
+                          "ref_price": float(bar_data[(code, pick_date)]["close"]),
+                          "rank": rankinfo})
+    picks.sort(key=lambda p: p["code"])
+    return picks, len(feats)
+
+
+def _ft_record_run(sid, run_date, pick_date, regime, vbucket, n_picks, skipped, reason):
+    """稽核：記錄某策略某 pick_date 的跑/跳過（冪等：同 strategy×pick_date 覆蓋）。"""
+    con = db(); cur = con.cursor()
+    cur.execute("""INSERT INTO ft_runs(strategy_id,run_date,pick_date,regime,vix_bucket,n_picks,skipped,skip_reason,created_at)
+        VALUES(?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(strategy_id,pick_date) DO UPDATE SET run_date=excluded.run_date,regime=excluded.regime,
+            vix_bucket=excluded.vix_bucket,n_picks=excluded.n_picks,skipped=excluded.skipped,
+            skip_reason=excluded.skip_reason,created_at=excluded.created_at""",
+        (sid, run_date, pick_date, regime, vbucket, n_picks, skipped, reason, datetime.now().isoformat()))
+    con.commit(); con.close()
+
+
+def _ft_insert_picks(sid, pick_date, run_date, picks, regime, vbucket, horizon, all_dates, bar_data) -> int:
+    """落地當日 picks（冪等：UNIQUE(strategy_id,pick_date,ticker) + INSERT OR IGNORE → 同日同策略不重複）。
+    進場：PIT 次一交易日；次日 bar 已到 → entry_price+status='open'，否則 pending。"""
+    con = db(); cur = con.cursor(); now = datetime.now().isoformat(); ins = 0
+    for p in picks:
+        code = p["code"]
+        ed, ep = _ft_resolve_entry(code, pick_date, all_dates, bar_data)
+        status = "open" if ep is not None else "pending"
+        cur.execute("""INSERT OR IGNORE INTO ft_picks
+            (strategy_id,pick_date,run_date,ticker,name,rank_json,ref_price,regime,vix_bucket,horizon_days,
+             entry_date,entry_price,status,created_at,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (sid, pick_date, run_date, code, _get_stock_name(code),
+             json.dumps(p["rank"], ensure_ascii=False), round(p["ref_price"], 2),
+             regime, vbucket, horizon, ed, (round(ep, 2) if ep else None), status, now, now))
+        ins += cur.rowcount
+    con.commit(); con.close()
+    return ins
+
+
+@app.post("/api/forward/strategy")
+def forward_register_strategy(config: dict, _: None = Depends(require_token)):
+    """註冊/更新一個 live-forward 策略（冪等 by name）。
+    body: {name, layers:[{factor,top_k,dir}|{type:'pead'}|{type:'chip',...}], market, regime_gate,
+           vix_gate, horizon_days, benchmark, source}。layers 走 _normalize_layers（與回測同驗證）。"""
+    _ensure_ft_tables()
+    name = str(config.get("name", "")).strip()
+    if not name:
+        return JSONResponse({"ok": False, "error": "name 必填"}, status_code=400)
+    layers, err = _normalize_layers(config.get("layers"))
+    if err:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    market = str(config.get("market", "TW")).upper()
+    regime_gate = config.get("regime_gate", _FT_DEFAULT_REGIME_GATE)
+    if regime_gate in ("", None):
+        regime_gate = None
+    vix_gate = config.get("vix_gate") or None
+    if vix_gate and vix_gate not in _VIX_SENTIMENT_LABELS:
+        return JSONResponse({"ok": False, "error": f"vix_gate 須屬 {_VIX_SENTIMENT_LABELS} 或空"}, status_code=400)
+    try:
+        horizon = int(config.get("horizon_days", _FT_DEFAULT_HORIZON))
+    except (TypeError, ValueError):
+        horizon = _FT_DEFAULT_HORIZON
+    benchmark = str(config.get("benchmark", "equal_weight")).lower()
+    source = str(config.get("source", "manual"))
+    con = db(); cur = con.cursor()
+    cur.execute("""INSERT INTO ft_strategies(name,market,layers_json,regime_gate,vix_gate,horizon_days,benchmark,status,source,created_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(name) DO UPDATE SET layers_json=excluded.layers_json,regime_gate=excluded.regime_gate,
+            vix_gate=excluded.vix_gate,horizon_days=excluded.horizon_days,benchmark=excluded.benchmark,
+            market=excluded.market,source=excluded.source,status='active'""",
+        (name, market, json.dumps(layers, ensure_ascii=False), regime_gate, vix_gate, horizon,
+         benchmark, "active", source, datetime.now().isoformat()))
+    con.commit()
+    sid = cur.execute("SELECT id FROM ft_strategies WHERE name=?", (name,)).fetchone()[0]
+    con.close()
+    return {"ok": True, "strategy_id": sid, "name": name, "layers": layers,
+            "regime_gate": regime_gate, "vix_gate": vix_gate, "horizon_days": horizon, "market": market}
+
+
+@app.get("/api/forward/strategies")
+def forward_list_strategies():
+    """列出已註冊策略。"""
+    _ensure_ft_tables()
+    con = db(); cur = con.cursor()
+    rows = cur.execute("""SELECT id,name,market,layers_json,regime_gate,vix_gate,horizon_days,
+        benchmark,status,source,created_at FROM ft_strategies ORDER BY id""").fetchall()
+    con.close()
+    cols = ["id", "name", "market", "layers_json", "regime_gate", "vix_gate", "horizon_days",
+            "benchmark", "status", "source", "created_at"]
+    out = []
+    for r in rows:
+        d = dict(zip(cols, r))
+        try:
+            d["layers"] = json.loads(d.pop("layers_json"))
+        except Exception:
+            d["layers"] = None; d.pop("layers_json", None)
+        out.append(d)
+    return {"ok": True, "count": len(out), "strategies": out}
+
+
+@app.post("/api/forward/run")
+def forward_run(date: str = "", strategy: int = 0, _: None = Depends(require_token)):
+    """每日選股：對每個 active 策略——as-of 解析 → regime/vix gate（不符記 skipped）→
+    與回測同源選股(_ft_compute_picks) → PIT 次日進場落地 ft_picks（冪等）。回各策略今日 picks。"""
+    _ensure_ft_tables()
+    requested = date or datetime.now().strftime("%Y-%m-%d")
+    try:
+        datetime.strptime(requested, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "error": "date 須 YYYY-MM-DD"}, status_code=400)
+    con = db(); cur = con.cursor()
+    q = ("SELECT id,name,market,layers_json,regime_gate,vix_gate,horizon_days,benchmark,status,source "
+         "FROM ft_strategies WHERE status='active'")
+    params = []
+    if strategy:
+        q += " AND id=?"; params = [strategy]
+    strats = cur.execute(q, params).fetchall()
+    con.close()
+    if not strats:
+        return {"ok": True, "requested_date": requested, "message": "no active strategies", "results": []}
+    by_mkt = {}
+    for s in strats:
+        by_mkt.setdefault(s[2], []).append(s)
+    results = []
+    for mkt, slist in by_mkt.items():
+        codes = _ft_universe_codes(mkt)
+        if not codes:
+            for s in slist:
+                results.append({"strategy_id": s[0], "name": s[1], "skipped": True, "reason": "empty universe"})
+            continue
+        start = (datetime.strptime(requested, "%Y-%m-%d") - timedelta(days=_FT_WARMUP_DAYS)).strftime("%Y-%m-%d")
+        preloaded = _load_backtest_data(codes, mkt, start, requested)
+        all_dates, bar_data = preloaded
+        bench_map = _get_benchmark_close_map(mkt, start, requested)
+        asof = _ft_resolve_asof(all_dates, codes, bar_data, requested)
+        if not asof:
+            for s in slist:
+                results.append({"strategy_id": s[0], "name": s[1], "skipped": True, "reason": "no data <= date"})
+            continue
+        reg = _calc_regime(mkt, asof).get("regime", "UNKNOWN")
+        vbucket = _ft_vix_bucket(asof)
+        for s in slist:
+            sid, name, _m, layers_json, rgate, vgate, horizon, benchmark, status, source = s
+            layers = json.loads(layers_json)
+            if rgate and reg != rgate:
+                _ft_record_run(sid, requested, asof, reg, vbucket, 0, 1, f"regime {reg}≠gate {rgate}")
+                results.append({"strategy_id": sid, "name": name, "pick_date": asof, "regime": reg,
+                                "skipped": True, "reason": f"regime {reg}≠{rgate}"})
+                continue
+            if vgate and vbucket != vgate:
+                _ft_record_run(sid, requested, asof, reg, vbucket, 0, 1, f"vix {vbucket}≠gate {vgate}")
+                results.append({"strategy_id": sid, "name": name, "pick_date": asof, "regime": reg,
+                                "vix_bucket": vbucket, "skipped": True, "reason": f"vix {vbucket}≠{vgate}"})
+                continue
+            picks, n_ranked = _ft_compute_picks(mkt, codes, layers, asof, preloaded, bench_map)
+            inserted = _ft_insert_picks(sid, asof, requested, picks, reg, vbucket, horizon, all_dates, bar_data)
+            _ft_record_run(sid, requested, asof, reg, vbucket, len(picks), 0, None)
+            results.append({"strategy_id": sid, "name": name, "pick_date": asof, "regime": reg,
+                            "vix_bucket": vbucket, "n_picks": len(picks), "inserted": inserted,
+                            "n_universe_ranked": n_ranked,
+                            "picks": [{"ticker": p["code"], "name": _get_stock_name(p["code"]),
+                                       "ref_price": round(p["ref_price"], 2), "rank": p["rank"]}
+                                      for p in picks]})
+    return {"ok": True, "requested_date": requested, "results": results}
+
+
+@app.post("/api/forward/update")
+def forward_update(_: None = Depends(require_token)):
+    """每日結算：對所有 open/pending picks——pending 回填 PIT 次日進場；open 算至今報酬+對等權大盤
+    超額(mark-to-market)；到 horizon_days 則結算 exit/realized/status=closed。超額 = 個股淨報酬 −
+    等權 universe 同持有期報酬（複用 _equal_weight_bench_map，與回測 _summarize_trades 同口徑）。"""
+    _ensure_ft_tables()
+    con = db(); cur = con.cursor()
+    open_rows = cur.execute("""SELECT id,strategy_id,pick_date,ticker,horizon_days,entry_date,entry_price,status
+        FROM ft_picks WHERE status IN ('pending','open')""").fetchall()
+    strat_mkt = {r[0]: r[1] for r in cur.execute("SELECT id,market FROM ft_strategies").fetchall()}
+    con.close()
+    if not open_rows:
+        return {"ok": True, "entered": 0, "marked": 0, "settled": 0, "message": "no open/pending picks"}
+    by_mkt = {}
+    for r in open_rows:
+        mkt = strat_mkt.get(r[1], "TW")
+        by_mkt.setdefault(mkt, []).append(r)
+    today = datetime.now().strftime("%Y-%m-%d")
+    entered = marked = settled = 0
+    for mkt, prs in by_mkt.items():
+        codes = _ft_universe_codes(mkt)
+        min_pick = min(p[2] for p in prs)
+        start = (datetime.strptime(min_pick, "%Y-%m-%d") - timedelta(days=10)).strftime("%Y-%m-%d")
+        preloaded = _load_backtest_data(codes, mkt, start, today)
+        all_dates, bar_data = preloaded
+        bench = _equal_weight_bench_map(codes, all_dates, bar_data)
+        con = db(); cur = con.cursor(); now = datetime.now().isoformat()
+        for p in prs:
+            pid, sid, pick_date, ticker, horizon, entry_date, entry_price, status = p
+            if entry_price is None:                         # pending → 回填 PIT 次日進場
+                ed, ep = _ft_resolve_entry(ticker, pick_date, all_dates, bar_data)
+                if ep is None:
+                    continue                                # 次日 bar 仍未到 → 維持 pending
+                entry_date, entry_price = ed, ep; entered += 1
+                cur.execute("UPDATE ft_picks SET entry_date=?,entry_price=?,status='open',updated_at=? WHERE id=?",
+                            (entry_date, round(entry_price, 2), now, pid))
+            sdates = [d for d in all_dates if (ticker, d) in bar_data]   # 該股自身交易日序列
+            if entry_date not in sdates:
+                continue
+            ei = sdates.index(entry_date)
+            ti = ei + int(horizon or _FT_DEFAULT_HORIZON)
+            if ti < len(sdates):                            # 到 horizon → 結算
+                exit_date = sdates[ti]; exit_close = float(bar_data[(ticker, exit_date)]["close"])
+                rret = _net_return_pct(entry_price, exit_close, mkt, TW_DISCOUNT)
+                rexc = None; be, bx = bench.get(entry_date), bench.get(exit_date)
+                if be and bx and be > 0:
+                    rexc = round(rret - (bx / be - 1) * 100, 2)
+                cur.execute("""UPDATE ft_picks SET exit_date=?,exit_price=?,realized_return=?,realized_excess=?,
+                    mark_date=?,mark_price=?,mark_return=?,mark_excess=?,status='closed',updated_at=? WHERE id=?""",
+                    (exit_date, round(exit_close, 2), round(rret, 2), rexc,
+                     exit_date, round(exit_close, 2), round(rret, 2), rexc, now, pid))
+                settled += 1
+            else:                                           # 未到 horizon → mark-to-market 至最新
+                mark_date = sdates[-1]; mark_close = float(bar_data[(ticker, mark_date)]["close"])
+                mret = _net_return_pct(entry_price, mark_close, mkt, TW_DISCOUNT)
+                mexc = None; be, bx = bench.get(entry_date), bench.get(mark_date)
+                if be and bx and be > 0:
+                    mexc = round(mret - (bx / be - 1) * 100, 2)
+                cur.execute("""UPDATE ft_picks SET mark_date=?,mark_price=?,mark_return=?,mark_excess=?,updated_at=? WHERE id=?""",
+                            (mark_date, round(mark_close, 2), round(mret, 2), mexc, now, pid))
+                marked += 1
+        con.commit(); con.close()
+    return {"ok": True, "as_of": today, "entered": entered, "marked": marked, "settled": settled}
+
+
+@app.get("/api/forward/track")
+def forward_track():
+    """戰績：每策略 + 整體 live-forward 記錄（picks 數、open/pending/closed、累積平均超額、勝率、
+    起跑至今天數、最佳/最差）。closed 用 realized_excess；open 用 mark_excess（current standing）。"""
+    _ensure_ft_tables()
+    today = datetime.now().strftime("%Y-%m-%d")
+    con = db(); cur = con.cursor()
+    strs = cur.execute("""SELECT id,name,market,regime_gate,vix_gate,horizon_days,status,source
+        FROM ft_strategies ORDER BY id""").fetchall()
+    out = []
+    ov = {"picks": 0, "open": 0, "pending": 0, "closed": 0, "excess": [], "ret": []}
+    for s in strs:
+        sid = s[0]
+        prows = cur.execute("""SELECT status,realized_return,realized_excess,mark_return,mark_excess,ticker,name
+            FROM ft_picks WHERE strategy_id=?""", (sid,)).fetchall()
+        n = len(prows)
+        n_open = sum(1 for r in prows if r[0] == "open")
+        n_pend = sum(1 for r in prows if r[0] == "pending")
+        n_closed = sum(1 for r in prows if r[0] == "closed")
+        closed_exc = [r[2] for r in prows if r[0] == "closed" and r[2] is not None]
+        closed_ret = [r[1] for r in prows if r[0] == "closed" and r[1] is not None]
+        live = [(r[2] if r[0] == "closed" else r[4]) for r in prows
+                if r[0] in ("closed", "open") and (r[2] if r[0] == "closed" else r[4]) is not None]
+        ranked = [((r[2] if r[0] == "closed" else r[4]), r[5], r[6], r[0]) for r in prows
+                  if (r[2] if r[0] == "closed" else r[4]) is not None]
+        best = max(ranked, key=lambda x: x[0]) if ranked else None
+        worst = min(ranked, key=lambda x: x[0]) if ranked else None
+        first = cur.execute("SELECT MIN(pick_date) FROM ft_picks WHERE strategy_id=?", (sid,)).fetchone()[0]
+        days = ((datetime.strptime(today, "%Y-%m-%d") - datetime.strptime(first, "%Y-%m-%d")).days
+                if first else 0)
+        out.append({
+            "strategy_id": sid, "name": s[1], "market": s[2], "regime_gate": s[3], "vix_gate": s[4],
+            "horizon_days": s[5], "status": s[6], "source": s[7],
+            "n_picks": n, "open": n_open, "pending": n_pend, "closed": n_closed,
+            "closed_avg_excess": (round(sum(closed_exc) / len(closed_exc), 2) if closed_exc else None),
+            "closed_avg_return": (round(sum(closed_ret) / len(closed_ret), 2) if closed_ret else None),
+            "win_rate_pct": (round(sum(1 for e in closed_exc if e > 0) / len(closed_exc) * 100, 1) if closed_exc else None),
+            "live_avg_excess": (round(sum(live) / len(live), 2) if live else None),
+            "days_since_start": days, "start_date": first,
+            "best": ({"excess": round(best[0], 2), "ticker": best[1], "name": best[2], "status": best[3]} if best else None),
+            "worst": ({"excess": round(worst[0], 2), "ticker": worst[1], "name": worst[2], "status": worst[3]} if worst else None),
+        })
+        ov["picks"] += n; ov["open"] += n_open; ov["pending"] += n_pend; ov["closed"] += n_closed
+        ov["excess"] += closed_exc; ov["ret"] += closed_ret
+    con.close()
+    overall = {
+        "n_picks": ov["picks"], "open": ov["open"], "pending": ov["pending"], "closed": ov["closed"],
+        "closed_avg_excess": (round(sum(ov["excess"]) / len(ov["excess"]), 2) if ov["excess"] else None),
+        "closed_avg_return": (round(sum(ov["ret"]) / len(ov["ret"]), 2) if ov["ret"] else None),
+        "win_rate_pct": (round(sum(1 for e in ov["excess"] if e > 0) / len(ov["excess"]) * 100, 1) if ov["excess"] else None),
+    }
+    return {"ok": True, "as_of": today, "overall": overall, "strategies": out}
+
+
+@app.get("/api/forward/picks")
+def forward_picks(strategy: int = 0, date: str = ""):
+    """看 picks 明細（可依 strategy / pick_date 過濾）。"""
+    _ensure_ft_tables()
+    con = db(); cur = con.cursor()
+    cols = ["id", "strategy_id", "pick_date", "run_date", "ticker", "name", "ref_price", "regime",
+            "vix_bucket", "horizon_days", "entry_date", "entry_price", "mark_date", "mark_price",
+            "mark_return", "mark_excess", "exit_date", "exit_price", "realized_return", "realized_excess",
+            "status", "rank_json"]
+    q = f"SELECT {','.join(cols)} FROM ft_picks WHERE 1=1"
+    p = []
+    if strategy:
+        q += " AND strategy_id=?"; p.append(strategy)
+    if date:
+        q += " AND pick_date=?"; p.append(date)
+    q += " ORDER BY strategy_id,pick_date,ticker"
+    rows = cur.execute(q, p).fetchall()
+    con.close()
+    out = []
+    for r in rows:
+        d = dict(zip(cols, r))
+        try:
+            d["rank"] = json.loads(d.pop("rank_json")) if d.get("rank_json") else None
+        except Exception:
+            d["rank"] = None; d.pop("rank_json", None)
+        out.append(d)
+    return {"ok": True, "count": len(out), "picks": out}
+
+
+# 種子策略（老闆規格 §五）：①A4 k0.1 ②A4∧revenue k0.1×k0.5 ③同②+vix_gate=VIX_MID
+#   ④A4∧inst_net_buy k0.1×k0.5（對照組，看籌碼 live 是否真沒用）。
+_FT_SEED_STRATEGIES = [
+    {"name": "A4_topsec_k10",
+     "layers": [{"factor": "sector_rel_topsec", "top_k": 0.10}],
+     "regime_gate": "TREND_UP", "vix_gate": None, "horizon_days": 20, "source": "manual"},
+    {"name": "A4∧revenue_mom",
+     "layers": [{"factor": "sector_rel_topsec", "top_k": 0.10}, {"factor": "revenue_mom", "top_k": 0.50}],
+     "regime_gate": "TREND_UP", "vix_gate": None, "horizon_days": 20, "source": "manual"},
+    {"name": "A4∧revenue_mom@VIX_MID",
+     "layers": [{"factor": "sector_rel_topsec", "top_k": 0.10}, {"factor": "revenue_mom", "top_k": 0.50}],
+     "regime_gate": "TREND_UP", "vix_gate": "VIX_MID", "horizon_days": 20, "source": "manual"},
+    {"name": "A4∧inst_net_buy",
+     "layers": [{"factor": "sector_rel_topsec", "top_k": 0.10}, {"factor": "inst_net_buy", "top_k": 0.50}],
+     "regime_gate": "TREND_UP", "vix_gate": None, "horizon_days": 20, "source": "manual"},
+]
+
+
+@app.post("/api/forward/seed")
+def forward_seed(date: str = "", run: bool = True, _: None = Depends(require_token)):
+    """種子：註冊 4 個策略（冪等）並（可選）立即跑今日選股。"""
+    _ensure_ft_tables()
+    registered = [forward_register_strategy(dict(spec)) for spec in _FT_SEED_STRATEGIES]
+    res = forward_run(date=date or datetime.now().strftime("%Y-%m-%d")) if run else None
+    return {"ok": True, "registered": registered, "run": res}
+
+
 # ── 啟動 ──────────────────────────────────────────
 if __name__ == "__main__":
     import sys, io
