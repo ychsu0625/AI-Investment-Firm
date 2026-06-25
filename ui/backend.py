@@ -3104,6 +3104,418 @@ def chip_backfill_stop(job_id: str, _: None = Depends(require_token)):
     job["stop"] = True
     return {"ok": True, "message": "stop requested; will halt after in-flight days"}
 
+# ── P0-2 R-FUND-F：MOPS 月營收歷史回補管線（基本面正交維度，可回補→即時有 base-rate N）──────
+# 目的：把 MOPS 月營收(t21sc03 歷史檔) 灌進 revenue_monthly，讓基本面因子 revenue_mom 有長序列可回測
+#       （回補後適配器零改動自動生效，與籌碼 P0-1 同精神）。
+# 資料源（隔離測證 2026-06-25，cross-check 2330/2317 與官方一致）：
+#   https://mopsov.twse.com.tw/nas/t21/{sii|otc}/t21sc03_{roc}_{month}_0.html （Big5；月份無前導零）
+#   上市(sii)+上櫃(otc) 皆 2010-01(ROC99) 起；當月/上月/去年當月營收欄位位置跨年(2010→2024)穩定。
+# 🔑PIT（最致命）：台股月營收『次月10日前』才公布 → announce_date 保守取「次月10日」，因子進場僅落
+#   announce_date 之後交易日（嚴格 >），絕不在營收所屬月當下使用（嚴重未來函數）。見 _revenue_factor_series。
+# 做法：複用 chip backfill 護欄模式（限流/退避重試/增量跳過/冪等/可中途停/進度持久化），不重寫單月抓取。
+
+_MOPS_REV_EARLIEST_YM = "2010-01"     # t21sc03 歷史檔最早月份（ROC99；早於此 MOPS 無檔）—— 可回測下限
+_rl_mops = _TokenBucket(capacity=3, window_sec=5.0)   # 保守限流：≤3 req/5s（mopsov 靜態檔，寧慢不被封）
+_REV_BACKFILL_JOBS: dict = {}          # job_id -> live state（in-memory）
+_REV_BACKFILL_LOCK = threading.Lock()  # 保護 job 計數器的並行更新
+
+def _ensure_revenue_table():
+    """月營收 PIT 落地表（冪等建表）。period_ym=營收所屬月 'YYYY-MM'；announce_date=保守公布日(次月10日)。
+    revenue 單位＝千元(MOPS 原值)；yoy/mom 由原始當月/上月/去年當月營收算出（非檔內最後%欄＝累計YoY）。"""
+    try:
+        con = db()
+        con.execute("""CREATE TABLE IF NOT EXISTS revenue_monthly(
+            code          TEXT NOT NULL,
+            market        TEXT NOT NULL DEFAULT 'TW',
+            period_ym     TEXT NOT NULL,
+            revenue       REAL,
+            prev_revenue  REAL,
+            yoy           REAL,
+            mom           REAL,
+            announce_date TEXT NOT NULL,
+            src           TEXT DEFAULT 'mops_t21',
+            updated_at    TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(code, market, period_ym)
+        )""")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_rev_code ON revenue_monthly(code, market)")
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[月營收] 建表失敗: {e}")
+
+_ensure_revenue_table()
+
+def _ensure_revenue_backfill_table():
+    """月營收回補進度持久化表（重啟後可查狀態 / 憑增量跳過續跑）。"""
+    try:
+        con = db()
+        con.execute("""CREATE TABLE IF NOT EXISTS revenue_backfill_jobs(
+            job_id TEXT PRIMARY KEY, start_ym TEXT, end_ym TEXT, market TEXT, status TEXT,
+            total INTEGER DEFAULT 0, done INTEGER DEFAULT 0, filled INTEGER DEFAULT 0,
+            skipped INTEGER DEFAULT 0, no_data INTEGER DEFAULT 0, rows_written INTEGER DEFAULT 0,
+            failed_json TEXT, started_at TEXT, completed_at TEXT, updated_at TEXT
+        )""")
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[月營收回補] 建表失敗: {e}")
+
+def _persist_rev_backfill_job(job_id: str):
+    """把 in-memory job 狀態落地（週期性 + 結束時）。失敗不影響回補本身。"""
+    job = _REV_BACKFILL_JOBS.get(job_id)
+    if not job:
+        return
+    try:
+        con = db(); cur = con.cursor()
+        cur.execute("""INSERT OR REPLACE INTO revenue_backfill_jobs(
+            job_id, start_ym, end_ym, market, status, total, done, filled,
+            skipped, no_data, rows_written, failed_json, started_at, completed_at, updated_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            job_id, job["start_ym"], job["end_ym"], job["market"], job["status"],
+            job["total"], job["done"], job["filled"], job["skipped"], job["no_data"],
+            job["rows"], json.dumps(job["failed_periods"], ensure_ascii=False),
+            job["started_at"], job.get("completed_at"), datetime.now().isoformat(),
+        ))
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[月營收回補] 進度持久化失敗: {e}")
+
+def _reconcile_revenue_backfill_on_startup():
+    """啟動時把上次『進行中』的 job 標 interrupted（避免重啟後卡 running、且不偷偷 hammer MOPS）。
+    要續跑：重新 POST 同一區間即可——增量跳過會略過已回補月，成本極低。"""
+    try:
+        _ensure_revenue_backfill_table()
+        con = db(); cur = con.cursor()
+        cur.execute("UPDATE revenue_backfill_jobs SET status='interrupted', updated_at=? "
+                    "WHERE status IN ('running','starting')", (datetime.now().isoformat(),))
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[月營收回補] 啟動對帳失敗: {e}")
+
+_reconcile_revenue_backfill_on_startup()
+
+def _announce_date_for_period(period_ym: str) -> str:
+    """🔑PIT 公布日（保守）：營收所屬月 period_ym('YYYY-MM') → 次月15日 'YYYY-MM-15'。
+    台股月營收法定『次月10日前』公布，但10日遇假日順延至次一營業日（典型：1月營收次月10日撞春節，
+    如 2024-02-10 為週六＋春節連假、市場 2/15 才開紅盤 → 法定截止日順延至 2/15）。若用名目「次月10日」，
+    晚報股可能在順延後的法定日（如 2/15）才公布，而因子首個進場日也恰落該日 → 同日 look-ahead。
+    改取『次月15日』為更保守的安全日（業界月營收 PIT 慣用），即使遇春節順延亦涵蓋，因子進場僅落此日
+    之後（嚴格 >）→ 確保『進場日 > 法定(順延後)公布日』即使順延月仍成立 → 永不 look-ahead。
+    （個股實際公布日多早於15日，用15日只會更晚進場 → PIT 安全方向；殘留邊界見報告風險未決。）"""
+    y, m = int(period_ym[:4]), int(period_ym[5:7])
+    ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
+    return f"{ny:04d}-{nm:02d}-15"
+
+_YM_RANGE_HARD_CAP = 6000   # ~500 年；遠超任何合理回補區間。保險絲硬上限（防無界成長）
+
+def _ym_range(start_ym: str, end_ym: str) -> list:
+    """產生 [start_ym .. end_ym] 的月份清單（含端點，'YYYY-MM'）。
+    🔒保險絲(P1-001)：解析後檢查月份須 1..12，否則 raise。月份越界(如 '2024-13')會讓 `m` 永遠
+    不等於 12 → 年永不進位 → `(y,m) <= (ey,em)` 在 end 為更晚年份時恆為真 → 無窮迴圈、out 無界成長
+    → 吃滿 CPU/記憶體 → OOM kill 整個 process。雖呼叫端(revenue_backfill_start)已用收緊 regex 先擋下，
+    此處再加月份檢查＋硬上限兩道保險絲，鎖死任何未來呼叫端再踩到無界迴圈。"""
+    out = []
+    y, m = int(start_ym[:4]), int(start_ym[5:7])
+    ey, em = int(end_ym[:4]), int(end_ym[5:7])
+    if not (1 <= m <= 12 and 1 <= em <= 12):
+        raise ValueError(f"_ym_range 月份越界（須 01-12）: start={start_ym} end={end_ym}")
+    while (y, m) <= (ey, em):
+        out.append(f"{y:04d}-{m:02d}")
+        if len(out) > _YM_RANGE_HARD_CAP:
+            raise RuntimeError(f"_ym_range 超過硬上限 {_YM_RANGE_HARD_CAP} 月（區間異常）: "
+                               f"start={start_ym} end={end_ym}")
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return out
+
+def _fetch_mops_revenue_month(roc_year: int, month: int, seg: str,
+                              raise_on_error: bool = False) -> list:
+    """抓 MOPS 單月營收（seg: 'sii'=上市 / 'otc'=上櫃），回 [{code,revenue,prev_revenue,yoy,mom}, ...]。
+    YoY/MoM 由原始 當月[2]/上月[3]/去年當月[4] 營收『自算單月值』（檔內最後%欄為累計YoY 非單月，故不採用；
+    隔離測證 2330/2317 自算 YoY 與官方一致）。Big5 解碼；產業標題/合計列由『代號須數字開頭』過濾跳過。
+    raise_on_error=True：網路/節流例外上拋（供回補區分『該重試』）；404/無資料回 []（不重試）。"""
+    import re as _re
+    url = f"https://mopsov.twse.com.tw/nas/t21/{seg}/t21sc03_{roc_year}_{month}_0.html"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        resp = _twse_opener.open(req, timeout=30)   # 複用 307 節流防護 opener（無 Location 307 → _TwseThrottle）
+        raw = resp.read()
+        try:
+            html = raw.decode("big5", errors="replace")
+        except Exception:
+            html = raw.decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return []                          # 該月無檔（早於最早月/未來未公布）→ 無資料，不重試
+        if raise_on_error:
+            raise
+        return []
+    except Exception:                          # 含 _TwseThrottle（無 Location 307 節流）
+        if raise_on_error:
+            raise
+        return []
+    out = []
+    for tr in _re.findall(r"<tr[^>]*>(.*?)</tr>", html, _re.S):
+        cells = _re.findall(r"<td[^>]*>(.*?)</td>", tr, _re.S)
+        if len(cells) < 5:
+            continue
+        vals = [_re.sub(r"<[^>]+>", "", c).replace("\xa0", " ").replace("&nbsp;", " ").strip()
+                for c in cells]
+        code = vals[0]
+        if not (code and code.isascii() and code.isalnum() and code[0].isdigit()):
+            continue                           # 跳過產業標題/合計列（代號非數字開頭）
+        def _num(s):
+            try:
+                return float(s.replace(",", ""))
+            except (ValueError, AttributeError):
+                return None
+        cur_v = _num(vals[2]); prev_v = _num(vals[3]); yb_v = _num(vals[4])
+        if cur_v is None:
+            continue
+        yoy = round((cur_v - yb_v) / yb_v * 100, 2) if (yb_v and yb_v != 0) else None
+        mom = round((cur_v - prev_v) / prev_v * 100, 2) if (prev_v and prev_v != 0) else None
+        out.append({"code": code, "revenue": cur_v, "prev_revenue": prev_v, "yoy": yoy, "mom": mom})
+    if not out and raise_on_error:
+        # 200 卻解出 0 列：真無資料是 404（已於上方回 []），200-0列極可能是節流轉址到非 t21sc03 頁
+        #（帶 Location 的 307 → opener 跟隨到非資料頁）→ 視為可重試（上拋給 guard 退避重試），
+        # 不靜默當 no_data 吞掉造成資料缺口。
+        raise _TwseThrottle(f"MOPS {roc_year}/{month} {seg}: HTTP 200 但解析 0 列（疑節流轉址非資料頁），視為可重試")
+    return out
+
+def _mops_fetch_with_guard(roc_year: int, month: int, seg: str, max_retries: int = 5):
+    """對單月 MOPS 抓取套護欄：token-bucket 限流 + 指數退避(+jitter)重試。
+    只對網路/節流例外重試（fn raise_on_error=True 上拋）；404/genuine no-data 由 fn 回 [] → 不重試。"""
+    last_err = None
+    for attempt in range(max_retries):
+        wait = _rl_mops.consume(1)
+        if wait > 0:
+            time.sleep(wait)
+        try:
+            return _fetch_mops_revenue_month(roc_year, month, seg, raise_on_error=True)
+        except Exception as e:
+            last_err = e
+            if attempt < max_retries - 1:
+                backoff = min(2 ** attempt * 1.5, 30.0) + random.uniform(0, 1.0)
+                print(f"[月營收回補] {roc_year}/{month} {seg} 第{attempt+1}次失敗({e})，{backoff:.1f}s 後重試")
+                time.sleep(backoff)
+    raise RuntimeError(f"MOPS fetch failed after {max_retries} retries: {last_err}")
+
+def _upsert_revenue_monthly(period_ym: str, market: str, seg_rows: dict) -> int:
+    """把單月（period_ym）多 seg 的營收列 upsert 進 revenue_monthly。冪等（PK=code,market,period_ym
+    → 同月重跑覆寫、不長重複列）。seg_rows: {seg: [row,...]}。announce_date 由 period_ym 推得。回寫入筆數。"""
+    announce = _announce_date_for_period(period_ym)
+    now = datetime.now().isoformat()
+    rows = []
+    for seg, lst in seg_rows.items():
+        for r in lst:
+            rows.append((r["code"], market, period_ym, r["revenue"], r.get("prev_revenue"),
+                         r.get("yoy"), r.get("mom"), announce, f"mops_{seg}", now))
+    if not rows:
+        return 0
+    con = db(); cur = con.cursor()
+    try:
+        cur.executemany("""INSERT OR REPLACE INTO revenue_monthly(
+            code, market, period_ym, revenue, prev_revenue, yoy, mom, announce_date, src, updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?)""", rows)
+        con.commit()
+    finally:
+        con.close()
+    return len(rows)
+
+def _rev_period_has_data(period_ym: str, market: str = "TW") -> bool:
+    """增量判斷：該月 revenue_monthly 已有資料 → 跳過（不重抓、不覆寫已對的）。"""
+    con = db(); cur = con.cursor()
+    try:
+        cur.execute("SELECT COUNT(*) FROM revenue_monthly WHERE period_ym=? AND market=?",
+                    (period_ym, market))
+        return cur.fetchone()[0] > 0
+    finally:
+        con.close()
+
+def _rev_backfill_one_period(period_ym: str) -> tuple:
+    """回補單月：抓 上市(sii)+上櫃(otc) → upsert revenue_monthly。
+    回 ('ok', n)：寫 n 檔；('no_data', 0)：未發布/無檔（不算失敗、不重試）。
+    網路/節流錯誤經護欄重試後仍失敗 → 上拋（由呼叫端記 failed，整批不中斷）。"""
+    y, m = int(period_ym[:4]), int(period_ym[5:7])
+    roc = y - 1911
+    seg_rows = {seg: _mops_fetch_with_guard(roc, m, seg) for seg in ("sii", "otc")}
+    if not any(seg_rows.values()):
+        return ("no_data", 0)
+    n = _upsert_revenue_monthly(period_ym, "TW", seg_rows)
+    return ("ok", n)
+
+def _rev_backfill_worker(job_id: str, start_ym: str, end_ym: str, market: str,
+                         workers: int, force: bool):
+    """背景執行緒：迴圈月份 → 增量跳過 → 抓+upsert（thread pool 並行，限流封頂）。
+    單月失敗不中斷整批（記 failed_periods，可日後重試）；可中途 stop；進度週期性持久化。"""
+    job = _REV_BACKFILL_JOBS[job_id]
+    try:
+        periods = _ym_range(start_ym, end_ym)
+        job["total"] = len(periods)
+        job["status"] = "running"
+        _persist_rev_backfill_job(job_id)
+        if not periods:
+            job["status"] = "done"; job["completed_at"] = datetime.now().isoformat()
+            _persist_rev_backfill_job(job_id); return
+
+        def _process(period_ym: str):
+            if job.get("stop"):
+                return ("stopped", period_ym, 0)
+            if not force and _rev_period_has_data(period_ym, market):
+                return ("skipped", period_ym, 0)
+            try:
+                status, n = _rev_backfill_one_period(period_ym)
+                return (status, period_ym, n)
+            except Exception as ex:
+                return ("failed", period_ym, str(ex))
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futs = {ex.submit(_process, p): p for p in periods}
+            for f in as_completed(futs):
+                kind, p, payload = f.result()
+                with _REV_BACKFILL_LOCK:
+                    job["done"] += 1
+                    if kind == "ok":
+                        job["filled"] += 1; job["rows"] += payload
+                    elif kind == "skipped":
+                        job["skipped"] += 1
+                    elif kind == "no_data":
+                        job["no_data"] += 1
+                    elif kind == "failed":
+                        job["failed_periods"].append({"period": p, "error": payload})
+                    job["current"] = p
+                    done = job["done"]
+                if done % 6 == 0:
+                    _persist_rev_backfill_job(job_id)
+
+        job["status"] = "stopped" if job.get("stop") else "done"
+        job["completed_at"] = datetime.now().isoformat()
+        _persist_rev_backfill_job(job_id)
+        print(f"[月營收回補] job {job_id} {job['status']}: filled={job['filled']} "
+              f"skipped={job['skipped']} no_data={job['no_data']} "
+              f"failed={len(job['failed_periods'])} rows={job['rows']}")
+    except Exception as e:
+        job["status"] = "error"; job["error"] = str(e)
+        job["completed_at"] = datetime.now().isoformat()
+        _persist_rev_backfill_job(job_id)
+        print(f"[月營收回補] job {job_id} 異常終止: {e}")
+
+@app.post("/api/revenue/backfill")
+def revenue_backfill_start(config: dict, _: None = Depends(require_token)):
+    """啟動 MOPS 月營收歷史回補背景 job，回 job_id 供輪詢。
+    body: {start_ym:'YYYY-MM', end_ym:'YYYY-MM', workers:1-3, force:false}
+    - 增量：預設 force=false → 已有資料的月自動跳過（冪等、可中途續跑）。
+    - 上市(sii)+上櫃(otc) 一起回補。clamp 到最早可回補月 2010-01。"""
+    start_ym = str(config.get("start_ym", _MOPS_REV_EARLIEST_YM))
+    end_ym   = str(config.get("end_ym", datetime.now().strftime("%Y-%m")))
+    force    = bool(config.get("force", False))
+    try:
+        workers = int(config.get("workers", 2))
+    except (TypeError, ValueError):
+        workers = 2
+    workers = min(max(workers, 1), 3)   # 保守上限 3 緒，嚴守 MOPS rate limit（限流桶才是硬封頂）
+    import re as _re
+    # 🔒P1-001：月份段限 01-12（舊 \d{2} 放行 13-99/00，會讓 _ym_range 年永不進位→無窮迴圈/OOM 打垮:8766）。
+    if not (_re.match(r"^\d{4}-(0[1-9]|1[0-2])$", start_ym) and _re.match(r"^\d{4}-(0[1-9]|1[0-2])$", end_ym)):
+        return JSONResponse({"ok": False, "error": "start_ym/end_ym 須為 YYYY-MM 格式（月份 01-12）"}, status_code=400)
+    if start_ym > end_ym:
+        return JSONResponse({"ok": False, "error": "start_ym 不可晚於 end_ym"}, status_code=400)
+    clamped = False
+    if start_ym < _MOPS_REV_EARLIEST_YM:
+        start_ym = _MOPS_REV_EARLIEST_YM; clamped = True
+    _ensure_revenue_table(); _ensure_revenue_backfill_table()
+    if len(_REV_BACKFILL_JOBS) >= 100:
+        finished = [(jid, j.get("completed_at") or j.get("started_at") or "")
+                    for jid, j in _REV_BACKFILL_JOBS.items()
+                    if j.get("status") in ("done", "stopped", "error", "interrupted")]
+        for jid, _ts in sorted(finished, key=lambda x: x[1])[:max(1, len(finished) // 2)]:
+            _REV_BACKFILL_JOBS.pop(jid, None)
+    job_id = secrets.token_hex(8)
+    _REV_BACKFILL_JOBS[job_id] = {
+        "start_ym": start_ym, "end_ym": end_ym, "market": "TW",
+        "status": "starting", "total": 0, "done": 0, "filled": 0,
+        "skipped": 0, "no_data": 0, "rows": 0, "current": "",
+        "failed_periods": [], "stop": False, "error": None,
+        "started_at": datetime.now().isoformat(), "completed_at": None,
+    }
+    _persist_rev_backfill_job(job_id)
+    threading.Thread(target=_rev_backfill_worker,
+                     args=(job_id, start_ym, end_ym, "TW", workers, force),
+                     daemon=True, name=f"rev-backfill-{job_id}").start()
+    return {"ok": True, "job_id": job_id, "start_ym": start_ym, "end_ym": end_ym,
+            "workers": workers, "force": force, "clamped_to_earliest": clamped,
+            "message": f"Revenue backfill started. Poll GET /api/revenue/backfill/{job_id}."}
+
+@app.get("/api/revenue/backfill/{job_id}")
+def revenue_backfill_status(job_id: str):
+    """輪詢回補進度：已回補N月/總月數/跳過/無資料/失敗清單。in-memory 丟失時退回讀持久化表。"""
+    if (not isinstance(job_id, str) or not (8 <= len(job_id) <= 64)
+            or any(c not in "0123456789abcdef" for c in job_id)):
+        return JSONResponse({"error": "job not found"}, status_code=404)
+    job = _REV_BACKFILL_JOBS.get(job_id)
+    if job:
+        return {
+            "job_id": job_id, "status": job["status"],
+            "start_ym": job["start_ym"], "end_ym": job["end_ym"], "market": job["market"],
+            "total": job["total"], "done": job["done"], "filled": job["filled"],
+            "skipped": job["skipped"], "no_data": job["no_data"], "rows_written": job["rows"],
+            "failed": len(job["failed_periods"]), "failed_periods": job["failed_periods"][:50],
+            "current": job.get("current", ""),
+            "started_at": job["started_at"], "completed_at": job.get("completed_at"),
+            "error": job.get("error"),
+        }
+    try:
+        con = db(); cur = con.cursor()
+        cur.execute("""SELECT start_ym,end_ym,market,status,total,done,filled,skipped,no_data,
+                       rows_written,failed_json,started_at,completed_at FROM revenue_backfill_jobs
+                       WHERE job_id=?""", (job_id,))
+        r = cur.fetchone(); con.close()
+        if not r:
+            return JSONResponse({"error": "job not found"}, status_code=404)
+        try:
+            failed_periods = json.loads(r[10] or "[]")
+        except Exception:
+            failed_periods = []
+        return {
+            "job_id": job_id, "status": r[3], "start_ym": r[0], "end_ym": r[1], "market": r[2],
+            "total": r[4], "done": r[5], "filled": r[6], "skipped": r[7], "no_data": r[8],
+            "rows_written": r[9], "failed": len(failed_periods), "failed_periods": failed_periods[:50],
+            "started_at": r[11], "completed_at": r[12], "persisted": True,
+        }
+    except Exception as e:
+        return JSONResponse({"error": f"job lookup failed: {e}"}, status_code=500)
+
+@app.post("/api/revenue/backfill/{job_id}/stop")
+def revenue_backfill_stop(job_id: str, _: None = Depends(require_token)):
+    """請求中途停止回補（in-flight 的月做完即收手）。"""
+    job = _REV_BACKFILL_JOBS.get(job_id)
+    if not job:
+        return JSONResponse({"error": "job not found"}, status_code=404)
+    if job["status"] in ("done", "stopped", "error", "interrupted"):
+        return {"ok": False, "message": f"job already {job['status']}"}
+    job["stop"] = True
+    return {"ok": True, "message": "stop requested; will halt after in-flight months"}
+
+@app.get("/api/revenue/{code}")
+def revenue_series(code: str, limit: int = 36):
+    """讀某股已落地的月營收序列（供 AIF cross-check / UI）。回最近 limit 月，含 PIT announce_date。"""
+    if not (code and str(code).isalnum()):
+        return JSONResponse({"error": "bad code"}, status_code=400)
+    try:                                       # 🔒P2-003：clamp 上界（limit=-1 → SQLite LIMIT -1 = 回全部；超大正數 → 無界讀取）
+        limit = min(max(int(limit), 1), 240)
+    except (TypeError, ValueError):
+        limit = 36
+    try:
+        con = db(); cur = con.cursor()
+        rows = cur.execute(
+            "SELECT period_ym, revenue, prev_revenue, yoy, mom, announce_date, src "
+            "FROM revenue_monthly WHERE code=? AND market='TW' ORDER BY period_ym DESC LIMIT ?",
+            (str(code), limit)).fetchall()
+        con.close()
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+    return {"code": code, "count": len(rows), "series": [
+        {"period_ym": r[0], "revenue": r[1], "prev_revenue": r[2], "yoy": r[3],
+         "mom": r[4], "announce_date": r[5], "src": r[6]} for r in rows]}
+
 # ── 總經數據自動排程 ──────────────────────────────────
 
 def _macro_scheduler_loop():
@@ -13825,11 +14237,12 @@ _CHIP_N_DEFAULT  = 5     # 三大法人/投信淨買累積窗（agenda N∈{3,5,
 _CHIP_SQ_N       = 5     # short_squeeze：融券餘額變化回看窗
 _CHIP_ADV_WIN    = 20    # ADV（日均量）回看窗，供淨買標準化（÷ADV 控流動性/市值，避免因子退化成市值代理）
 
-# 橫斷面因子家族（§2.4 parsimony 軟剪分族用；同族雙 cs = 換湯不換藥，跨族 chip∧price = 補正交維度）
+# 橫斷面因子家族（§2.4 parsimony 軟剪分族用；同族雙 cs = 換湯不換藥，跨族 chip∧price∧fundamental = 補正交維度）
 _CS_FACTOR_FAMILY = {
     "raw_mom": "momentum", "rel_str": "momentum", "resid_mom": "momentum",
     "sector_rel": "sector", "sector_rel_topsec": "sector",
     "inst_net_buy": "chip", "trust_net_buy": "chip", "short_squeeze": "chip",
+    "revenue_mom": "fundamental",   # P0-2：月營收動量（基本面族，與價格/籌碼正交）
 }
 
 
@@ -13859,6 +14272,25 @@ _CHIP_CS_META = {
         "pit_rule": "TWSE 融資券隔日公布 → 進場落次一交易日",
         "mechanism": "高券資比 + 融券 N 日增 → 空頭回補擠壓（軋空）",
         "family": "chip"},
+}
+
+# ── P0-2 R-FUND-F：月營收動量 cs 因子（基本面族，與價格/籌碼正交）─────────────────────────
+# 資料源 revenue_monthly（MOPS t21 月營收回補；2010-01 起，見 _fetch_mops_revenue_month）。
+# 【給 Reviewer：PIT】announce_date=次月10日（_announce_date_for_period）→ 因子進場僅落 announce_date
+# 之後交易日（嚴格 >，見 _revenue_factor_series）→「進場日 ∩ 營收所屬月 = ∅」「進場日 > 法定公布日」雙成立。
+_REVENUE_CS_FACTORS = {"revenue_mom"}
+_REV_WIN_DEFAULT   = 1          # 月營收動量回看窗（月數；agenda 窗∈{1,3,6}，搜尋層暫用 default，param_space 供日後 Bayesian）
+_REV_FIELD_DEFAULT = "yoy"      # 動量欄位：'yoy'(年增率，台股最被重視) / 'mom'(月增率)
+
+# 月營收因子註冊 metadata（入庫三道資格 §3.4：①機制 ②PIT ③參數 metadata；dir∈{+1,−1} 為 R1(a) per-layer 方向）。
+_REVENUE_CS_META = {
+    "revenue_mom": {
+        "param_space": {"window": {"min": 1, "max": 6, "default": _REV_WIN_DEFAULT, "type": "int"},
+                        "field": {"choices": ["yoy", "mom"], "default": _REV_FIELD_DEFAULT, "type": "str"},
+                        "dir": {"choices": [1, -1], "default": 1, "type": "int"}},
+        "pit_rule": "月營收次月10日前公布 → announce_date=次月10日，進場僅落其後交易日（嚴格 >，進場∩營收月=∅）",
+        "mechanism": "基本面動量/反應不足：月營收 YoY 為慢變數，市場對基本面持續改善反應不足（台股月營收高頻獨有，與動量/籌碼正交）",
+        "family": "fundamental"},
 }
 
 _SECTOR_MAP_MEM: dict = {}    # in-process cache: f"{market}:{code}" -> sector_str（避免同跑重複查）
@@ -14582,6 +15014,80 @@ def _compute_chip_cs_factors(mkt: str, codes: list, feats: dict, factors_needed:
     return out
 
 
+# ── P0-2 R-FUND-F：月營收動量 cs 因子（pure 計算，無 DB，可隔離測 PIT/算法）──────────────
+def _revenue_factor_series(rev_records: list, trading_dates: list,
+                           field: str = _REV_FIELD_DEFAULT, window: int = _REV_WIN_DEFAULT) -> dict:
+    """單一個股的月營收動量原始值時間序列（橫斷面排名前的 raw value）。純函式、無 DB、無 yfinance。
+
+    輸入：
+      rev_records  : [(period_ym, yoy, mom, announce_date), ...]（月營收公布記錄；本函式內自行依 period_ym 排序）。
+      trading_dates: 該股交易日清單（升冪，'YYYY-MM-DD'；來自 feats['dates']）。
+      field        : 'yoy'(年增率) 或 'mom'(月增率)。
+      window       : 回看 N 個『已公布』月份取均值（動量平滑；window=1 即最近一個已公布月）。
+    回 {trading_date: raw_val}（fill-forward：每交易日用『當下已公布』的最近 window 月均值）。
+
+    【給 Reviewer — 🔑PIT 防洩漏（核心，最致命）】每交易日 d 只納入 announce_date < d（嚴格小於）的
+    營收記錄。announce_date=次月10日（_announce_date_for_period），故 d 嚴格晚於『營收所屬月的次月10日』
+    → 進場日永不落在營收所屬月內、且嚴格晚於法定公布日 →「進場日 ∩ 營收所屬月 = ∅」「進場日 > 公布日」
+    雙成立（隔離測 test_revenue_pit 已斷言）。fill-forward 僅用『已公布』記錄向後填值（基本面為慢變數，
+    下一筆公布前持有同一動量），j 指標單調前移、不回看未來，不引入任何未來資訊。"""
+    out = {}
+    if not rev_records or not trading_dates:
+        return out
+    fld_idx = 1 if str(field) == "yoy" else 2   # record tuple: (period_ym, yoy, mom, announce_date)
+    W = max(int(window), 1)
+    recs = sorted(rev_records, key=lambda r: r[0])   # 依 period_ym 升冪（→ announce_date 亦升冪）
+    n = len(recs)
+    j = 0                                            # 指標：announce_date < d 的已公布記錄數（單調前移）
+    for d in trading_dates:
+        while j < n and recs[j][3] < d:             # 嚴格 < → PIT：法定公布日(次月10日)當天不進場
+            j += 1
+        if j == 0:
+            continue                                 # 此交易日尚無任何已公布月營收
+        lo = max(0, j - W)
+        vals = [recs[k][fld_idx] for k in range(lo, j) if recs[k][fld_idx] is not None]
+        if vals:
+            out[d] = float(sum(vals)) / len(vals)
+    return out
+
+
+def _compute_revenue_cs_factors(mkt: str, codes: list, feats: dict, factors_needed: set,
+                                window: int = _REV_WIN_DEFAULT, field: str = _REV_FIELD_DEFAULT) -> dict:
+    """月營收動量 cs 因子 orchestrator：批次讀 revenue_monthly（I/O）→ 對每股呼叫 pure
+    _revenue_factor_series → 組成 {factor: {date: {code: raw_val}}}（與 _compute_chip_cs_factors 同形狀，
+    可直接餵 _cs_rank_pct 排名迴圈）。月營收僅 TW；他市場/無資料回空（複合自然縮小、誠實標記）。"""
+    rev_needed = set(factors_needed) & _REVENUE_CS_FACTORS
+    out = {fac: {} for fac in rev_needed}
+    if not rev_needed or not codes or str(mkt).upper() != "TW":
+        return out
+    try:
+        con = db(); cur = con.cursor()
+        qs = ",".join("?" * len(codes))
+        rows = cur.execute(
+            f"SELECT code, period_ym, yoy, mom, announce_date FROM revenue_monthly "
+            f"WHERE market='TW' AND code IN ({qs}) ORDER BY code, period_ym", list(codes)
+        ).fetchall()
+        con.close()
+    except Exception:
+        return out
+    by_code = {}
+    for r in rows:
+        by_code.setdefault(r[0], []).append((r[1], r[2], r[3], r[4]))   # (period_ym, yoy, mom, announce_date)
+    fv = out["revenue_mom"]
+    for code, recs in by_code.items():
+        f = feats.get(code)
+        if not f:
+            continue
+        dts = f.get("dates")
+        if not dts:
+            continue
+        series = _revenue_factor_series(recs, dts, field=field, window=window)
+        for d, val in series.items():
+            if val == val:                          # not NaN
+                fv.setdefault(d, {})[code] = val
+    return out
+
+
 def _emit_trades(sid: str, trig, f: dict, rank_map, thresh: float, dst: list):
     """記錄某策略的逐筆 trade（entry_date, exit_date, net_ret%）到 dst。
        trig=None → 純橫斷面策略（每日皆候選，由 rank 決定）；trig 陣列 → 既有訊號策略。
@@ -15007,7 +15513,8 @@ def _cs_rank_pct(mkt: str, codes: list, feats: dict, factors_needed: set, bench_
     factor_vals = {fac: {} for fac in factors_needed}  # fac -> {date -> {code -> val}}
     sector_needed = factors_needed & _CS_SECTOR_FACTORS
     chip_needed = factors_needed & _CHIP_CS_FACTORS          # P0-1：籌碼因子（讀 chip_snapshot，PIT 對齊次一交易日）
-    orth_needed = factors_needed - sector_needed - chip_needed
+    rev_needed = factors_needed & _REVENUE_CS_FACTORS        # P0-2：月營收動量（讀 revenue_monthly，PIT 對齊 announce_date 後交易日）
+    orth_needed = factors_needed - sector_needed - chip_needed - rev_needed
     sector_of = _get_sector_map(mkt, codes) if sector_needed else {}
     smom_by_code = {}
     for code in codes:
@@ -15036,6 +15543,10 @@ def _cs_rank_pct(mkt: str, codes: list, feats: dict, factors_needed: set, bench_
     if chip_needed:                                          # P0-1：籌碼 cs 因子 → 同排名管線
         chip_fv = _compute_chip_cs_factors(mkt, codes, feats, chip_needed)
         for fac, dmap in chip_fv.items():
+            factor_vals[fac] = dmap
+    if rev_needed:                                           # P0-2：月營收 cs 因子 → 同排名管線
+        rev_fv = _compute_revenue_cs_factors(mkt, codes, feats, rev_needed)
+        for fac, dmap in rev_fv.items():
             factor_vals[fac] = dmap
     rank_pct = {fac: {} for fac in factors_needed}
     for fac in factors_needed:
@@ -15389,8 +15900,9 @@ def _chip_streak_dates(codes: list, window: int = 3, min_net: float = 0.0) -> di
 
 # 可當「cs 層」的橫斷面因子白名單（A4 = sector_rel_topsec）。
 # P0-1：加入籌碼因子 _CHIP_CS_FACTORS（inst_net_buy/trust_net_buy/short_squeeze）→ 搜尋引擎自動納入。
+# P0-2：加入月營收因子 _REVENUE_CS_FACTORS（revenue_mom，基本面族）→ 搜尋引擎自動納入。
 _COMPOSITE_CS_FACTORS = {"raw_mom", "rel_str", "resid_mom",
-                         "sector_rel", "sector_rel_topsec"} | _CHIP_CS_FACTORS
+                         "sector_rel", "sector_rel_topsec"} | _CHIP_CS_FACTORS | _REVENUE_CS_FACTORS
 
 
 def _normalize_layers(layers: list):
@@ -15881,6 +16393,7 @@ _AUTO_SEARCH_LOCK = threading.Lock()
 # 可插拔搜尋空間（確定性、有界）
 _AUTO_FACTOR_POOL = ("sector_rel_topsec", "sector_rel", "resid_mom", "rel_str", "raw_mom")
 _AUTO_CHIP_CS_POOL = ("inst_net_buy", "trust_net_buy", "short_squeeze")  # P0-1：可疊加的籌碼 cs 層（A4∧籌碼）
+_AUTO_REVENUE_CS_POOL = ("revenue_mom",)  # P0-2：可疊加的月營收 cs 層（A4∧基本面正交複合）
 _AUTO_TOPK_POOL   = (0.10, 0.20, 0.30)
 _AUTO_MAX_DEPTH   = 4                   # §2.5：層上限（控過擬合/容量）；k 層 cs∧cs + pead/chip 合計 ≤ 此
 # lessons 剪枝鉤：已知失敗單因子（預設空，留給 lessons 注入；含此因子的 cs 層一律剪）
@@ -15927,13 +16440,14 @@ def _auto_replace_cs(current: list, factor=None, top_k=None) -> list:
 def _auto_search_candidates(current: list,
                             factor_pool=_AUTO_FACTOR_POOL,
                             topk_pool=_AUTO_TOPK_POOL,
-                            chip_pool=_AUTO_CHIP_CS_POOL) -> list:
+                            chip_pool=_AUTO_CHIP_CS_POOL,
+                            rev_pool=_AUTO_REVENUE_CS_POOL) -> list:
     """前向貪婪：列舉「下一步」候選（確定性、有界）。回 [(label, layers)]。
     可插拔層 moves：①加 PEAD ②加 chip(法人連買 streak) ③加籌碼 cs 層(A4∧inst_net_buy，R-PROD-7a)
-    ④換 cs 因子(resid_mom/rel_str/…) ⑤換 top_k∈{.10,.20,.30}。
-    【給 Reviewer — 零回歸】③為 P0-1 新增（讓 Track A 自動列舉 A4∧籌碼 正交複合）；④⑤僅在
-    『恰有單一 cs 層』時觸發 → 保 _auto_replace_cs（替換全部 cs 層）語義正確、且種子(單 cs)行為與舊版
-    逐字一致（種子仍吐 add:pead/add:chip/swap_factor×N/top_k×N，新增 add_cs×3 為加法）。"""
+    ③b 加月營收 cs 層(A4∧revenue_mom，基本面正交) ④換 cs 因子(resid_mom/rel_str/…) ⑤換 top_k∈{.10,.20,.30}。
+    【給 Reviewer — 零回歸】③為 P0-1、③b 為 P0-2 新增（讓 Track A 自動列舉 A4∧籌碼/基本面 正交複合）；
+    ④⑤僅在『恰有單一 cs 層』時觸發 → 保 _auto_replace_cs（替換全部 cs 層）語義正確、且種子(單 cs)行為與舊版
+    逐字一致（種子仍吐 add:pead/add:chip/swap_factor×N/top_k×N，新增 add_cs×(chip+revenue) 為加法）。"""
     has_pead = any(L.get("type") == "pead" for L in current)
     has_chip = any(L.get("type") == "chip" for L in current)
     cs_layers = [L for L in current if L.get("factor") in _COMPOSITE_CS_FACTORS]
@@ -15944,6 +16458,9 @@ def _auto_search_candidates(current: list,
     if not has_chip:                                   # ② 加籌碼 streak 層（法人連買 type:chip）
         cands.append(("add:chip", current + [{"type": "chip", "window": 3, "min_net": 0.0}]))
     for cf in chip_pool:                               # ③ 加籌碼 cs 層（k 層 cs∧cs：A4∧籌碼正交複合）
+        if cf not in present_factors:
+            cands.append((f"add_cs:{cf}", current + [{"factor": cf, "top_k": _CS_DEFAULT_K}]))
+    for cf in rev_pool:                                # ③b 加月營收 cs 層（基本面正交：A4∧revenue_mom）
         if cf not in present_factors:
             cands.append((f"add_cs:{cf}", current + [{"factor": cf, "top_k": _CS_DEFAULT_K}]))
     if len(cs_layers) == 1:                            # 換因子/換 top_k 僅單 cs 層時（保替換語義+零回歸）
