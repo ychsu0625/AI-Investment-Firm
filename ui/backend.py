@@ -13098,6 +13098,17 @@ _CS_SECTOR_TOP_FRAC    = 0.50 # A4 TOPSEC：板塊籃子報酬前此比例 = 「
 
 _SECTOR_MAP_MEM: dict = {}    # in-process cache: f"{market}:{code}" -> sector_str（避免同跑重複查）
 
+# ── H-A5 財報後漂移（PEAD，免共識代理版）─────────────────────────────────────
+# 事件型 alpha：事件時間天然與日曆市場去相關，與順勢型 A1/A4 低相關（分散）。
+#   A5_PEAD = 財報後正異常報酬（earnings momentum）→ 做多前段驚奇，持有沿用 EXIT_C/D。
+# 驚奇代理（免共識，只需 財報日期 + OHLCV）＝「財報前一收盤 → 後 S 日收盤」的個股報酬
+# 減同窗基準報酬 = 異常報酬；≥ 門檻 = 正驚奇。進場 = 驚奇窗末日收盤（已可完整觀測，無 look-ahead）。
+_BASE_RATE_EVENT_STRATS = {"A5_PEAD"}   # 事件型策略：trigger 由 earnings_dates + 後驚奇代理算（非每日橫斷面）
+_A5_SURPRISE_DAYS   = 2      # 驚奇窗長度（交易日）＝財報後 1–2 日異常報酬（agenda 免共識快速版）
+_A5_SURPRISE_THRESH = 2.0    # 正驚奇門檻：財報後窗異常報酬 ≥ 此 %（跳漲>門檻才做多）
+_A5_EARNINGS_FETCH_LIMIT = 48  # yfinance .earnings_dates 抓取上限（≈12 年季報，實際視覆蓋而定）
+_EARNINGS_MAP_MEM: dict = {}   # in-process cache: f"{market}:{code}" -> [earnings_date str]（避免同跑重複查）
+
 
 def _ensure_sector_table():
     """A4 產業映射落地表（可快取、可擴充；冪等建表）。sector 取自 yfinance .info（GICS 板塊，
@@ -13170,6 +13181,174 @@ def _get_sector_map(market: str, codes: list) -> dict:
         con.close()
         print(f"[base-rate] A4 sector map: {market} fetched {len(miss)} new, "
               f"{len(out)}/{len(codes)} have sector", flush=True)
+    return out
+
+
+def _ensure_earnings_table():
+    """A5 財報日期落地表（可快取、可擴充；冪等建表，在 monitor.db）。日期取自 yfinance JSON 視覺化端點
+    （_get_earnings_dates_using_screener，無 lxml 依賴；實測 US+TW 覆蓋皆佳，回 2013–2025 季報）。
+    eps_estimate/reported_eps/surprise 一併存，供未來 SUE 嚴謹版升級。earnings_fetch_log 記「抓過的
+    code（即使 0 筆）」，避免每跑重抓覆蓋失敗者。"""
+    con = db()
+    con.execute("""CREATE TABLE IF NOT EXISTS earnings_dates(
+        code TEXT NOT NULL,
+        market TEXT NOT NULL DEFAULT 'TW',
+        earnings_date TEXT NOT NULL,
+        eps_estimate REAL,
+        reported_eps REAL,
+        surprise_pct REAL,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(code, market, earnings_date)
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS earnings_fetch_log(
+        code TEXT NOT NULL,
+        market TEXT NOT NULL DEFAULT 'TW',
+        fetched_at TEXT,
+        n_dates INTEGER DEFAULT 0,
+        PRIMARY KEY(code, market)
+    )""")
+    con.commit()
+    con.close()
+
+
+def _fetch_earnings_dates_yf(code: str, market: str) -> list:
+    """抓歷史財報日期 → list[(date_str, eps_est, reported_eps, surprise_pct)]。
+
+    主取數路徑＝yfinance JSON 視覺化端點 _get_earnings_dates_using_screener（**無 lxml 依賴**，
+    US+TW 覆蓋皆佳，實測回 2013–2025 季報；本機環境無 lxml，故不能用 .earnings_dates HTML scrape）。
+    無此法/失敗時才退回 .earnings_dates（HTML scrape，需 lxml；環境無 lxml 時自然失敗→回空，best-effort）。
+
+    排除 Event Type='Meeting'（股東會，非財報）。注意：此端點時區為 America/New_York，TW(.TW) 的
+    日期可能與台北時間差 1 日 → 但本驚奇窗為 2 日 [a-1, a+1] 已吸收此 ±1 日誤差。
+    純取數，不落地；回空不視為錯。"""
+    out = []
+    try:
+        import yfinance as yf
+        ticker = code if market == "US" else f"{code}.TW"
+        tk = yf.Ticker(ticker)
+        df = None
+        # 1) JSON 端點優先（無 lxml；US+TW 覆蓋佳）
+        try:
+            fn = getattr(tk, "_get_earnings_dates_using_screener", None)
+            if fn is not None:
+                df = fn(limit=_A5_EARNINGS_FETCH_LIMIT)
+        except Exception:
+            df = None
+        # 2) 退回 HTML scrape（需 lxml；本機無 lxml 時失敗→回空）
+        if df is None or len(df) == 0:
+            try:
+                df = tk.get_earnings_dates(limit=_A5_EARNINGS_FETCH_LIMIT)
+            except Exception:
+                try:
+                    df = tk.earnings_dates
+                except Exception:
+                    df = None
+        if df is None or len(df) == 0:
+            return out
+        cols = {str(col).lower(): col for col in df.columns}
+        est_col = next((cols[k] for k in cols if "estimate" in k), None)
+        rep_col = next((cols[k] for k in cols if "reported" in k), None)
+        sur_col = next((cols[k] for k in cols if "surprise" in k), None)
+        evt_col = next((cols[k] for k in cols if "event" in k and "type" in k), None)
+
+        def _num(row, col):
+            if not col:
+                return None
+            try:
+                v = row[col]
+                if v is None or (isinstance(v, float) and v != v):
+                    return None
+                return float(v)
+            except Exception:
+                return None
+
+        for idx, row in df.iterrows():
+            if evt_col is not None:
+                try:
+                    if str(row[evt_col]).strip().lower() == "meeting":
+                        continue   # 股東會非財報事件，排除
+                except Exception:
+                    pass
+            try:
+                ds = idx.strftime("%Y-%m-%d")
+            except Exception:
+                ds = str(idx)[:10]
+            if not ds or len(ds) < 10:
+                continue
+            out.append((ds, _num(row, est_col), _num(row, rep_col), _num(row, sur_col)))
+    except Exception:
+        return out
+    return out
+
+
+def _get_earnings_map(market: str, codes: list) -> dict:
+    """回傳 {code: [sorted earnings_date str]}（A5 用）。先讀 earnings_dates 落地表 → 未抓過的 code
+    用 yfinance 補抓並落地（含 0 筆者記 fetch_log，免重抓 best-effort 失敗者）→ 回傳有 ≥1 財報日期者。
+    純讀表時零外呼；首跑某 universe 逐檔抓一次（之後快取）。覆蓋率低的市場（如 TW）會誠實縮小。"""
+    _ensure_earnings_table()
+    out = {}
+    # 1) 記憶體快取直接用
+    for c in codes:
+        eds = _EARNINGS_MAP_MEM.get(f"{market}:{c}")
+        if eds:
+            out[c] = list(eds)
+    need_db = [c for c in codes if f"{market}:{c}" not in _EARNINGS_MAP_MEM]
+    # 2) 讀落地表（fetch_log 判斷誰抓過、earnings_dates 取日期）
+    fetched = set()
+    db_dates = {}
+    if need_db:
+        con = db()
+        try:
+            for (c,) in con.execute("SELECT code FROM earnings_fetch_log WHERE market=?", [market]).fetchall():
+                fetched.add(c)
+            qs = ",".join("?" * len(need_db))
+            for code, ed in con.execute(
+                f"SELECT code, earnings_date FROM earnings_dates WHERE market=? AND code IN ({qs})",
+                [market, *need_db]
+            ).fetchall():
+                db_dates.setdefault(code, []).append(ed)
+        except Exception:
+            pass
+        con.close()
+    miss = []
+    for c in need_db:
+        if c in fetched:  # 抓過（即使 0 筆）→ 用表內日期，不再外呼
+            eds = sorted(set(db_dates.get(c, [])))
+            _EARNINGS_MAP_MEM[f"{market}:{c}"] = eds
+            if eds:
+                out[c] = eds
+        else:
+            miss.append(c)
+    # 3) 未抓過 → yfinance 補抓 + 落地 + 記 fetch_log
+    if miss:
+        con = db()
+        for code in miss:
+            rows = _fetch_earnings_dates_yf(code, market)
+            for ds, est, rep, sur in rows:
+                try:
+                    con.execute(
+                        "INSERT OR REPLACE INTO earnings_dates(code, market, earnings_date, eps_estimate, reported_eps, surprise_pct, updated_at) "
+                        "VALUES(?,?,?,?,?,?,?)",
+                        (code, market, ds, est, rep, sur, datetime.now().isoformat())
+                    )
+                except Exception:
+                    pass
+            try:
+                con.execute(
+                    "INSERT OR REPLACE INTO earnings_fetch_log(code, market, fetched_at, n_dates) VALUES(?,?,?,?)",
+                    (code, market, datetime.now().isoformat(), len(rows))
+                )
+            except Exception:
+                pass
+            eds = sorted({r[0] for r in rows})
+            _EARNINGS_MAP_MEM[f"{market}:{code}"] = eds
+            if eds:
+                out[code] = eds
+        con.commit()
+        con.close()
+        have = sum(1 for c in codes if out.get(c))
+        print(f"[base-rate] A5 earnings: {market} fetched {len(miss)} new codes, "
+              f"{have}/{len(codes)} have ≥1 earnings date", flush=True)
     return out
 
 
@@ -13351,6 +13530,50 @@ def _detect_triggers(sid: str, f: dict):
             day_chg = (c[i] - c[i-1]) / c[i-1] if c[i-1] > 0 else 0
             if volr[i] >= 2.0 and day_chg >= 0.01:
                 trig[i] = True
+    return trig
+
+
+def _a5_pead_triggers(dates, c, bench_map, earnings_dates):
+    """A5 PEAD（財報後漂移）事件型進場 trigger（免共識代理版，只需 財報日期 + OHLCV）。
+
+    驚奇代理（earnings momentum）＝財報後異常報酬：以「財報前一收盤 → 後 S 日收盤」的個股報酬
+    減同窗基準（^TWII/SPY）報酬 = 異常報酬。正驚奇（≥ _A5_SURPRISE_THRESH%）→ 在驚奇窗末日
+    收盤進場（該日已完整觀測驚奇），持有沿用 EXIT_C/D outcome 表（_emit_trades 自動去重疊倉）。
+
+    防 look-ahead：
+      a    = 第一個 >= 財報日期 的交易日（涵蓋 BMO/AMC 公告時點不確定性，把反應落在 a 或 a+1 都涵蓋）。
+      base = a-1（財報前一收盤，資訊釋出前基準）；entry = a-1+S（驚奇窗末日 = 進場日）。
+      進場 index 即驚奇窗最後一日 → surprise 完全實現於該日收盤，絕不早於可觀測點。
+
+    純計算（無 yfinance/DB），供隔離測試驗算。dates 須升冪（ISO 字串）；earnings_dates = list[YYYY-MM-DD]。
+    回傳 bool 陣列（對齊 dates）。"""
+    import numpy as np
+    from bisect import bisect_left
+    n = len(c)
+    trig = np.zeros(n, dtype=bool)
+    if not earnings_dates or n == 0:
+        return trig
+    S = _A5_SURPRISE_DAYS
+    for ed in earnings_dates:
+        if not ed:
+            continue
+        a = bisect_left(dates, ed)        # 公告交易日（第一個 >= 財報日期）
+        if a >= n:
+            continue
+        base = a - 1                      # 財報前一收盤
+        entry = a - 1 + S                 # 驚奇窗末日 = 進場日（T+S，相對前一收盤）
+        if base < 0 or entry >= n:
+            continue
+        if c[base] <= 0 or c[entry] <= 0:
+            continue
+        r_stock = c[entry] / c[base] - 1
+        b0 = bench_map.get(dates[base]); b1 = bench_map.get(dates[entry])
+        if b0 is None or b1 is None or b0 <= 0:
+            continue                      # 缺基準 → 無法算異常報酬，誠實跳過該事件
+        r_bench = b1 / b0 - 1
+        surprise = (r_stock - r_bench) * 100   # 財報後異常報酬%（驚奇代理）
+        if surprise >= _A5_SURPRISE_THRESH:
+            trig[entry] = True            # 正驚奇 → 該日進場
     return trig
 
 
@@ -13539,13 +13762,16 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
 
     strat_trades = {sid: [] for sid in buy_ids}  # sid -> list of (entry_date, exit_date, net_ret%)
     cs_ids = [s for s in buy_ids if s in _BASE_RATE_CS_STRATS]
-    non_cs_ids = [s for s in buy_ids if s not in _BASE_RATE_CS_STRATS]
-    # 每個 sid 用哪個因子排名：橫斷面策略用自身因子；既有策略用 overlay 因子（None=不濾）
+    event_ids = [s for s in buy_ids if s in _BASE_RATE_EVENT_STRATS]   # A5：事件型（財報後漂移），trigger 由 earnings_dates 算
+    non_cs_ids = [s for s in buy_ids if s not in _BASE_RATE_CS_STRATS and s not in _BASE_RATE_EVENT_STRATS]
+    # 每個 sid 用哪個因子排名：橫斷面策略用自身因子；既有訊號策略用 overlay 因子（None=不濾）；事件策略不套橫斷面
     sid_factor = {}
     for s in buy_ids:
         sid_factor[s] = _BASE_RATE_CS_STRATS.get(s) or (cs_overlay_factor if s in non_cs_ids else None)
     factors_needed = {fac for fac in sid_factor.values() if fac}
     thresh = 1.0 - float(cs_top_k)
+    # A5 事件型：預載財報日期映射（首跑逐檔抓 yfinance .earnings_dates，之後讀表；覆蓋率低的市場誠實縮小）
+    earnings_by_code = _get_earnings_map(mkt, codes) if event_ids else {}
 
     if not factors_needed:
         # ── 預設路徑（無橫斷面因子）：原單趟、低記憶體行為，逐字保留 ──
@@ -13558,7 +13784,11 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
             if not f:
                 continue
             for sid in buy_ids:
-                _emit_trades(sid, _detect_triggers(sid, f), f, None, thresh, strat_trades[sid])
+                if sid in _BASE_RATE_EVENT_STRATS:   # A5：財報後漂移事件 trigger（earnings_dates + 後驚奇代理）
+                    etrig = _a5_pead_triggers(f["dates"], f["c"], bench_map, earnings_by_code.get(code, []))
+                    _emit_trades(sid, etrig, f, None, thresh, strat_trades[sid])
+                else:
+                    _emit_trades(sid, _detect_triggers(sid, f), f, None, thresh, strat_trades[sid])
     else:
         # ── 橫斷面路徑：兩趟（context pass 算排名 → 進場 pass 套濾網） ──
         feats = {}
@@ -13624,6 +13854,9 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
             for sid in cs_ids:
                 rmap = rank_pct.get(sid_factor[sid], {}).get(code, {})
                 _emit_trades(sid, None, f, rmap, thresh, strat_trades[sid])
+            for sid in event_ids:   # A5：事件型 trigger（earnings_dates + 後驚奇代理），不套橫斷面濾網
+                etrig = _a5_pead_triggers(f["dates"], f["c"], bench_map, earnings_by_code.get(code, []))
+                _emit_trades(sid, etrig, f, None, thresh, strat_trades[sid])
 
     # 彙總
     out = {}

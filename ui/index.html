@@ -1946,6 +1946,19 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
                 <button id="br-btn-a4" onclick="brRunA4()" style="padding:7px 18px;background:none;color:var(--blue);border:1px solid var(--blue);border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;transition:.15s">▶ 跑 A4 板塊相對</button>
               </div>
             </div>
+            <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+              <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+                <span style="font-size:12px;color:var(--text2);font-weight:600">財報後漂移 PEAD（H-A5・事件型）</span>
+                <span style="font-size:11px;color:var(--text3)">財報後正異常報酬→做多前段驚奇（事件時間天然與日曆市場去相關，免共識代理版）</span>
+              </div>
+              <div style="display:flex;align-items:center;flex-wrap:wrap;gap:14px">
+                <div style="display:flex;gap:8px;font-size:11px;color:var(--text3)">
+                  <span title="驚奇代理：財報前一收盤→後2日收盤的個股異常報酬(減同窗基準)≥門檻 → 該日進場，持有 EXIT_C/D">A5_PEAD 財報後漂移</span>
+                  <span title="US 用 yfinance .earnings_dates（可靠）；TW best-effort，覆蓋率低時 N 會偏小（如實呈現，不灌水）">資料：財報日期+OHLCV</span>
+                </div>
+                <button id="br-btn-a5" onclick="brRunA5()" style="padding:7px 18px;background:none;color:var(--blue);border:1px solid var(--blue);border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;transition:.15s">▶ 跑 A5 財報後漂移</button>
+              </div>
+            </div>
           </div>
           <div id="br-progress-wrap" style="display:none;margin-bottom:12px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
             <div style="height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-bottom:8px">
@@ -5909,6 +5922,19 @@ async function brRunA4() {
     sell_strategies: ['EXIT_C', 'EXIT_D'],
     start, cs_top_k: brCsTopK(), benchmark: brBenchmark()
   }, 'A4 板塊相對計算中…（首跑需抓產業映射，較久）');
+}
+
+// H-A5 財報後漂移 PEAD（事件型，免共識代理版）：財報後正異常報酬 → 做多前段驚奇，持有 EXIT_C/D
+async function brRunA5() {
+  const markets = Array.from(document.querySelectorAll('.br-mkt-chk:checked')).map(c => c.value);
+  const start   = document.getElementById('br-start').value || '2022-01-01';
+  if (!markets.length) { brSetMsg('請至少選一個市場', 'warn'); return; }
+  brStart({
+    markets,
+    buy_strategies: ['A5_PEAD'],
+    sell_strategies: ['EXIT_C', 'EXIT_D'],
+    start, cs_top_k: brCsTopK(), benchmark: brBenchmark()
+  }, 'A5 財報後漂移計算中…（首跑需抓財報日期，US 可靠/TW best-effort，較久）');
 }
 
 async function brPoll(jobId) {
