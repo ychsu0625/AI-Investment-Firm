@@ -2527,8 +2527,10 @@ def scan_after_hours():
 
 # ── Phase 3: 籌碼模組 ────────────────────────────
 
-def _fetch_twse_institutional(date_str: str) -> list:
-    """從台灣證交所抓三大法人買賣超（個股）"""
+def _fetch_twse_institutional(date_str: str, raise_on_error: bool = False) -> list:
+    """從台灣證交所抓三大法人買賣超（個股）。
+    raise_on_error=True 時，網路/限流等例外會上拋（供歷史回補管線區分「該重試的網路錯誤」
+    vs「該跳過的非交易日/未發布」）；stat!=OK（節假日/無資料）仍回 []（不上拋，不該重試）。"""
     url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={date_str}&selectType=ALLBUT0999&response=json"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -2538,21 +2540,44 @@ def _fetch_twse_institutional(date_str: str) -> list:
             return []
         results = []
         for row in data["data"]:
-            code = row[0].strip()
-            def _int(s): return int(s.replace(",", "").replace(" ", "") or "0")
-            results.append({
-                "code": code,
-                "foreign_buy": _int(row[2]),
-                "itrust_buy": _int(row[5]),
-                "dealer_buy": _int(row[8]),
-            })
+            # 跳過 TWSE T86 回應的「合計/總計」等彙總列：個股代號為 ASCII 英數
+            #（純數字，特別股帶英文後綴如 2891B），彙總列代號是中文字（如「合計」），
+            # 直接丟給 int() 會炸（invalid literal '合計'）→ 每日 daemon 靜默吞錯、
+            # 歷史回補整天 raise。明確比對代號 + try 跳列，雙重保險不讓單列毀掉整天。
+            try:
+                code = row[0].strip()
+                if not (code and code.isascii() and code.isalnum()):
+                    continue
+                def _int(s): return int(s.replace(",", "").replace(" ", "") or "0")
+                # ── 法人籌碼聚合（台股標準慣例，老闆 2026-06-25 核定）──────────
+                # 現行 T86 ALLBUT0999 為 19 欄，全部取「淨買賣超」(=買進−賣出，TWSE 已算好)：
+                #   [4] 外陸資買賣超(不含外資自營商)   [7] 外資自營商買賣超
+                #   [10] 投信買賣超
+                #   [14] 自營商買賣超(自行買賣)        [17] 自營商買賣超(避險)
+                #   [11] 自營商買賣超合計  [18] 三大法人買賣超合計（皆供健全性檢查用）
+                # 外資 = 外資(不含自營商) + 外資自營商；自營商 = 自行買賣 + 避險；投信 = 投信。
+                # 健全性：foreign+trust+dealer 應等於 row[18] 三大法人合計。
+                foreign_net = _int(row[4]) + _int(row[7])
+                trust_net   = _int(row[10])
+                dealer_net  = _int(row[14]) + _int(row[17])
+                results.append({
+                    "code": code,
+                    "foreign_buy": foreign_net,   # schema: foreign_buy = 外資買賣超(淨)
+                    "itrust_buy": trust_net,      # schema: itrust_buy  = 投信買賣超(淨)
+                    "dealer_buy": dealer_net,     # schema: dealer_buy  = 自營商買賣超(淨)
+                })
+            except (ValueError, IndexError, AttributeError):
+                # 個別列格式異常（彙總列/欄位數不符）→ 跳過，零回歸保護
+                continue
         return results
     except Exception as e:
         print(f"[籌碼] 法人資料抓取失敗: {e}")
+        if raise_on_error:
+            raise
         return []
 
-def _fetch_twse_margin(date_str: str) -> list:
-    """從台灣證交所抓融資融券餘額"""
+def _fetch_twse_margin(date_str: str, raise_on_error: bool = False) -> list:
+    """從台灣證交所抓融資融券餘額。raise_on_error 語意同 _fetch_twse_institutional。"""
     url = f"https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date={date_str}&selectType=STOCK&response=json"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -2566,44 +2591,57 @@ def _fetch_twse_margin(date_str: str) -> list:
         rows = tables[1].get("data", [])
         results = []
         for row in rows:
-            code = row[0].strip()
-            def _int(s): return int(s.replace(",", "").replace(" ", "") or "0")
-            margin_buy = _int(row[1])
-            margin_sell = _int(row[2])
-            margin_balance = _int(row[4])
-            short_sell = _int(row[5])
-            short_buy = _int(row[6])
-            short_balance = _int(row[8])
-            margin_short_ratio = round(short_balance / margin_balance * 100, 2) if margin_balance > 0 else 0
-            results.append({
-                "code": code,
-                "margin_buy": margin_buy,
-                "margin_sell": margin_sell,
-                "margin_balance": margin_balance,
-                "short_buy": short_buy,
-                "short_sell": short_sell,
-                "short_balance": short_balance,
-                "margin_short_ratio": margin_short_ratio,
-            })
+            # 跳過 MI_MARGN「合計」彙總列：真實回應首列為 ['　','合計',...]，代號欄是
+            # 全形空格（strip 後為空）、名稱欄「合計」會被 int() 炸（invalid literal
+            # '合計'）→ 回補整天 raise、每日 daemon 靜默吞錯（chip_snapshot 只剩 2 天真因）。
+            # 明確比對代號（純數字/英數）+ try 跳列，雙重保險不讓單列毀掉整天。
+            try:
+                code = row[0].strip()
+                if not (code and code.isascii() and code.isalnum()):
+                    continue
+                def _int(s): return int(s.replace(",", "").replace(" ", "") or "0")
+                # ── 融資券欄位對位（現行 MI_MARGN STOCK 個股表為 16 欄，老闆 2026-06-25 核定）──
+                #   [1]=名稱（非數字！舊版誤讀 row[1] 致 int() 炸→整日跳光→margin 回 []）
+                #   融資: [2]買進 [3]賣出 [4]現金償還 [5]前日餘額 [6]今日餘額 [7]限額
+                #   融券: [8]買進 [9]賣出 [10]現券償還 [11]前日餘額 [12]今日餘額 [13]限額
+                #   [14]資券互抵 [15]註記。餘額皆取「今日餘額」；券資比 = 融券餘額 / 融資餘額。
+                margin_buy     = _int(row[2])
+                margin_sell    = _int(row[3])
+                margin_balance = _int(row[6])    # 融資今日餘額
+                short_buy      = _int(row[8])
+                short_sell     = _int(row[9])
+                short_balance  = _int(row[12])   # 融券今日餘額
+                margin_short_ratio = round(short_balance / margin_balance * 100, 2) if margin_balance > 0 else 0
+                results.append({
+                    "code": code,
+                    "margin_buy": margin_buy,
+                    "margin_sell": margin_sell,
+                    "margin_balance": margin_balance,
+                    "short_buy": short_buy,
+                    "short_sell": short_sell,
+                    "short_balance": short_balance,
+                    "margin_short_ratio": margin_short_ratio,
+                })
+            except (ValueError, IndexError, AttributeError):
+                # 個別列格式異常（彙總列/欄位數不符）→ 跳過，零回歸保護
+                continue
         return results
     except Exception as e:
         print(f"[籌碼] 融資融券資料抓取失敗: {e}")
+        if raise_on_error:
+            raise
         return []
 
-def _do_fetch_chip(date_str: str) -> dict:
-    """核心抓取邏輯（供端點與排程共用）。"""
-    inst_list   = _fetch_twse_institutional(date_str)
-    margin_list = _fetch_twse_margin(date_str)
-
-    if not inst_list and not margin_list:
-        return {"ok": False, "message": f"無法取得 {date_str} 資料（可能非交易日或資料未發布）", "count": 0}
-
+def _upsert_chip_snapshot(date_key: str, inst_list: list, margin_list: list) -> int:
+    """把單日 T86 法人 + 融資券資料 upsert 進 chip_snapshot。
+    以 (code, date) 為主鍵 INSERT OR REPLACE → 同日重跑冪等覆寫、不會長出重複列。
+    供 _do_fetch_chip（每日排程）與歷史回補管線共用 —— 單日 upsert 邏輯的單一真實來源。
+    date_key 須為 'YYYY-MM-DD'。回傳寫入筆數。"""
     inst_map   = {r["code"]: r for r in inst_list}
     margin_map = {r["code"]: r for r in margin_list}
     all_codes  = set(inst_map.keys()) | set(margin_map.keys())
 
     con = db(); cur = con.cursor()
-    date_key = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
     count = 0
     for code in all_codes:
         inst   = inst_map.get(code, {})
@@ -2623,6 +2661,18 @@ def _do_fetch_chip(date_str: str) -> dict:
         ))
         count += 1
     con.commit(); con.close()
+    return count
+
+def _do_fetch_chip(date_str: str) -> dict:
+    """核心抓取邏輯（供端點與排程共用）。"""
+    inst_list   = _fetch_twse_institutional(date_str)
+    margin_list = _fetch_twse_margin(date_str)
+
+    if not inst_list and not margin_list:
+        return {"ok": False, "message": f"無法取得 {date_str} 資料（可能非交易日或資料未發布）", "count": 0}
+
+    date_key = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+    count = _upsert_chip_snapshot(date_key, inst_list, margin_list)
     # 記錄最後自動抓取時間
     try:
         c2 = db()
@@ -2707,6 +2757,319 @@ def _chip_scheduler_loop():
             print(f"[自動排程] 抓取失敗: {e}")
 
 threading.Thread(target=_chip_scheduler_loop, daemon=True, name="chip-scheduler").start()
+
+# ── T86 籌碼歷史回補管線（P0-1① · R-CHIP-F 前置）──────────────────
+# 目的：把 TWSE 三大法人(T86) + 融資券(MI_MARGN) 歷史灌進 chip_snapshot，
+# 讓籌碼因子(inst_net_buy/trust_net_buy/short_squeeze)有長序列可回測（回補後適配器零改動自動生效）。
+# 做法：複用單日抓取 _fetch_twse_institutional/_fetch_twse_margin + _upsert_chip_snapshot，
+#       只加「迴圈交易日批次 + 護欄(限流/退避重試/增量跳過/冪等/可中途停/進度持久化)」。
+# 不重寫單日抓取；不動既有 chip daemon / IC / base-rate。
+
+# TWSE 個股「三大法人買賣超日報表(T86)」最早資料日（個股拆三法人格式自此起）。
+# 早於此只有融資券(MI_MARGN, ~2001 起)，但法人欄會是空 → 以 T86 為可回測綁定下限。
+_T86_EARLIEST = "2012-05-02"
+
+# 保守限流：≤4 req / 5s（寧可慢不可被封）。所有 backfill 對 TWSE 的請求都先過這個桶。
+_rl_twse = _TokenBucket(capacity=4, window_sec=5.0)
+
+_CHIP_BACKFILL_JOBS: dict = {}          # job_id -> live state（in-memory）
+_CHIP_BACKFILL_LOCK = threading.Lock()  # 保護 job 計數器的並行更新
+
+def _ensure_chip_backfill_table():
+    """進度持久化表（重啟後可查狀態 / 憑增量跳過續跑）。"""
+    try:
+        con = db(); cur = con.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS chip_backfill_jobs (
+                job_id       TEXT PRIMARY KEY,
+                start        TEXT,
+                end          TEXT,
+                market       TEXT,
+                status       TEXT,
+                total        INTEGER DEFAULT 0,
+                done         INTEGER DEFAULT 0,
+                filled       INTEGER DEFAULT 0,
+                skipped      INTEGER DEFAULT 0,
+                no_data      INTEGER DEFAULT 0,
+                rows_written INTEGER DEFAULT 0,
+                failed_json  TEXT,
+                started_at   TEXT,
+                completed_at TEXT,
+                updated_at   TEXT
+            )
+        """)
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[T86回補] 建表失敗: {e}")
+
+def _persist_backfill_job(job_id: str):
+    """把 in-memory job 狀態落地（週期性 + 結束時呼叫）。失敗不影響回補本身。"""
+    job = _CHIP_BACKFILL_JOBS.get(job_id)
+    if not job:
+        return
+    try:
+        con = db(); cur = con.cursor()
+        cur.execute("""
+            INSERT OR REPLACE INTO chip_backfill_jobs(
+                job_id, start, end, market, status, total, done, filled,
+                skipped, no_data, rows_written, failed_json, started_at, completed_at, updated_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            job_id, job["start"], job["end"], job["market"], job["status"],
+            job["total"], job["done"], job["filled"], job["skipped"], job["no_data"],
+            job["rows"], json.dumps(job["failed_dates"], ensure_ascii=False),
+            job["started_at"], job.get("completed_at"), datetime.now().isoformat(),
+        ))
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[T86回補] 進度持久化失敗: {e}")
+
+def _reconcile_chip_backfill_on_startup():
+    """啟動時把上次「進行中」的 job 標 interrupted（避免重啟後狀態卡 running、且不偷偷 hammer TWSE）。
+    要續跑：重新 POST 同一區間即可——增量跳過會略過已回補日，成本極低。"""
+    try:
+        _ensure_chip_backfill_table()
+        con = db(); cur = con.cursor()
+        cur.execute(
+            "UPDATE chip_backfill_jobs SET status='interrupted', updated_at=? "
+            "WHERE status IN ('running','starting')",
+            (datetime.now().isoformat(),)
+        )
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[T86回補] 啟動對帳失敗: {e}")
+
+_reconcile_chip_backfill_on_startup()
+
+def _twse_fetch_with_guard(fn, date_str: str, max_retries: int = 4):
+    """對單一 TWSE 抓取套護欄：token-bucket 限流 + 指數退避重試。
+    只對「網路/限流例外」重試（fn 以 raise_on_error=True 上拋）；
+    genuine no-data（節假日/未發布）由 fn 回 [] → 不重試。
+    退避：1.5s, 3s, 6s, 12s（上限 30s）。重試耗盡才上拋。"""
+    last_err = None
+    for attempt in range(max_retries):
+        wait = _rl_twse.consume(1)
+        if wait > 0:
+            time.sleep(wait)
+        try:
+            return fn(date_str, raise_on_error=True)
+        except Exception as e:
+            last_err = e
+            if attempt < max_retries - 1:
+                backoff = min(2 ** attempt * 1.5, 30.0)
+                print(f"[T86回補] {date_str} 抓取第{attempt+1}次失敗({e})，{backoff:.1f}s 後重試")
+                time.sleep(backoff)
+    raise RuntimeError(f"TWSE fetch failed after {max_retries} retries: {last_err}")
+
+def _chip_date_has_data(date_key: str) -> bool:
+    """增量判斷：該日 chip_snapshot 已有資料 → 跳過（不重抓、不覆寫已對的）。"""
+    con = db(); cur = con.cursor()
+    try:
+        cur.execute("SELECT COUNT(*) FROM chip_snapshot WHERE date=?", (date_key,))
+        return cur.fetchone()[0] > 0
+    finally:
+        con.close()
+
+def _chip_backfill_one_day(date_str: str):
+    """回補單一交易日：抓 T86 法人 + 融資券 → upsert chip_snapshot。
+    回 ('ok', n)：寫入 n 檔；('no_data', 0)：節假日/未發布（不算失敗、不重試）。
+    網路/限流錯誤經護欄重試後仍失敗 → 上拋（由呼叫端記 failed，整批不中斷）。"""
+    inst_list   = _twse_fetch_with_guard(_fetch_twse_institutional, date_str)
+    margin_list = _twse_fetch_with_guard(_fetch_twse_margin, date_str)
+    if not inst_list and not margin_list:
+        return ("no_data", 0)
+    date_key = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+    n = _upsert_chip_snapshot(date_key, inst_list, margin_list)
+    return ("ok", n)
+
+def _chip_backfill_worker(job_id: str, start: str, end: str, market: str,
+                          workers: int, force: bool):
+    """背景執行緒：迴圈交易日 → 增量跳過 → 抓+upsert（thread pool 並行，限流封頂）。
+    單日失敗不中斷整批（記 failed_dates，可日後重試）；可中途 stop；進度週期性持久化。"""
+    job = _CHIP_BACKFILL_JOBS[job_id]
+    try:
+        # 1) 產生交易日清單（跳週末；節假日由 no_data 自然落單，不需本地行事曆）
+        dates = []
+        d = datetime.strptime(start, "%Y-%m-%d")
+        e = datetime.strptime(end, "%Y-%m-%d")
+        while d <= e:
+            if d.weekday() < 5:                      # 0-4 = 週一~週五
+                dates.append(d.strftime("%Y%m%d"))
+            d += timedelta(days=1)
+        job["total"] = len(dates)
+        job["status"] = "running"
+        _persist_backfill_job(job_id)
+
+        if not dates:
+            job["status"] = "done"
+            job["completed_at"] = datetime.now().isoformat()
+            _persist_backfill_job(job_id)
+            return
+
+        def _process(date_str: str):
+            if job.get("stop"):
+                return ("stopped", date_str, 0)
+            date_key = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+            # 增量：已有資料 → 跳過（force=True 才重抓覆寫）
+            if not force and _chip_date_has_data(date_key):
+                return ("skipped", date_str, 0)
+            try:
+                status, n = _chip_backfill_one_day(date_str)
+                return (status, date_str, n)
+            except Exception as ex:
+                return ("failed", date_str, str(ex))
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futs = {ex.submit(_process, ds): ds for ds in dates}
+            for f in as_completed(futs):
+                kind, ds, payload = f.result()
+                with _CHIP_BACKFILL_LOCK:
+                    job["done"] += 1
+                    if kind == "ok":
+                        job["filled"] += 1
+                        job["rows"]   += payload
+                    elif kind == "skipped":
+                        job["skipped"] += 1
+                    elif kind == "no_data":
+                        job["no_data"] += 1
+                    elif kind == "failed":
+                        job["failed_dates"].append({"date": ds, "error": payload})
+                    # 'stopped' 不計數，只是略過
+                    job["current"] = ds
+                    done = job["done"]
+                if done % 20 == 0:
+                    _persist_backfill_job(job_id)
+
+        job["status"] = "stopped" if job.get("stop") else "done"
+        job["completed_at"] = datetime.now().isoformat()
+        _persist_backfill_job(job_id)
+        print(f"[T86回補] job {job_id} {job['status']}: "
+              f"filled={job['filled']} skipped={job['skipped']} "
+              f"no_data={job['no_data']} failed={len(job['failed_dates'])} rows={job['rows']}")
+    except Exception as e:
+        job["status"] = "error"
+        job["error"] = str(e)
+        job["completed_at"] = datetime.now().isoformat()
+        _persist_backfill_job(job_id)
+        print(f"[T86回補] job {job_id} 異常終止: {e}")
+
+@app.post("/api/chip/backfill")
+def chip_backfill_start(config: dict, _: None = Depends(require_token)):
+    """啟動 T86/融資券歷史回補背景 job，回 job_id 供輪詢。
+    body: {start:'YYYY-MM-DD', end:'YYYY-MM-DD', market:'TWSE', workers:1-4, force:false}
+    - 增量：預設 force=false → 已有資料的日期自動跳過（冪等、可中途續跑）。
+    - market：目前僅 TWSE（上市）；TPEX 上櫃為 P1（不靜默假成功，明確擋下）。"""
+    start  = str(config.get("start", "2020-01-01"))
+    end    = str(config.get("end", datetime.now().strftime("%Y-%m-%d")))
+    market = str(config.get("market", "TWSE")).upper()
+    force  = bool(config.get("force", False))
+    try:
+        workers = int(config.get("workers", 3))
+    except (TypeError, ValueError):
+        workers = 3
+    workers = min(max(workers, 1), 4)   # 保守上限 4 緒，嚴守 TWSE rate limit（限流桶才是硬封頂）
+
+    # 日期格式 / 區間驗證
+    try:
+        sdt = datetime.strptime(start, "%Y-%m-%d")
+        edt = datetime.strptime(end, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "error": "start/end 須為 YYYY-MM-DD 格式"}, status_code=400)
+    if sdt > edt:
+        return JSONResponse({"ok": False, "error": "start 不可晚於 end"}, status_code=400)
+
+    # 市場護欄：目前只支援 TWSE 上市
+    if market not in ("TWSE", "TW"):
+        return JSONResponse(
+            {"ok": False, "error": f"market={market} 尚未支援（目前僅 TWSE 上市；TPEX 上櫃為 P1）"},
+            status_code=400)
+    market = "TWSE"
+
+    # clamp 到 T86 最早可回補日（早於此法人欄無資料）
+    earliest = datetime.strptime(_T86_EARLIEST, "%Y-%m-%d")
+    clamped = False
+    if sdt < earliest:
+        start = _T86_EARLIEST
+        clamped = True
+
+    _ensure_chip_backfill_table()
+    # job store 上限防呆：超過時淘汰最舊的已結束 job
+    if len(_CHIP_BACKFILL_JOBS) >= 100:
+        finished = [(jid, j.get("completed_at") or j.get("started_at") or "")
+                    for jid, j in _CHIP_BACKFILL_JOBS.items()
+                    if j.get("status") in ("done", "stopped", "error", "interrupted")]
+        for jid, _ts in sorted(finished, key=lambda x: x[1])[:max(1, len(finished) // 2)]:
+            _CHIP_BACKFILL_JOBS.pop(jid, None)
+
+    job_id = secrets.token_hex(8)
+    _CHIP_BACKFILL_JOBS[job_id] = {
+        "start": start, "end": end, "market": market,
+        "status": "starting", "total": 0, "done": 0, "filled": 0,
+        "skipped": 0, "no_data": 0, "rows": 0, "current": "",
+        "failed_dates": [], "stop": False, "error": None,
+        "started_at": datetime.now().isoformat(), "completed_at": None,
+    }
+    _persist_backfill_job(job_id)
+    threading.Thread(target=_chip_backfill_worker,
+                     args=(job_id, start, end, market, workers, force),
+                     daemon=True, name=f"chip-backfill-{job_id}").start()
+    return {"ok": True, "job_id": job_id, "start": start, "end": end, "market": market,
+            "workers": workers, "force": force, "clamped_to_earliest": clamped,
+            "message": f"Chip backfill started. Poll GET /api/chip/backfill/{job_id}."}
+
+@app.get("/api/chip/backfill/{job_id}")
+def chip_backfill_status(job_id: str):
+    """輪詢回補進度：已回補N天/總天數/跳過/無資料/失敗清單。
+    重啟後 in-memory 丟失時，退回讀持久化表（status=interrupted）。"""
+    if (not isinstance(job_id, str) or not (8 <= len(job_id) <= 64)
+            or any(c not in "0123456789abcdef" for c in job_id)):
+        return JSONResponse({"error": "job not found"}, status_code=404)
+    job = _CHIP_BACKFILL_JOBS.get(job_id)
+    if job:
+        return {
+            "job_id": job_id, "status": job["status"],
+            "start": job["start"], "end": job["end"], "market": job["market"],
+            "total": job["total"], "done": job["done"],
+            "filled": job["filled"], "skipped": job["skipped"],
+            "no_data": job["no_data"], "rows_written": job["rows"],
+            "failed": len(job["failed_dates"]), "failed_dates": job["failed_dates"][:50],
+            "current": job.get("current", ""),
+            "started_at": job["started_at"], "completed_at": job.get("completed_at"),
+            "error": job.get("error"),
+        }
+    # in-memory 沒有 → 讀持久化表
+    try:
+        con = db(); cur = con.cursor()
+        cur.execute("""SELECT start,end,market,status,total,done,filled,skipped,no_data,
+                       rows_written,failed_json,started_at,completed_at FROM chip_backfill_jobs
+                       WHERE job_id=?""", (job_id,))
+        r = cur.fetchone(); con.close()
+        if not r:
+            return JSONResponse({"error": "job not found"}, status_code=404)
+        try:
+            failed_dates = json.loads(r[10] or "[]")
+        except Exception:
+            failed_dates = []
+        return {
+            "job_id": job_id, "status": r[3], "start": r[0], "end": r[1], "market": r[2],
+            "total": r[4], "done": r[5], "filled": r[6], "skipped": r[7], "no_data": r[8],
+            "rows_written": r[9], "failed": len(failed_dates), "failed_dates": failed_dates[:50],
+            "started_at": r[11], "completed_at": r[12], "persisted": True,
+        }
+    except Exception as e:
+        return JSONResponse({"error": f"job lookup failed: {e}"}, status_code=500)
+
+@app.post("/api/chip/backfill/{job_id}/stop")
+def chip_backfill_stop(job_id: str, _: None = Depends(require_token)):
+    """請求中途停止回補（in-flight 的日做完即收手）。"""
+    job = _CHIP_BACKFILL_JOBS.get(job_id)
+    if not job:
+        return JSONResponse({"error": "job not found"}, status_code=404)
+    if job["status"] in ("done", "stopped", "error", "interrupted"):
+        return {"ok": False, "message": f"job already {job['status']}"}
+    job["stop"] = True
+    return {"ok": True, "message": "stop requested; will halt after in-flight days"}
 
 # ── 總經數據自動排程 ──────────────────────────────────
 
@@ -13420,6 +13783,51 @@ _CS_MIN_XSECTION = 10   # 當日可排名所需的最少橫斷面樣本數（暖
 _CS_SECTOR_MIN_MEMBERS = 3    # 板塊當日成員數下限（中位數/籃子可靠性，過少則該板塊當日不計）
 _CS_SECTOR_TOP_FRAC    = 0.50 # A4 TOPSEC：板塊籃子報酬前此比例 = 「前段板塊」（板塊動量層）
 
+# ── P0-1 R-CHIP-F：籌碼橫斷面因子（讀 chip_snapshot，與價格族正交，攻 A4 美股破功命門）──
+# 籌碼僅台股(TW)有資料；他市場回空集（複合自然縮小、誠實標記，與 _chip_streak_dates 同精神）。
+# 【給 Reviewer：PIT】籌碼 d 日收盤(13:30)後才公布 → 因子值對齊「次一交易日」(chip series[k+1])
+# 才可進場，與既有 _chip_streak_dates 的 PIT 修法逐字同精神（進場∩公布日=∅）。
+_CHIP_CS_FACTORS = {"inst_net_buy", "trust_net_buy", "short_squeeze"}
+_CHIP_N_DEFAULT  = 5     # 三大法人/投信淨買累積窗（agenda N∈{3,5,10,20}，搜尋層暫用 default，param_space 供日後 Bayesian）
+_CHIP_SQ_N       = 5     # short_squeeze：融券餘額變化回看窗
+_CHIP_ADV_WIN    = 20    # ADV（日均量）回看窗，供淨買標準化（÷ADV 控流動性/市值，避免因子退化成市值代理）
+
+# 橫斷面因子家族（§2.4 parsimony 軟剪分族用；同族雙 cs = 換湯不換藥，跨族 chip∧price = 補正交維度）
+_CS_FACTOR_FAMILY = {
+    "raw_mom": "momentum", "rel_str": "momentum", "resid_mom": "momentum",
+    "sector_rel": "sector", "sector_rel_topsec": "sector",
+    "inst_net_buy": "chip", "trust_net_buy": "chip", "short_squeeze": "chip",
+}
+
+
+def _cs_family(factor: str) -> str:
+    """cs 因子所屬家族（軟剪相關性分族；未知 factor 自成一族不誤剪）。"""
+    return _CS_FACTOR_FAMILY.get(factor, factor)
+
+
+# 籌碼因子註冊 metadata（入庫三道資格 §3.4：①機制 ②PIT ③參數 metadata，param_space 對齊
+# _get_strategy_params_space 契約 {min,max,default,type}；dir∈{+1,−1} 為 R1(a) per-layer 方向）。
+_CHIP_CS_META = {
+    "inst_net_buy": {
+        "param_space": {"N": {"min": 3, "max": 20, "default": _CHIP_N_DEFAULT, "type": "int"},
+                        "dir": {"choices": [1, -1], "default": 1, "type": "int"}},
+        "pit_rule": "T86 隔日盤後公布 → 進場落次一交易日（只用 ≤T−1 資料）",
+        "mechanism": "羊群/smart-money 確認：法人累積淨買超為價外資訊，過濾『漲但無人接』假突破",
+        "family": "chip"},
+    "trust_net_buy": {
+        "param_space": {"N": {"min": 3, "max": 10, "default": _CHIP_N_DEFAULT, "type": "int"},
+                        "dir": {"choices": [1, -1], "default": 1, "type": "int"}},
+        "pit_rule": "T86 隔日盤後公布 → 進場落次一交易日",
+        "mechanism": "投信黏性：季底作帳/連續性比外資強（台股 edge）；dir=−1 表投信倒貨之空方濾網",
+        "family": "chip"},
+    "short_squeeze": {
+        "param_space": {"N": {"min": 3, "max": 10, "default": _CHIP_SQ_N, "type": "int"},
+                        "dir": {"choices": [1, -1], "default": 1, "type": "int"}},
+        "pit_rule": "TWSE 融資券隔日公布 → 進場落次一交易日",
+        "mechanism": "高券資比 + 融券 N 日增 → 空頭回補擠壓（軋空）",
+        "family": "chip"},
+}
+
 _SECTOR_MAP_MEM: dict = {}    # in-process cache: f"{market}:{code}" -> sector_str（避免同跑重複查）
 
 # ── H-A5 財報後漂移（PEAD，免共識代理版）─────────────────────────────────────
@@ -13787,7 +14195,7 @@ def _compute_stock_features(code: str, all_dates: list, bar_data: dict):
                 break
 
     return {
-        "dates": dates_c, "n": n, "o": o, "h": h, "l": l, "c": c,
+        "dates": dates_c, "n": n, "o": o, "h": h, "l": l, "c": c, "v": v,  # v：P0-1 籌碼因子 ÷ADV 用（加法，零回歸）
         "ma5": ma5, "ma10": ma10, "ma20": ma20, "ma60": ma60, "ma240": ma240,
         "dif": dif, "macd": macd, "rsi": rsi, "kd_k": kd_k, "kd_d": kd_d,
         "vol_ratio": vol_ratio, "prior_high20": prior_high20,
@@ -14029,6 +14437,115 @@ def _compute_sector_factors(smom_by_code: dict, sector_of: dict, factors_needed:
                 out["sector_rel"].setdefault(d, {})[code] = rel
             if "sector_rel_topsec" in out and sec in top_sectors.get(d, set()):
                 out["sector_rel_topsec"].setdefault(d, {})[code] = rel
+    return out
+
+
+# ── P0-1 R-CHIP-F：籌碼橫斷面因子（pure 計算，無 DB，可隔離測 PIT/算法）────────────
+def _chip_factor_series(chip_series: list, adv_by_date: dict, factors_needed: set,
+                        n: int = _CHIP_N_DEFAULT, sq_n: int = _CHIP_SQ_N) -> dict:
+    """單一個股的籌碼因子原始值時間序列（橫斷面排名前的 raw value）。純函式、無 DB、無 yfinance。
+
+    輸入：
+      chip_series : [(date, foreign, trust, dealer, short_bal, ms_ratio), ...]，依 date 升冪（chip 公布日）。
+      adv_by_date : {date: ADV}（該股各「交易日」的日均量，供 ÷ADV 標準化；缺/0 → 該日不算）。
+      factors_needed ⊆ _CHIP_CS_FACTORS。
+    回 {factor: {entry_date: raw_val}}。
+
+    【給 Reviewer — PIT 防洩漏（核心）】chip date d 收盤後才公布 → 因子值對齊「次一交易日」
+    才可進場。實作：用 chip_series[k] 算出的累積/變化值，key 落在 chip_series[k+1] 的 date
+    （與既有 _chip_streak_dates 的 `series[k+1][0]` 逐字同精神）。故「進場日集合 ∩ 公布日(=每個
+    series[k] 的 date 用於計算)」永不重疊 —— 進場永遠晚於資訊可得日一個交易日。
+
+    因子定義：
+      inst_net_buy  = N 日累積(外資+投信+自營)淨買(張) ÷ ADV（橫斷面 rank；smart-money 確認）
+      trust_net_buy = N 日累積投信淨買(張) ÷ ADV（投信黏性，台股 edge）
+      short_squeeze = 券資比(now) × max(0, 1 + 融券餘額 sq_n 日增幅)（高券資比+融券增=軋空壓力）
+    """
+    import numpy as np
+    out = {fac: {} for fac in factors_needed if fac in _CHIP_CS_FACTORS}
+    if not out:
+        return out
+    m = len(chip_series)
+    if m < 2:
+        return out  # 無「次一交易日」可落點 → PIT 下無可用值
+    dates   = [r[0] for r in chip_series]
+    foreign = np.array([(r[1] if r[1] is not None else 0.0) for r in chip_series], dtype=float)
+    trust   = np.array([(r[2] if r[2] is not None else 0.0) for r in chip_series], dtype=float)
+    dealer  = np.array([(r[3] if r[3] is not None else 0.0) for r in chip_series], dtype=float)
+    short_b = np.array([(r[4] if r[4] is not None else np.nan) for r in chip_series], dtype=float)
+    msr     = np.array([(r[5] if r[5] is not None else np.nan) for r in chip_series], dtype=float)
+    inst    = foreign + trust + dealer
+    want_inst  = "inst_net_buy"  in out
+    want_trust = "trust_net_buy" in out
+    want_sq    = "short_squeeze" in out
+    N  = max(int(n), 1)
+    sN = max(int(sq_n), 1)
+    for k in range(m - 1):                 # k=公布日索引；進場 = dates[k+1]（PIT：次一交易日）
+        entry = dates[k + 1]
+        if want_inst or want_trust:
+            adv = adv_by_date.get(entry)   # ÷ADV 用進場日可得的日均量（PIT 安全）
+            if adv and adv > 0 and k - N + 1 >= 0:
+                if want_inst:
+                    out["inst_net_buy"][entry] = float(inst[k - N + 1:k + 1].sum()) / adv
+                if want_trust:
+                    out["trust_net_buy"][entry] = float(trust[k - N + 1:k + 1].sum()) / adv
+        if want_sq and k - sN >= 0:
+            now = short_b[k]; base = short_b[k - sN]; r_now = msr[k]
+            if r_now == r_now and now == now and base == base:   # 三者皆非 NaN
+                if base > 0:
+                    growth = (now - base) / base
+                elif now > 0:
+                    growth = 1.0                                  # 由 0 增為正 → 視為大增
+                else:
+                    growth = 0.0
+                out["short_squeeze"][entry] = float(r_now) * max(0.0, 1.0 + growth)
+    return out
+
+
+def _compute_chip_cs_factors(mkt: str, codes: list, feats: dict, factors_needed: set,
+                             n: int = _CHIP_N_DEFAULT, sq_n: int = _CHIP_SQ_N,
+                             adv_win: int = _CHIP_ADV_WIN) -> dict:
+    """籌碼 cs 因子 orchestrator：批次讀 chip_snapshot（I/O）+ 由 feats 量能算 ADV → 呼叫 pure
+    _chip_factor_series → 組成 {factor: {date: {code: raw_val}}}（與 _compute_sector_factors 同形狀，
+    可直接餵 _cs_rank_pct 的排名迴圈）。籌碼僅 TW；他市場/無資料回空（複合自然縮小、誠實標記）。"""
+    import numpy as np
+    chip_needed = set(factors_needed) & _CHIP_CS_FACTORS
+    out = {fac: {} for fac in chip_needed}
+    if not chip_needed or not codes or str(mkt).upper() != "TW":
+        return out
+    # 一次性批次 DB 讀（主緒；與 _chip_streak_dates 同模式）
+    try:
+        con = db(); cur = con.cursor()
+        qs = ",".join("?" * len(codes))
+        rows = cur.execute(
+            f"SELECT code, date, foreign_buy, itrust_buy, dealer_buy, short_balance, margin_short_ratio "
+            f"FROM chip_snapshot WHERE code IN ({qs}) ORDER BY code, date", list(codes)
+        ).fetchall()
+        con.close()
+    except Exception:
+        return out
+    by_code = {}
+    for r in rows:
+        by_code.setdefault(r[0], []).append((r[1], r[2], r[3], r[4], r[5], r[6]))
+    aw = max(int(adv_win), 1)
+    for code, series in by_code.items():
+        f = feats.get(code)
+        if not f:
+            continue
+        dts = f.get("dates"); vol = f.get("v")
+        if not dts or vol is None:
+            continue
+        # ADV = 進場日(交易日)前 aw 日的日均量（同日收盤量於進場收盤已可觀測 → PIT 安全）
+        adv_arr = pd.Series(np.asarray(vol, dtype=float)).rolling(
+            aw, min_periods=max(5, aw // 2)).mean().to_numpy()
+        adv_by_date = {dts[i]: float(adv_arr[i]) for i in range(len(dts))
+                       if adv_arr[i] == adv_arr[i] and adv_arr[i] > 0}
+        cf = _chip_factor_series(series, adv_by_date, chip_needed, n=n, sq_n=sq_n)
+        for fac, dmap in cf.items():
+            fv = out[fac]
+            for d, val in dmap.items():
+                if val == val:                       # not NaN
+                    fv.setdefault(d, {})[code] = val
     return out
 
 
@@ -14456,7 +14973,8 @@ def _cs_rank_pct(mkt: str, codes: list, feats: dict, factors_needed: set, bench_
     與 _fast_base_rate_market 原內聯兩趟邏輯逐字等價（隔離測 test_extract_equiv 已證）。"""
     factor_vals = {fac: {} for fac in factors_needed}  # fac -> {date -> {code -> val}}
     sector_needed = factors_needed & _CS_SECTOR_FACTORS
-    orth_needed = factors_needed - sector_needed
+    chip_needed = factors_needed & _CHIP_CS_FACTORS          # P0-1：籌碼因子（讀 chip_snapshot，PIT 對齊次一交易日）
+    orth_needed = factors_needed - sector_needed - chip_needed
     sector_of = _get_sector_map(mkt, codes) if sector_needed else {}
     smom_by_code = {}
     for code in codes:
@@ -14481,6 +14999,10 @@ def _cs_rank_pct(mkt: str, codes: list, feats: dict, factors_needed: set, bench_
     if sector_needed:
         sec_fv = _compute_sector_factors(smom_by_code, sector_of, sector_needed)
         for fac, dmap in sec_fv.items():
+            factor_vals[fac] = dmap
+    if chip_needed:                                          # P0-1：籌碼 cs 因子 → 同排名管線
+        chip_fv = _compute_chip_cs_factors(mkt, codes, feats, chip_needed)
+        for fac, dmap in chip_fv.items():
             factor_vals[fac] = dmap
     rank_pct = {fac: {} for fac in factors_needed}
     for fac in factors_needed:
@@ -14832,20 +15354,24 @@ def _chip_streak_dates(codes: list, window: int = 3, min_net: float = 0.0) -> di
     return out
 
 
-# 可當「cs 層」的橫斷面因子白名單（A4 = sector_rel_topsec）
-_COMPOSITE_CS_FACTORS = {"raw_mom", "rel_str", "resid_mom", "sector_rel", "sector_rel_topsec"}
+# 可當「cs 層」的橫斷面因子白名單（A4 = sector_rel_topsec）。
+# P0-1：加入籌碼因子 _CHIP_CS_FACTORS（inst_net_buy/trust_net_buy/short_squeeze）→ 搜尋引擎自動納入。
+_COMPOSITE_CS_FACTORS = {"raw_mom", "rel_str", "resid_mom",
+                         "sector_rel", "sector_rel_topsec"} | _CHIP_CS_FACTORS
 
 
 def _normalize_layers(layers: list):
     """驗證/正規化複合層列表。回 (layers_norm, err)。
-    支援三型可 AND：cs（{factor, top_k}）/ pead（{type:'pead'}）/ chip（{type:'chip',window,min_net}）。
-    最多一個 cs 層（MVP），至少一層。"""
+    支援三型可 AND：cs（{factor, top_k, dir}）/ pead（{type:'pead'}）/ chip（{type:'chip',window,min_net}）。
+    R1：放開單一 cs 層限制 → 支援任意 k 層 cs∧cs AND-stack（R-PROD-7a）；per-layer dir∈{+1,−1}（R1(a)）。
+    至少一層、總層數上限 8。
+    【給 Reviewer — 零回歸】單一 cs 層且 dir=+1（預設）時，dir key 省略 → 正規化輸出與舊版逐字一致
+    （layers_json/dedup canon 不變）；僅 dir=−1 才寫入 dir key。"""
     if not isinstance(layers, list) or not layers:
         return None, "layers 需為非空陣列"
     if len(layers) > 8:
         return None, "layers 上限為 8 層"
     norm = []
-    cs_count = 0
     for L in layers:
         if not isinstance(L, dict):
             return None, f"層格式錯誤：{L}"
@@ -14857,18 +15383,34 @@ def _normalize_layers(layers: list):
                          "window": int(L.get("window", 3)),
                          "min_net": float(L.get("min_net", 0.0))})
         elif L.get("factor") in _COMPOSITE_CS_FACTORS:
-            cs_count += 1
             tk = L.get("top_k", _CS_DEFAULT_K)
             try:
                 tk = min(max(float(tk), 0.01), 1.0)
             except (TypeError, ValueError):
                 tk = _CS_DEFAULT_K
-            norm.append({"factor": L["factor"], "top_k": tk})
+            nl = {"factor": L["factor"], "top_k": tk}
+            try:                                          # R1(a) per-layer dir∈{+1,−1}
+                d = 1 if int(L.get("dir", 1)) >= 0 else -1
+            except (TypeError, ValueError):
+                d = 1
+            if d == -1:                                   # 預設 +1 省略 → 零回歸
+                nl["dir"] = -1
+            norm.append(nl)
         else:
             return None, f"未知層：{L}（cs factor 須屬 {sorted(_COMPOSITE_CS_FACTORS)}，或 type=pead/chip）"
-    if cs_count > 1:
-        return None, "MVP 僅支援單一 cs 層（其餘為 pead/chip）"
     return norm, None
+
+
+def _cs_layer_eligible(rmap: dict, top_k: float, direction: int = 1) -> set:
+    """單一 cs 層的可進場日期集合。rmap={date: pct∈[0,1]}（1=因子最高）。
+    dir=+1 取 top K%（pct ≥ 1−K，多方：法人連買/動量強）；
+    dir=−1 取 bottom K%（pct ≤ K，空方/反向：法人倒貨、高估值、過熱）。
+    【給 Reviewer — 零回歸】dir=+1 時回 `{d for d,p if p>=1-top_k}`，與 _eval_composite_market
+    舊版單 cs 內聯逐字等價。"""
+    if direction >= 0:
+        thr = 1.0 - top_k
+        return {d for d, p in rmap.items() if p >= thr}
+    return {d for d, p in rmap.items() if p <= top_k}
 
 
 # ── R-PROD-7a/7b 核心：複合 AND-stack 評估（全複用既有引擎原語）──────────────
@@ -14891,15 +15433,15 @@ def _eval_composite_market(mkt, codes, start, end, layers, preloaded,
     else:
         excess_bench_map = bench_map
 
-    # 解析層
-    cs_layer = pead_layer = chip_layer = None
+    # 解析層（R-PROD-7a：支援任意 k 個 cs 層 AND-stack + per-layer dir∈{+1,−1}）
+    cs_layers = []; pead_layer = chip_layer = None
     for L in layers:
         if L.get("type") == "pead":
             pead_layer = L
         elif L.get("type") == "chip":
             chip_layer = L
         elif L.get("factor") in _COMPOSITE_CS_FACTORS:
-            cs_layer = L
+            cs_layers.append(L)
 
     # context pass：每股 feats（outcome 表）
     feats = {}
@@ -14913,14 +15455,12 @@ def _eval_composite_market(mkt, codes, start, end, layers, preloaded,
             continue
         feats[code] = f
 
-    # cs 層橫斷面排名
-    cs_factor = cs_top_k = thresh = None
-    rank_pct = {}
-    if cs_layer:
-        cs_factor = cs_layer["factor"]
-        cs_top_k = float(cs_layer.get("top_k", _CS_DEFAULT_K))
-        thresh = 1.0 - cs_top_k
-        rank_pct = _cs_rank_pct(mkt, codes, feats, {cs_factor}, bench_map)
+    # cs 層橫斷面排名（一次算齊所有 cs 層需要的因子；含籌碼）
+    cs_factors_needed = {L["factor"] for L in cs_layers}
+    rank_pct = _cs_rank_pct(mkt, codes, feats, cs_factors_needed, bench_map) if cs_factors_needed else {}
+    # 報表主因子/K（單 cs 時即該層；多 cs 取首層 → 單層輸出與舊版逐字一致，零回歸）
+    cs_factor = cs_layers[0]["factor"] if cs_layers else None
+    cs_top_k = float(cs_layers[0].get("top_k", _CS_DEFAULT_K)) if cs_layers else None
 
     # 籌碼層（一次性 DB 讀）
     chip_elig = _chip_streak_dates(codes, chip_layer.get("window", 3),
@@ -14940,9 +15480,10 @@ def _eval_composite_market(mkt, codes, start, end, layers, preloaded,
             continue
         dts = f["dates"]
         layer_sets = []
-        if cs_layer:
-            rmap = rank_pct.get(cs_factor, {}).get(code, {})
-            layer_sets.append({d for d, p in rmap.items() if p >= thresh})
+        for L in cs_layers:                         # k 層 cs∧cs：每層各自取 top/bottom K%（dir）
+            rmap = rank_pct.get(L["factor"], {}).get(code, {})
+            layer_sets.append(_cs_layer_eligible(
+                rmap, float(L.get("top_k", _CS_DEFAULT_K)), int(L.get("dir", 1))))
         if pead_layer:
             trig = _a5_pead_triggers(dts, f["c"], bench_map, earnings_by_code.get(code, []))
             layer_sets.append({dts[i] for i in range(len(dts)) if trig[i]})
@@ -14968,11 +15509,13 @@ def _eval_composite_market(mkt, codes, start, end, layers, preloaded,
                                    cs_factor=cs_factor, cs_top_k=cs_top_k)
             per_regime[reg] = _extract_row(rs, mkt, "COMPOSITE")
 
-    layer_kinds = [("cs:" + cs_factor) if cs_layer else None,
-                   "pead" if pead_layer else None, "chip" if chip_layer else None]
+    # layer_kinds：每 cs 層一筆（dir=−1 標 :dir-1）；單 cs dir+1 → "cs:<factor>"（與舊版逐字一致）
+    cs_kinds = [("cs:" + L["factor"] + (":dir-1" if int(L.get("dir", 1)) < 0 else ""))
+                for L in cs_layers]
+    layer_kinds = cs_kinds + (["pead"] if pead_layer else []) + (["chip"] if chip_layer else [])
     return {"row": row, "trades": all_trades, "per_regime": per_regime,
             "cs_factor": cs_factor, "cs_top_k": cs_top_k,
-            "n_stocks": len(feats), "layer_kinds": [k for k in layer_kinds if k]}
+            "n_stocks": len(feats), "layer_kinds": layer_kinds}
 
 
 # ── R-PROD-7e：試驗持久化（知識森林 store，重啟不丟、續搜基礎）─────────────────
@@ -15290,6 +15833,560 @@ def list_composite_candidates(market: str = "", limit: int = 100,
             pass
         out.append(d)
     return {"ok": True, "trial_T_total": total, "count": len(out), "candidates": out}
+
+
+# ══════════════════════════════════════════════════
+# Track A — 自主前向貪婪搜尋 daemon（machine-time，零 LLM token）
+# 規格：2026-06-25-composite-search-engine.md §2.2/§2.5/§六
+# 全加法：複用 _eval_composite_market / DSR / PBO / 持久化，不重寫任何數值。
+# ══════════════════════════════════════════════════
+
+# ── 共享狀態（多執行緒，所有可變欄位走 _AUTO_SEARCH_LOCK）──────────────────────
+_AUTO_SEARCH_RUNS: dict = {}            # run_id -> state dict
+_AUTO_SEARCH_LOCK = threading.Lock()
+
+# 可插拔搜尋空間（確定性、有界）
+_AUTO_FACTOR_POOL = ("sector_rel_topsec", "sector_rel", "resid_mom", "rel_str", "raw_mom")
+_AUTO_CHIP_CS_POOL = ("inst_net_buy", "trust_net_buy", "short_squeeze")  # P0-1：可疊加的籌碼 cs 層（A4∧籌碼）
+_AUTO_TOPK_POOL   = (0.10, 0.20, 0.30)
+_AUTO_MAX_DEPTH   = 4                   # §2.5：層上限（控過擬合/容量）；k 層 cs∧cs + pead/chip 合計 ≤ 此
+# lessons 剪枝鉤：已知失敗單因子（預設空，留給 lessons 注入；含此因子的 cs 層一律剪）
+_AUTO_LESSONS_SKIP_FACTORS: set = set()
+
+# 種子＝目前 SOTA：A4 = sector_rel_topsec @ TREND_UP（§九 MVP）
+_AUTO_SEED_LAYERS = [{"factor": "sector_rel_topsec", "top_k": _CS_DEFAULT_K}]
+
+
+# ── 純函式（無 DB / 無 eval，可單元隔離測）──────────────────────────────────────
+def _layers_canon(layers: list) -> str:
+    """layers 的確定性正規 key（dedup 用，順序無關）。"""
+    parts = []
+    for L in (layers or []):
+        if L.get("type") == "pead":
+            parts.append("pead")
+        elif L.get("type") == "chip":
+            parts.append(f"chip:{int(L.get('window', 3))}:{float(L.get('min_net', 0.0))}")
+        elif L.get("factor") in _COMPOSITE_CS_FACTORS:
+            try:
+                suffix = ":d-1" if int(L.get("dir", 1)) < 0 else ""   # dir=+1 → 空 suffix（零回歸）
+            except (TypeError, ValueError):
+                suffix = ""
+            parts.append(f"cs:{L['factor']}:{round(float(L.get('top_k', _CS_DEFAULT_K)), 4)}{suffix}")
+    return "|".join(sorted(parts))
+
+
+def _auto_replace_cs(current: list, factor=None, top_k=None) -> list:
+    """回 current 的副本，僅替換其 cs 層的 factor/top_k（深拷貝每層 dict，不改原 list）。"""
+    out = []
+    for L in current:
+        if L.get("factor") in _COMPOSITE_CS_FACTORS:
+            nl = dict(L)
+            if factor is not None:
+                nl["factor"] = factor
+            if top_k is not None:
+                nl["top_k"] = float(top_k)
+            out.append(nl)
+        else:
+            out.append(dict(L))
+    return out
+
+
+def _auto_search_candidates(current: list,
+                            factor_pool=_AUTO_FACTOR_POOL,
+                            topk_pool=_AUTO_TOPK_POOL,
+                            chip_pool=_AUTO_CHIP_CS_POOL) -> list:
+    """前向貪婪：列舉「下一步」候選（確定性、有界）。回 [(label, layers)]。
+    可插拔層 moves：①加 PEAD ②加 chip(法人連買 streak) ③加籌碼 cs 層(A4∧inst_net_buy，R-PROD-7a)
+    ④換 cs 因子(resid_mom/rel_str/…) ⑤換 top_k∈{.10,.20,.30}。
+    【給 Reviewer — 零回歸】③為 P0-1 新增（讓 Track A 自動列舉 A4∧籌碼 正交複合）；④⑤僅在
+    『恰有單一 cs 層』時觸發 → 保 _auto_replace_cs（替換全部 cs 層）語義正確、且種子(單 cs)行為與舊版
+    逐字一致（種子仍吐 add:pead/add:chip/swap_factor×N/top_k×N，新增 add_cs×3 為加法）。"""
+    has_pead = any(L.get("type") == "pead" for L in current)
+    has_chip = any(L.get("type") == "chip" for L in current)
+    cs_layers = [L for L in current if L.get("factor") in _COMPOSITE_CS_FACTORS]
+    present_factors = {L["factor"] for L in cs_layers}
+    cands = []
+    if not has_pead:                                   # ① 加事件層（PEAD 財報正驚奇）
+        cands.append(("add:pead", current + [{"type": "pead"}]))
+    if not has_chip:                                   # ② 加籌碼 streak 層（法人連買 type:chip）
+        cands.append(("add:chip", current + [{"type": "chip", "window": 3, "min_net": 0.0}]))
+    for cf in chip_pool:                               # ③ 加籌碼 cs 層（k 層 cs∧cs：A4∧籌碼正交複合）
+        if cf not in present_factors:
+            cands.append((f"add_cs:{cf}", current + [{"factor": cf, "top_k": _CS_DEFAULT_K}]))
+    if len(cs_layers) == 1:                            # 換因子/換 top_k 僅單 cs 層時（保替換語義+零回歸）
+        cs = cs_layers[0]
+        cur_factor = cs.get("factor")
+        cur_k = float(cs.get("top_k", _CS_DEFAULT_K))
+        for f in factor_pool:                          # ④ 換 cs 因子族
+            if f != cur_factor:
+                cands.append((f"swap_factor:{f}", _auto_replace_cs(current, factor=f)))
+        for k in topk_pool:                            # ⑤ 換 top_k
+            if abs(float(k) - cur_k) > 1e-9:
+                cands.append((f"top_k:{k}", _auto_replace_cs(current, top_k=k)))
+    return cands
+
+
+def _auto_prune_reason(current: list, cand: list, max_depth: int = _AUTO_MAX_DEPTH):
+    """三層剪枝。回剪枝理由(str)或 None(保留)。
+    硬剪：①depth>max_depth ②層內帶 twii 基準（twii 結構性永不進候選空間）。
+    lessons：含 _AUTO_LESSONS_SKIP_FACTORS 的 cs 層。
+    軟剪冗餘（§2.4 parsimony）：同『家族』雙 cs 層 = 換湯不換藥 → 剪；跨家族（chip∧price）為補
+    正交維度的目的 → 保留。
+    【給 Reviewer — 零回歸】既有候選皆單一 cs 層 → 家族數 ≤1，永不觸發新軟剪。"""
+    if len(cand) > max_depth:
+        return f"hard-prune:depth>{max_depth}"
+    for L in cand:
+        if L.get("factor") in _AUTO_LESSONS_SKIP_FACTORS:
+            return f"lessons-skip:{L.get('factor')}"
+        if str(L.get("benchmark", "")).lower() == "twii":
+            return "hard-prune:twii-benchmark"
+    fams = [_cs_family(L["factor"]) for L in cand if L.get("factor") in _COMPOSITE_CS_FACTORS]
+    if len(fams) != len(set(fams)):
+        return "soft-prune:same-family-cs-redundant"
+    return None
+
+
+def _auto_phi_g1(res: dict, regime: str):
+    """從 eval 結果取目標 Φ（該 regime 超額 CI 下界）與 G1 是否過（status==ALPHA）。
+    指定 regime 但無切片/無交易 → (None, False)（誠實：該 regime 無法推進）。
+    regime 為 'ALL'/None → 用全期 row。"""
+    per = res.get("per_regime") or {}
+    if regime and regime != "ALL":
+        row = per.get(regime)
+        if not row:
+            return None, False
+    else:
+        row = res.get("row") or {}
+    ci = row.get("excess_ci95") or [None, None]
+    return ci[0], (row.get("status") == "ALPHA")
+
+
+def _auto_greedy_round_decision(base_phi, cand_results: list, min_improvement: float):
+    """純函式：前向貪婪「一輪」決策（留改善層 / 剪退步層）。
+    base_phi = 當前 frontier 的 Φ。cand_results = [{label,layers,phi,g1_pass,...}]。
+    留下：g1_pass 且 phi 不為 None 且 (phi - base_phi) >= min_improvement。
+    剪掉：未過 G1 或增益 < 門檻 或 phi/base_phi 無法量測。
+    回 (best, kept, dropped)；best=增益最大的 kept（無則 None → 該輪無改善）。"""
+    kept, dropped = [], []
+    for c in cand_results:
+        phi = c.get("phi")
+        gain = (phi - base_phi) if (phi is not None and base_phi is not None) else None
+        c2 = dict(c, gain=gain)
+        if c.get("g1_pass") and gain is not None and gain >= min_improvement:
+            kept.append(c2)
+        else:
+            dropped.append(c2)
+    best = max(kept, key=lambda x: x["gain"]) if kept else None
+    return best, kept, dropped
+
+
+def _auto_should_stop(trials, max_trials, stale, stale_limit, stop_requested, depth, max_depth):
+    """純函式：停止判斷（預算 / stale / 手動 / 深度 四保險）。回 (should_stop, reason)。"""
+    if stop_requested:
+        return True, "manual-stop"
+    if trials >= max_trials:
+        return True, "budget-exhausted"
+    if stale >= stale_limit:
+        return True, "stale-no-improvement"
+    if depth >= max_depth:
+        return True, "max-depth"
+    return False, None
+
+
+def _auto_pick_restart_factor(used_factors, pool=_AUTO_FACTOR_POOL):
+    """換族 random-restart：挑一個尚未用過的 cs 因子族（耗盡 → None → 收斂停止）。"""
+    for f in pool:
+        if f not in used_factors:
+            return f
+    return None
+
+
+def _auto_status_view(st: dict) -> dict:
+    """小 JSON（零 token 給 cockpit/LLM 里程碑讀；不含逐筆 returns/pnl）。"""
+    sota = st.get("sota") or {}
+    return {
+        "run_id": st.get("run_id"), "status": st.get("status"),
+        "market": st.get("market"), "start": st.get("start"), "end": st.get("end"),
+        "benchmark": st.get("benchmark"), "target_regime": st.get("target_regime"),
+        "trials": st.get("trials"), "max_trials": st.get("max_trials"),
+        "round": st.get("round"), "stale_rounds": st.get("stale_rounds"),
+        "stale_limit": st.get("stale_limit"),
+        "best_phi": st.get("best_phi"),
+        "frontier": st.get("frontier"),
+        "sota": {"layers": sota.get("layers"), "phi": sota.get("phi"), "g1": sota.get("g1"),
+                 "cand_id": sota.get("cand_id"), "dsr": sota.get("dsr"), "pbo": sota.get("pbo")},
+        "frontier_candidates": (st.get("frontier_candidates") or [])[:12],
+        "used_factors": sorted(st.get("used_factors", [])),
+        "current": st.get("current"), "stop_reason": st.get("stop_reason"),
+        "started_at": st.get("started_at"), "updated_at": st.get("updated_at"),
+        "completed_at": st.get("completed_at"),
+    }
+
+
+# ── 狀態存取器（thread-safe）────────────────────────────────────────────────
+def _auto_touch(run_id, **kw):
+    with _AUTO_SEARCH_LOCK:
+        st = _AUTO_SEARCH_RUNS.get(run_id)
+        if st is None:
+            return
+        st.update(kw)
+        st["updated_at"] = datetime.now().isoformat()
+
+
+def _auto_get_copy(run_id):
+    with _AUTO_SEARCH_LOCK:
+        st = _AUTO_SEARCH_RUNS.get(run_id)
+        return dict(st) if st else None
+
+
+def _auto_stop_requested(run_id) -> bool:
+    with _AUTO_SEARCH_LOCK:
+        st = _AUTO_SEARCH_RUNS.get(run_id)
+        return bool(st and st.get("stop_requested"))
+
+
+def _auto_universe_codes(market: str) -> list:
+    """複用 get_universe 取碼表（與單發 search 同邏輯）。"""
+    uni = get_universe(market)
+    if isinstance(uni, JSONResponse):
+        raise RuntimeError(f"universe not available for {market}")
+    raw = uni.get("data", uni.get("stocks", []))
+    codes = [s if isinstance(s, str) else s.get("code", "") for s in raw]
+    codes = [c for c in codes if c]
+    if not codes:
+        raise RuntimeError(f"empty universe for {market}")
+    return codes
+
+
+# ── 持久化 + DSR + PBO（純複用既有原語；單發 worker 不動，故獨立此函式，零回歸）──
+def _persist_composite_eval(res, market, start, end, benchmark, layers, parent_id=None):
+    """落地一筆試驗 → composite_candidates，並算 DSR（對全 T 折減）+ PBO（CSCV，本批）。
+    與 _composite_search_worker 同邏輯（複用 _deflated_sharpe_ratio/_pbo_cscv/_bin_returns_to_blocks），
+    但不觸碰既有 worker（純加法）。回 {cand_id,g1_status,dsr,pbo,trial_T,sharpe,excess_ci_low}。"""
+    import json
+    row = res["row"]
+    trades = res["trades"]
+    returns = [t[2] for t in trades]
+    pnl_blocks = _bin_returns_to_blocks(trades, start, end, 16)
+    sharpe = row.get("sharpe") or 0.0
+    excess_ci = row.get("excess_ci95") or [None, None]
+    cand_id = secrets.token_hex(8)
+
+    con = db(); cur = con.cursor()
+    cur.execute("""INSERT INTO composite_candidates
+        (cand_id,created_at,parent_id,market,start,end,benchmark,layers_json,depth,
+         n,win_rate,avg_return,excess_avg,excess_ci_low,excess_ci_high,sharpe,status,
+         dsr,pbo,trial_T,per_regime_json,returns_json,pnl_blocks_json,notes)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        cand_id, datetime.now().isoformat(), parent_id, market, start, end, benchmark,
+        json.dumps(layers, ensure_ascii=False), len(layers),
+        row.get("N"), row.get("win_rate"), row.get("avg_return"), row.get("excess_avg"),
+        excess_ci[0], excess_ci[1], sharpe, row.get("status"),
+        None, None, None,
+        json.dumps(res.get("per_regime", {}), ensure_ascii=False),
+        json.dumps(returns), json.dumps(pnl_blocks),
+        f"auto-search layers={res.get('layer_kinds')} stocks={res.get('n_stocks')}"))
+    con.commit()
+
+    all_sharpes = [r[0] for r in cur.execute(
+        "SELECT sharpe FROM composite_candidates WHERE sharpe IS NOT NULL").fetchall()]
+    T = cur.execute("SELECT COUNT(*) FROM composite_candidates").fetchone()[0]
+    dsr_res = _deflated_sharpe_ratio(returns, all_sharpes, T)
+
+    pbo_res = {"pbo": None, "reason": "need >=2 candidates"}
+    batch = cur.execute(
+        "SELECT pnl_blocks_json FROM composite_candidates WHERE market=? AND start=? AND end=?",
+        (market, start, end)).fetchall()
+    cols = []
+    for (pj,) in batch:
+        try:
+            blk = json.loads(pj) if pj else None
+        except Exception:
+            blk = None
+        if blk and len(blk) == 16:
+            cols.append([(x if x is not None else float("nan")) for x in blk])
+    if len(cols) >= 2:
+        import numpy as np
+        pbo_res = _pbo_cscv(np.array(cols, dtype=float).T, S=16)
+
+    cur.execute("UPDATE composite_candidates SET dsr=?, pbo=?, trial_T=? WHERE cand_id=?",
+                (dsr_res.get("dsr"), pbo_res.get("pbo"), T, cand_id))
+    con.commit(); con.close()
+
+    return {"cand_id": cand_id, "g1_status": row.get("status"),
+            "dsr": dsr_res.get("dsr"), "pbo": pbo_res.get("pbo"), "trial_T": T,
+            "sharpe": sharpe, "excess_ci_low": excess_ci[0]}
+
+
+# ── 背景 thread daemon：前向貪婪迴圈（machine-time 持續跑，零 token）────────────
+def _auto_search_worker(run_id):
+    """前向貪婪自主搜尋：種子→列舉候選→eval→留改善剪退步→advance frontier→重複。
+    護欄：①預算 max_trials ②stale 連續無改善 ③剪枝(lessons/twii/深度/dedup) ④候選每輪封頂
+    ⑤手動 stop。每輪寫進度到 search-state（可查）。所有數值複用 _eval_composite_market/DSR/PBO。"""
+    st0 = _auto_get_copy(run_id)
+    if not st0:
+        return
+    market = st0["market"]; start = st0["start"]; end = st0["end"]
+    benchmark = st0["benchmark"]; target_regime = st0["target_regime"]
+    max_trials = st0["max_trials"]; stale_limit = st0["stale_limit"]
+    max_cands = st0["max_candidates_per_round"]; min_improvement = st0["min_improvement"]
+    enable_restart = st0["enable_restart"]
+    try:
+        _ensure_composite_search_tables()
+        _auto_touch(run_id, status="running", current="loading universe + bar data")
+        codes = _auto_universe_codes(market)
+        preloaded = _load_backtest_data(codes, market, start, end)
+        regime_map = {}
+        try:
+            regime_map = {r["date"]: r["regime"] for r in _batch_calc_regime(market, start, end)}
+        except Exception as e:
+            print(f"[auto-search] regime map failed: {e}", flush=True)
+
+        def _eval(layers):
+            res = _eval_composite_market(market, codes, start, end, layers, preloaded,
+                                         benchmark=benchmark, regime_map=regime_map,
+                                         should_cancel=lambda: _auto_stop_requested(run_id))
+            persisted = _persist_composite_eval(res, market, start, end, benchmark, layers)
+            phi, g1 = _auto_phi_g1(res, target_regime)
+            return res, persisted, phi, g1
+
+        # 本地計數（worker 私有，避免每筆鎖；里程碑同步進 state）
+        trials = 0
+        stale = 0
+        rnd = 0
+        evaluated = set()
+        history = []
+        cs_seed = next((L.get("factor") for L in st0["seed_layers"]
+                        if L.get("factor") in _COMPOSITE_CS_FACTORS), None)
+        used_factors = {cs_seed} if cs_seed else set()
+
+        # ── 基準：先 eval 種子，建立 best_phi 起點 ──
+        current = [dict(L) for L in st0["seed_layers"]]
+        res0, p0, phi0, g10 = _eval(current)
+        trials += 1
+        evaluated.add(_layers_canon(current))
+        best_phi = phi0
+        sota = {"layers": current, "phi": phi0, "g1": g10, "cand_id": p0["cand_id"],
+                "dsr": p0["dsr"], "pbo": p0["pbo"]}
+        history.append({"trial": trials, "label": "seed", "layers": current,
+                        "phi": phi0, "g1": g10, "cand_id": p0["cand_id"]})
+        _auto_touch(run_id, trials=trials, round=rnd, stale_rounds=stale,
+                    best_phi=best_phi, frontier=current, current=current, sota=sota,
+                    used_factors=list(used_factors), history=history[-50:])
+
+        # ── 前向貪婪主迴圈 ──
+        while True:
+            depth = len(current)
+            stop, reason = _auto_should_stop(trials, max_trials, stale, stale_limit,
+                                             _auto_stop_requested(run_id), depth, _AUTO_MAX_DEPTH)
+            if stop:
+                _auto_touch(run_id, stop_reason=reason)
+                break
+
+            rnd += 1
+            # 列舉 → 剪枝（lessons/twii/深度）→ dedup → 候選封頂（有界）
+            raw_cands = _auto_search_candidates(current)
+            cands = []
+            for lbl, lay in raw_cands:
+                if _layers_canon(lay) in evaluated:
+                    continue
+                pr = _auto_prune_reason(current, lay)
+                if pr is not None:
+                    continue
+                cands.append((lbl, lay))
+            cands = cands[:max_cands]
+            _auto_touch(run_id, round=rnd, current=current,
+                        current_msg=f"round {rnd}: {len(cands)} candidates")
+
+            if not cands:
+                # 本層無新候選 → 視為無改善（走 stale / restart 分支）
+                cand_results = []
+            else:
+                cand_results = []
+                for lbl, lay in cands:
+                    if _auto_stop_requested(run_id) or trials >= max_trials:
+                        break
+                    res, p, phi, g1 = _eval(lay)
+                    trials += 1
+                    evaluated.add(_layers_canon(lay))
+                    cr = {"label": lbl, "layers": lay, "phi": phi, "g1_pass": g1,
+                          "cand_id": p["cand_id"], "dsr": p["dsr"], "pbo": p["pbo"]}
+                    cand_results.append(cr)
+                    history.append({"trial": trials, "label": lbl, "layers": lay,
+                                    "phi": phi, "g1": g1, "cand_id": p["cand_id"]})
+                    _auto_touch(run_id, trials=trials, frontier_candidates=cand_results,
+                                history=history[-50:],
+                                current_msg=f"round {rnd}: eval {lbl} → Φ={phi} G1={g1}")
+
+            # ── 一輪決策（純函式）：留改善層 / 剪退步層 ──
+            best, kept, dropped = _auto_greedy_round_decision(best_phi, cand_results, min_improvement)
+            if best is None:
+                stale += 1
+                _auto_touch(run_id, stale_rounds=stale, frontier_candidates=cand_results)
+                # stale 達上限 → 換族 random-restart（換因子族）或停止
+                if stale >= stale_limit and enable_restart:
+                    rf = _auto_pick_restart_factor(used_factors)
+                    if rf is not None:
+                        current = [{"factor": rf, "top_k": _CS_DEFAULT_K}]
+                        used_factors.add(rf)
+                        stale = 0
+                        _auto_touch(run_id, frontier=current, current=current,
+                                    used_factors=list(used_factors), stale_rounds=stale,
+                                    current_msg=f"random-restart → family {rf}")
+                        continue
+                # 無可換族 → 下一輪 _auto_should_stop 會以 stale 收斂停止
+                continue
+            else:
+                # 貪婪：吃下最佳增益層，advance frontier
+                current = best["layers"]
+                best_phi = best["phi"]
+                stale = 0
+                cf = next((L.get("factor") for L in current
+                           if L.get("factor") in _COMPOSITE_CS_FACTORS), None)
+                if cf:
+                    used_factors.add(cf)
+                sota = {"layers": current, "phi": best_phi, "g1": True,
+                        "cand_id": best.get("cand_id"), "dsr": best.get("dsr"),
+                        "pbo": best.get("pbo")}
+                _auto_touch(run_id, frontier=current, current=current, best_phi=best_phi,
+                            stale_rounds=stale, sota=sota, used_factors=list(used_factors),
+                            current_msg=f"advance frontier → Φ={best_phi} (+{best.get('gain')})")
+
+        final = "stopped" if _auto_stop_requested(run_id) else "done"
+        _auto_touch(run_id, status=final, completed_at=datetime.now().isoformat(),
+                    current="", current_msg="finished")
+        snap = _auto_get_copy(run_id) or {}
+        print(f"[auto-search] {run_id} {final}: T={snap.get('trials')} "
+              f"bestΦ={snap.get('best_phi')} reason={snap.get('stop_reason')} "
+              f"SOTA={(snap.get('sota') or {}).get('layers')}", flush=True)
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        _auto_touch(run_id, status="error", error=str(e),
+                    completed_at=datetime.now().isoformat())
+
+
+@app.post("/api/search/auto/start")
+def start_auto_search(config: dict, _: None = Depends(require_token)):
+    """Track A：啟動自主前向貪婪搜尋 daemon（machine-time，零 token）。回 run_id。
+    body(全可選)：{seed:[layers], budget|max_trials, markets|market, regimes|regime,
+                   benchmark, start, end, stale_rounds, max_candidates_per_round,
+                   min_improvement, enable_restart}。"""
+    cfg = config or {}
+    # 市場
+    market = cfg.get("market") or (cfg.get("markets") or ["TW"])
+    if isinstance(market, list):
+        market = market[0] if market else "TW"
+    market = str(market).upper()
+    # regime（MVP 單一目標 regime）
+    regime = cfg.get("regime") or cfg.get("target_regime") or cfg.get("regimes") or "TREND_UP"
+    if isinstance(regime, list):
+        regime = regime[0] if regime else "TREND_UP"
+    target_regime = str(regime).upper()
+    # 日期
+    start = str(cfg.get("start", "2020-01-01"))
+    end = str(cfg.get("end", datetime.now().strftime("%Y-%m-%d")))
+    try:
+        sdt = datetime.strptime(start, "%Y-%m-%d"); edt = datetime.strptime(end, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "error": "start/end 須為 YYYY-MM-DD 格式"}, status_code=400)
+    if sdt > edt:
+        return JSONResponse({"ok": False, "error": "start 不可晚於 end"}, status_code=400)
+    # 基準（twii 結構性排除：硬剪規則 §2.4）
+    benchmark = str(cfg.get("benchmark", "equal_weight")).lower()
+    if benchmark == "twii" or benchmark not in _BENCHMARK_WHITELIST:
+        benchmark = "equal_weight"
+    # 種子 layers（預設 A4）
+    seed_raw = cfg.get("seed") or _AUTO_SEED_LAYERS
+    seed_layers, err = _normalize_layers(seed_raw)
+    if err:
+        return JSONResponse({"ok": False, "error": f"seed 不合法：{err}"}, status_code=400)
+    # 護欄參數（clamp 防呆）
+    def _clamp_int(v, lo, hi, default):
+        try:
+            return min(max(int(v), lo), hi)
+        except (TypeError, ValueError):
+            return default
+    max_trials = _clamp_int(cfg.get("budget", cfg.get("max_trials", 200)), 1, 2000, 200)
+    stale_limit = _clamp_int(cfg.get("stale_rounds", 3), 1, 50, 3)
+    max_cands = _clamp_int(cfg.get("max_candidates_per_round", 12), 1, 50, 12)
+    try:
+        min_improvement = float(cfg.get("min_improvement", 0.10))
+    except (TypeError, ValueError):
+        min_improvement = 0.10
+    enable_restart = bool(cfg.get("enable_restart", True))
+
+    # run store 上限防呆：淘汰最舊的已結束 run
+    with _AUTO_SEARCH_LOCK:
+        if len(_AUTO_SEARCH_RUNS) >= 50:
+            finished = [(rid, r.get("completed_at") or r.get("started_at") or "")
+                        for rid, r in _AUTO_SEARCH_RUNS.items()
+                        if r.get("status") in ("done", "error", "stopped")]
+            for rid, _ts in sorted(finished, key=lambda x: x[1])[:max(1, len(finished) // 2)]:
+                _AUTO_SEARCH_RUNS.pop(rid, None)
+        run_id = secrets.token_hex(8)
+        _AUTO_SEARCH_RUNS[run_id] = {
+            "run_id": run_id, "status": "starting",
+            "market": market, "start": start, "end": end, "benchmark": benchmark,
+            "target_regime": target_regime,
+            "seed_layers": seed_layers, "frontier": seed_layers, "current": seed_layers,
+            "sota": None, "best_phi": None,
+            "trials": 0, "round": 0, "stale_rounds": 0,
+            "max_trials": max_trials, "stale_limit": stale_limit,
+            "max_candidates_per_round": max_cands, "min_improvement": min_improvement,
+            "enable_restart": enable_restart,
+            "stop_requested": False, "stop_reason": None, "error": None,
+            "frontier_candidates": [], "history": [], "used_factors": [],
+            "current_msg": "", "started_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(), "completed_at": None,
+        }
+    threading.Thread(target=_auto_search_worker, args=(run_id,), daemon=True).start()
+    return {"ok": True, "run_id": run_id, "market": market, "target_regime": target_regime,
+            "seed": seed_layers, "max_trials": max_trials, "stale_limit": stale_limit,
+            "max_candidates_per_round": max_cands, "min_improvement": min_improvement,
+            "message": f"Auto forward-greedy search started. "
+                       f"Poll GET /api/search/auto/status?run_id={run_id}, stop via POST /api/search/auto/stop."}
+
+
+@app.get("/api/search/auto/status")
+def get_auto_search_status(run_id: str = ""):
+    """里程碑零 token 監看：帶 run_id → 該 run 小 JSON（frontier/SOTA/T/bestΦ/前緣候選/是否還在跑）；
+    不帶 → 列出全部 run 摘要。"""
+    if run_id:
+        if (not isinstance(run_id, str) or not (8 <= len(run_id) <= 64)
+                or any(c not in "0123456789abcdef" for c in run_id)):
+            return JSONResponse({"ok": False, "error": "run not found"}, status_code=404)
+        st = _auto_get_copy(run_id)
+        if not st:
+            return JSONResponse({"ok": False, "error": "run not found"}, status_code=404)
+        return {"ok": True, "run": _auto_status_view(st)}
+    with _AUTO_SEARCH_LOCK:
+        runs = [{"run_id": r.get("run_id"), "status": r.get("status"),
+                 "market": r.get("market"), "target_regime": r.get("target_regime"),
+                 "trials": r.get("trials"), "max_trials": r.get("max_trials"),
+                 "best_phi": r.get("best_phi"),
+                 "sota_layers": (r.get("sota") or {}).get("layers"),
+                 "started_at": r.get("started_at"), "completed_at": r.get("completed_at")}
+                for r in _AUTO_SEARCH_RUNS.values()]
+    runs.sort(key=lambda x: x.get("started_at") or "", reverse=True)
+    return {"ok": True, "count": len(runs), "runs": runs}
+
+
+@app.post("/api/search/auto/stop")
+def stop_auto_search(config: dict, _: None = Depends(require_token)):
+    """停止一個自主搜尋 run（協作式：worker 下一檢查點收手；不可無限燒）。"""
+    run_id = (config or {}).get("run_id", "")
+    if (not isinstance(run_id, str) or not (8 <= len(run_id) <= 64)
+            or any(c not in "0123456789abcdef" for c in run_id)):
+        return JSONResponse({"ok": False, "error": "run not found"}, status_code=404)
+    with _AUTO_SEARCH_LOCK:
+        st = _AUTO_SEARCH_RUNS.get(run_id)
+        if not st:
+            return JSONResponse({"ok": False, "error": "run not found"}, status_code=404)
+        st["stop_requested"] = True
+        st["updated_at"] = datetime.now().isoformat()
+        status = st["status"]
+    return {"ok": True, "run_id": run_id, "status": status,
+            "message": "stop requested; worker will halt at next checkpoint."}
 
 
 # ══════════════════════════════════════════════════
