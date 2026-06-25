@@ -1933,6 +1933,19 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
                 <button id="br-btn-a1" onclick="brRunA1()" style="padding:7px 18px;background:none;color:var(--blue);border:1px solid var(--blue);border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;transition:.15s">▶ 跑 A1 對照實驗</button>
               </div>
             </div>
+            <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+              <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+                <span style="font-size:12px;color:var(--text2);font-weight:600">板塊中性化相對強弱（H-A4）</span>
+                <span style="font-size:11px;color:var(--text3)">個股 − 同板塊中位（中性化市場+板塊共同因子，剩「贏過自己板塊」= 選股 alpha）</span>
+              </div>
+              <div style="display:flex;align-items:center;flex-wrap:wrap;gap:14px">
+                <div style="display:flex;gap:8px;font-size:11px;color:var(--text3)">
+                  <span title="板塊內相對強弱：個股 60d 報酬 − 同板塊中位數 top K%">A4_SECTOR_REL 板塊相對</span>
+                  <span title="兩層：板塊內相對強 ∧ 屬前段板塊（板塊籃子 60d 報酬前 50%）">A4_SECTOR_REL_TOPSEC 前段板塊</span>
+                </div>
+                <button id="br-btn-a4" onclick="brRunA4()" style="padding:7px 18px;background:none;color:var(--blue);border:1px solid var(--blue);border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;transition:.15s">▶ 跑 A4 板塊相對</button>
+              </div>
+            </div>
           </div>
           <div id="br-progress-wrap" style="display:none;margin-bottom:12px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
             <div style="height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-bottom:8px">
@@ -5885,6 +5898,19 @@ async function brRunA1() {
   }, 'A1 對照實驗計算中…（殘差動量需滾動回歸，較久）');
 }
 
+// H-A4 板塊中性化相對強弱：板塊內相對強 + 兩層（前段板塊 ∧ 板塊內相對強）
+async function brRunA4() {
+  const markets = Array.from(document.querySelectorAll('.br-mkt-chk:checked')).map(c => c.value);
+  const start   = document.getElementById('br-start').value || '2022-01-01';
+  if (!markets.length) { brSetMsg('請至少選一個市場', 'warn'); return; }
+  brStart({
+    markets,
+    buy_strategies: ['A4_SECTOR_REL', 'A4_SECTOR_REL_TOPSEC'],
+    sell_strategies: ['EXIT_C', 'EXIT_D'],
+    start, cs_top_k: brCsTopK(), benchmark: brBenchmark()
+  }, 'A4 板塊相對計算中…（首跑需抓產業映射，較久）');
+}
+
 async function brPoll(jobId) {
   try {
     const res = await fetch(API + '/api/backtest/base-rate/' + jobId, { headers: authHeaders() });
@@ -6011,7 +6037,7 @@ function brRender(rows, meta) {
       ? '<span style="color:var(--text3)">樣本不足</span>'
       : `<span style="color:${excColor}">${r.excess_avg >= 0 ? '+' : ''}${r.excess_avg.toFixed(1)}%</span> <span style="color:var(--text3);font-size:11px">${ci(r.excess_ci95)}</span>`;
     // R-CS 橫斷面因子標記
-    const facMap    = {raw_mom:'絕對動量', rel_str:'相對強度', resid_mom:'殘差動量'};
+    const facMap    = {raw_mom:'絕對動量', rel_str:'相對強度', resid_mom:'殘差動量', sector_rel:'板塊相對', sector_rel_topsec:'板塊相對·前段板塊'};
     const facTxt    = r.cs_factor
       ? `<span style="color:var(--blue)">${facMap[r.cs_factor] || r.cs_factor}</span><span style="color:var(--text3);font-size:11px"> ·top${Math.round((r.cs_top_k||0.2)*100)}%</span>`
       : '<span style="color:var(--text3)">—</span>';

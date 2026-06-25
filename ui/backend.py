@@ -13074,16 +13074,103 @@ _BASE_RATE_BUY_IMPL = [
 #   A1_RAW  = 絕對動量（個股 N 日報酬）        → 高負載 β，預期僅 POSITIVE_EV
 #   A1_REL  = 相對強度（個股 − 指數 N 日報酬）  → 剝除市場分量（快速版），預期升 ALPHA
 #   A1_RESID= 殘差動量（對指數滾動回歸殘差 IR） → 完整 β 殘差化（嚴謹版），預期升 ALPHA
+#
+# ── H-A4 板塊中性化相對強弱（alpha agenda Tier 1，兩層）─────────────────────
+#   A4_SECTOR_REL        = 板塊內相對強弱：個股 N 日報酬 − 同板塊中位數 N 日報酬 top K%
+#                          → 中性化市場 + 板塊共同因子（半導體齊漲齊跌），剩「贏過自己板塊」= 選股 alpha
+#   A4_SECTOR_REL_TOPSEC = 上述 ∧ 屬「前段板塊」（板塊等權籃子 N 日報酬 top _CS_SECTOR_TOP_FRAC）
+#                          → 兩層：板塊動量超配 + 板塊內相對強弱（量化 RA-003 散熱回檔/金融過熱）
 _BASE_RATE_CS_STRATS = {
     "A1_RAW":   "raw_mom",
     "A1_REL":   "rel_str",
     "A1_RESID": "resid_mom",
+    "A4_SECTOR_REL":        "sector_rel",
+    "A4_SECTOR_REL_TOPSEC": "sector_rel_topsec",
 }
-_CS_REL_N      = 60     # 相對強度 / 絕對動量回看天數（agenda N 預設 60）
+_CS_SECTOR_FACTORS = {"sector_rel", "sector_rel_topsec"}  # 需產業映射 + 跨股聚合（非逐股可算）
+_CS_REL_N      = 60     # 相對強度 / 絕對動量 / 板塊相對 回看天數（agenda N 預設 60）
 _CS_RESID_REG  = 120    # 殘差動量：beta 估計窗（60–120d）
 _CS_RESID_ACC  = 60     # 殘差動量：殘差累積窗（短於估計窗，避免 OLS 殘差零和）
 _CS_DEFAULT_K  = 0.20   # 進場 top K%（agenda 預設前 20%，可配）
 _CS_MIN_XSECTION = 10   # 當日可排名所需的最少橫斷面樣本數（暖身期不足則不排名）
+_CS_SECTOR_MIN_MEMBERS = 3    # 板塊當日成員數下限（中位數/籃子可靠性，過少則該板塊當日不計）
+_CS_SECTOR_TOP_FRAC    = 0.50 # A4 TOPSEC：板塊籃子報酬前此比例 = 「前段板塊」（板塊動量層）
+
+_SECTOR_MAP_MEM: dict = {}    # in-process cache: f"{market}:{code}" -> sector_str（避免同跑重複查）
+
+
+def _ensure_sector_table():
+    """A4 產業映射落地表（可快取、可擴充；冪等建表）。sector 取自 yfinance .info（GICS 板塊，
+    TW/.TW 與 US 皆有），一檔抓一次落地，之後讀表免再打 yfinance。"""
+    con = db()
+    con.execute("""CREATE TABLE IF NOT EXISTS stock_sector(
+        code TEXT NOT NULL,
+        market TEXT NOT NULL DEFAULT 'TW',
+        sector TEXT,
+        industry TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(code, market)
+    )""")
+    con.commit()
+    con.close()
+
+
+def _get_sector_map(market: str, codes: list) -> dict:
+    """回傳 {code: sector_str}（A4 用）。先讀 stock_sector 落地表 → 缺的個股用
+    _get_fundamentals(yfinance .info) 補抓並落地 → 回傳有 sector 的個股映射。
+    純讀表時零外呼；首跑某 universe 會逐檔抓一次（之後快取）。無 sector 的個股不納入（A4 自然縮小到有分類者）。"""
+    _ensure_sector_table()
+    out = {}
+    miss = []
+    con = db()
+    have = {}
+    try:
+        qs = ",".join("?" * len(codes))
+        for c, sec in con.execute(
+            f"SELECT code, sector FROM stock_sector WHERE market=? AND code IN ({qs})",
+            [market, *codes]
+        ).fetchall():
+            have[c] = sec
+    except Exception:
+        have = {}
+    con.close()
+    for code in codes:
+        mk = f"{market}:{code}"
+        if mk in _SECTOR_MAP_MEM:
+            sec = _SECTOR_MAP_MEM[mk]
+        elif code in have:
+            sec = have[code]
+            _SECTOR_MAP_MEM[mk] = sec
+        else:
+            miss.append(code)
+            continue
+        if sec:
+            out[code] = sec
+    if miss:
+        con = db()
+        for code in miss:
+            try:
+                fund = _get_fundamentals(code, market)
+                sec = fund.get("sector") or ""
+                ind = fund.get("industry") or ""
+            except Exception:
+                sec, ind = "", ""
+            try:
+                con.execute(
+                    "INSERT OR REPLACE INTO stock_sector(code, market, sector, industry, updated_at) "
+                    "VALUES(?,?,?,?,?)",
+                    (code, market, sec, ind, datetime.now().isoformat())
+                )
+            except Exception:
+                pass
+            _SECTOR_MAP_MEM[f"{market}:{code}"] = sec
+            if sec:
+                out[code] = sec
+        con.commit()
+        con.close()
+        print(f"[base-rate] A4 sector map: {market} fetched {len(miss)} new, "
+              f"{len(out)}/{len(codes)} have sector", flush=True)
+    return out
 
 
 def _net_return_pct(buy_price: float, sell_price: float, mkt: str, discount: float) -> float:
@@ -13326,6 +13413,78 @@ def _compute_cs_factors(f: dict, bench_map: dict, factors_needed: set) -> dict:
     return out
 
 
+def _nday_return_pct_series(c, N: int):
+    """個股 N 日報酬%序列（對齊 dates，暖身期 NaN）。與 _compute_cs_factors 的 s_mom 同公式，
+    供 A4 板塊聚合用（板塊相對強弱以「個股 N 日報酬 − 同板塊中位」定義）。"""
+    import numpy as np
+    n = len(c)
+    out = np.full(n, np.nan)
+    for i in range(N, n):
+        if c[i - N] > 0:
+            out[i] = (c[i] / c[i - N] - 1) * 100
+    return out
+
+
+def _compute_sector_factors(smom_by_code: dict, sector_of: dict, factors_needed: set) -> dict:
+    """A4 板塊中性化相對強弱因子。輸入各股 N 日報酬序列 + 產業映射，回傳
+        {factor: {date: {code: val}}}（與 _fast_base_rate_market 的 factor_vals 同形狀，可直接併入排名）。
+
+      sector_rel        = 個股 N 日報酬 − 同板塊「當日成員中位數」N 日報酬
+                          → 中性化市場 + 板塊共同因子，剩「贏過自己板塊」= 選股 alpha（天然正交）。
+      sector_rel_topsec = 同上，但僅在「個股所屬板塊屬當日前段（等權籃子報酬 top _CS_SECTOR_TOP_FRAC）」時保留
+                          → 兩層：板塊動量（籃子排名）∧ 板塊內相對強弱。
+
+    純計算（無 yfinance/DB），供隔離測試驗算。
+    smom_by_code: {code: (dates_list, np.array(N日報酬%, 暖身期/缺值=NaN))}；sector_of: {code: sector_str}。"""
+    import numpy as np
+    want_topsec = "sector_rel_topsec" in factors_needed
+    # 1) 每 (date, sector) 收集成員 N 日報酬
+    sector_day = {}  # date -> {sector -> [smom,...]}
+    for code, (dts, smom) in smom_by_code.items():
+        sec = sector_of.get(code)
+        if not sec:
+            continue
+        for i in range(len(dts)):
+            v = smom[i]
+            if v == v:  # not NaN
+                sector_day.setdefault(dts[i], {}).setdefault(sec, []).append(float(v))
+    # 2) 每 (date, sector) 中位數（板塊內相對基準）+ 等權籃子均值 → 前段板塊（TOPSEC）
+    sector_median = {}  # date -> {sector -> median}
+    top_sectors = {}    # date -> set(sector) 前段
+    for d, secs in sector_day.items():
+        med = {}; basket = {}
+        for sec, vals in secs.items():
+            if len(vals) >= _CS_SECTOR_MIN_MEMBERS:
+                med[sec] = float(np.median(vals))
+                basket[sec] = float(np.mean(vals))  # 等權籃子 N 日報酬 = sector_mom
+        sector_median[d] = med
+        if want_topsec and basket:
+            items = sorted(basket.items(), key=lambda kv: kv[1])  # 升冪
+            m = len(items); denom = (m - 1) if m > 1 else 1
+            top_sectors[d] = {sec for ri, (sec, _v) in enumerate(items)
+                              if ri / denom >= (1.0 - _CS_SECTOR_TOP_FRAC)}
+    # 3) 每股 sector_rel = N 日報酬 − 同板塊中位；TOPSEC 加前段板塊濾網
+    out = {fac: {} for fac in factors_needed if fac in _CS_SECTOR_FACTORS}
+    for code, (dts, smom) in smom_by_code.items():
+        sec = sector_of.get(code)
+        if not sec:
+            continue
+        for i in range(len(dts)):
+            v = smom[i]
+            if v != v:
+                continue
+            d = dts[i]
+            med = sector_median.get(d, {}).get(sec)
+            if med is None:
+                continue
+            rel = float(v) - med
+            if "sector_rel" in out:
+                out["sector_rel"].setdefault(d, {})[code] = rel
+            if "sector_rel_topsec" in out and sec in top_sectors.get(d, set()):
+                out["sector_rel_topsec"].setdefault(d, {})[code] = rel
+    return out
+
+
 def _emit_trades(sid: str, trig, f: dict, rank_map, thresh: float, dst: list):
     """記錄某策略的逐筆 trade（entry_date, exit_date, net_ret%）到 dst。
        trig=None → 純橫斷面策略（每日皆候選，由 rank 決定）；trig 陣列 → 既有訊號策略。
@@ -13404,6 +13563,10 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
         # ── 橫斷面路徑：兩趟（context pass 算排名 → 進場 pass 套濾網） ──
         feats = {}
         factor_vals = {fac: {} for fac in factors_needed}  # fac -> {date -> {code -> val}}
+        sector_needed = factors_needed & _CS_SECTOR_FACTORS  # A4：板塊相對強弱（需產業映射 + 跨股聚合）
+        orth_needed = factors_needed - sector_needed          # A1：純正交因子（逐股 _compute_cs_factors 可算）
+        sector_of = _get_sector_map(mkt, codes) if sector_needed else {}
+        smom_by_code = {}  # code -> (dates, N日報酬%)；僅 sector_needed 時收集，供板塊聚合
         for ci, code in enumerate(codes):
             if should_cancel and should_cancel():
                 break
@@ -13413,18 +13576,26 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
             if not f:
                 continue
             feats[code] = f
-            cf = _compute_cs_factors(f, bench_map, factors_needed)
             dts = f["dates"]
-            for fac, arr in cf.items():
-                fv = factor_vals[fac]
-                for i in range(len(dts)):
-                    val = arr[i]
-                    if val == val:  # not NaN
-                        d = dts[i]
-                        bucket = fv.get(d)
-                        if bucket is None:
-                            bucket = fv[d] = {}
-                        bucket[code] = float(val)
+            if orth_needed:
+                cf = _compute_cs_factors(f, bench_map, orth_needed)
+                for fac, arr in cf.items():
+                    fv = factor_vals[fac]
+                    for i in range(len(dts)):
+                        val = arr[i]
+                        if val == val:  # not NaN
+                            d = dts[i]
+                            bucket = fv.get(d)
+                            if bucket is None:
+                                bucket = fv[d] = {}
+                            bucket[code] = float(val)
+            if sector_needed and code in sector_of:  # 僅有 sector 的個股參與 A4 板塊聚合
+                smom_by_code[code] = (dts, _nday_return_pct_series(f["c"], _CS_REL_N))
+        # ── A4 板塊聚合：各股 N 日報酬 + 產業映射 → sector_rel / sector_rel_topsec（併入 factor_vals）──
+        if sector_needed:
+            sec_fv = _compute_sector_factors(smom_by_code, sector_of, sector_needed)
+            for fac, dmap in sec_fv.items():
+                factor_vals[fac] = dmap
         # 橫斷面百分位：每因子每日對全 universe 排名（pct∈[0,1]，1=因子最高，即動量最強）
         rank_pct = {fac: {} for fac in factors_needed}
         for fac in factors_needed:
@@ -13794,8 +13965,8 @@ def run_base_rate(config: dict):
     except (TypeError, ValueError):
         cs_top_k = _CS_DEFAULT_K
     cs_top_k = min(max(cs_top_k, 0.01), 1.0)
-    cs_overlay_factor = config.get("cs_overlay_factor")  # None 或 raw_mom/rel_str/resid_mom
-    if cs_overlay_factor not in (None, "raw_mom", "rel_str", "resid_mom"):
+    cs_overlay_factor = config.get("cs_overlay_factor")  # None 或 raw_mom/rel_str/resid_mom/sector_rel/sector_rel_topsec
+    if cs_overlay_factor not in (None, "raw_mom", "rel_str", "resid_mom", "sector_rel", "sector_rel_topsec"):
         cs_overlay_factor = None
     # 公平基準（§三E）：ALPHA 閘逐筆超額對照基準。白名單外一律退回 twii（市值加權，現況）。
     benchmark = str(config.get("benchmark", "twii")).lower()
