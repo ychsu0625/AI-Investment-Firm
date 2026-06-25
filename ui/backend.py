@@ -14115,12 +14115,10 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
                     _emit_trades(sid, _detect_triggers(sid, f), f, None, thresh, strat_trades[sid])
     else:
         # ── 橫斷面路徑：兩趟（context pass 算排名 → 進場 pass 套濾網） ──
+        # context pass：先建每股 feats（outcome 表/指標）；橫斷面排名抽到 _cs_rank_pct
+        # （單一真實來源，與複合搜尋引擎 _eval_composite_market 共用；排名邏輯與原內聯逐字等價，
+        #  見隔離測 test_extract_equiv → 零回歸）。
         feats = {}
-        factor_vals = {fac: {} for fac in factors_needed}  # fac -> {date -> {code -> val}}
-        sector_needed = factors_needed & _CS_SECTOR_FACTORS  # A4：板塊相對強弱（需產業映射 + 跨股聚合）
-        orth_needed = factors_needed - sector_needed          # A1：純正交因子（逐股 _compute_cs_factors 可算）
-        sector_of = _get_sector_map(mkt, codes) if sector_needed else {}
-        smom_by_code = {}  # code -> (dates, N日報酬%)；僅 sector_needed 時收集，供板塊聚合
         for ci, code in enumerate(codes):
             if should_cancel and should_cancel():
                 break
@@ -14130,38 +14128,7 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
             if not f:
                 continue
             feats[code] = f
-            dts = f["dates"]
-            if orth_needed:
-                cf = _compute_cs_factors(f, bench_map, orth_needed)
-                for fac, arr in cf.items():
-                    fv = factor_vals[fac]
-                    for i in range(len(dts)):
-                        val = arr[i]
-                        if val == val:  # not NaN
-                            d = dts[i]
-                            bucket = fv.get(d)
-                            if bucket is None:
-                                bucket = fv[d] = {}
-                            bucket[code] = float(val)
-            if sector_needed and code in sector_of:  # 僅有 sector 的個股參與 A4 板塊聚合
-                smom_by_code[code] = (dts, _nday_return_pct_series(f["c"], _CS_REL_N))
-        # ── A4 板塊聚合：各股 N 日報酬 + 產業映射 → sector_rel / sector_rel_topsec（併入 factor_vals）──
-        if sector_needed:
-            sec_fv = _compute_sector_factors(smom_by_code, sector_of, sector_needed)
-            for fac, dmap in sec_fv.items():
-                factor_vals[fac] = dmap
-        # 橫斷面百分位：每因子每日對全 universe 排名（pct∈[0,1]，1=因子最高，即動量最強）
-        rank_pct = {fac: {} for fac in factors_needed}
-        for fac in factors_needed:
-            fv = factor_vals[fac]; rp = rank_pct[fac]
-            for d, cvals in fv.items():
-                m = len(cvals)
-                if m < _CS_MIN_XSECTION:
-                    continue
-                items = sorted(cvals.items(), key=lambda kv: kv[1])
-                denom = (m - 1) if m > 1 else 1
-                for rank_i, (cc, _v) in enumerate(items):
-                    rp.setdefault(cc, {})[d] = rank_i / denom
+        rank_pct = _cs_rank_pct(mkt, codes, feats, factors_needed, bench_map)
         # 進場 pass
         for ci, code in enumerate(codes):
             if should_cancel and should_cancel():
@@ -14182,123 +14149,11 @@ def _fast_base_rate_market(mkt: str, codes: list, start: str, end: str,
                 etrig = _a5_pead_triggers(f["dates"], f["c"], bench_map, earnings_by_code.get(code, []))
                 _emit_trades(sid, etrig, f, None, thresh, strat_trades[sid])
 
-    # 彙總
+    # 彙總（逐筆 trade → summary 抽到 _summarize_trades，單一真實來源，與複合搜尋引擎共用）
     out = {}
     for sid in buy_ids:
-        trades = strat_trades[sid]  # list of (entry_date, exit_date, net_ret%)
-        rets = [t[2] for t in trades]
-        n_tr = len(rets)
-        summary = {"total_trades": n_tr, "ci_n_trades": n_tr, "market": mkt}
-        if n_tr == 0:
-            summary.update({"win_rate_pct": 0, "avg_trade_return_pct": 0,
-                            "win_rate_ci95": [None, None], "avg_return_ci95": [None, None],
-                            "profit_loss_ratio": 0, "sharpe_ratio": 0, "max_drawdown_pct": 0,
-                            "subperiod_pos": "0/0", "subperiod_frac": None, "subperiod_buckets": 0,
-                            "excess_avg": None, "excess_ci95": [None, None], "excess_n": 0,
-                            "info_ratio": None, "downside_excess_avg": None, "downside_excess_n": 0,
-                            "cs_factor": sid_factor.get(sid), "cs_top_k": (cs_top_k if sid_factor.get(sid) else None)})
-            out[sid] = summary
-            continue
-
-        wins = [r for r in rets if r > 0]
-        losses = [-r for r in rets if r <= 0]
-        win_rate = len(wins) / n_tr * 100
-        avg_ret = sum(rets) / n_tr
-        avg_win = sum(wins) / len(wins) if wins else 0
-        avg_loss = sum(losses) / len(losses) if losses else 0
-        pl_ratio = (avg_win / avg_loss) if avg_loss > 0 else 0
-        arr = np.array(rets)
-        sharpe = float(arr.mean() / arr.std()) if arr.std() > 0 else 0  # 每筆 sharpe（資訊比）
-
-        # bootstrap 95% CI（1000 次，對齊投組引擎）
-        wr_ci = ar_ci = [None, None]
-        if n_tr >= 5:
-            import random
-            wins_ind = [1 if r > 0 else 0 for r in rets]
-            n_boot = 1000
-            bw, br = [], []
-            for _ in range(n_boot):
-                idx = [random.randint(0, n_tr - 1) for __ in range(n_tr)]
-                bw.append(sum(wins_ind[k] for k in idx) / n_tr * 100)
-                br.append(sum(rets[k] for k in idx) / n_tr)
-            bw.sort(); br.sort()
-            lo, hi = int(n_boot * 0.025), int(n_boot * 0.975)
-            wr_ci = [round(bw[lo], 1), round(bw[hi], 1)]
-            ar_ci = [round(br[lo], 2), round(br[hi], 2)]
-
-        # max drawdown：依出場日序列等權連乘
-        trades_sorted = sorted(trades, key=lambda t: t[1])  # 依 exit_date
-        eq = 1.0; peak = 1.0; max_dd = 0.0
-        for t in trades_sorted:
-            eq *= (1 + t[2] / 100)
-            peak = max(peak, eq)
-            dd = (peak - eq) / peak * 100
-            max_dd = max(max_dd, dd)
-
-        # ── beta 濾網原料 (R3) ──
-        # (A) 子期間：按 entry_date 年份分桶，每桶 ≥ subperiod_min_trades 才計分
-        min_bt = _BASE_RATE_THRESHOLDS["subperiod_min_trades"]
-        year_rets: dict = {}
-        for t in trades:
-            year_rets.setdefault(t[0][:4], []).append(t[2])
-        qualified = [rs for rs in year_rets.values() if len(rs) >= min_bt]
-        n_qual = len(qualified)
-        n_pos = sum(1 for rs in qualified if (sum(rs) / len(rs)) > 0)
-        subperiod_pos = f"{n_pos}/{n_qual}"
-        subperiod_frac = round(n_pos / n_qual, 2) if n_qual else None
-
-        # (B) 逐筆對齊持有期超額 vs 基準（進場日→出場日同期間指數報酬）
-        excess = []
-        down_excess = []   # §5.3 下行超額子測試：僅 2022 空頭桶（entry 年份）的逐筆超額
-        for t in trades:
-            be, bx = excess_bench_map.get(t[0]), excess_bench_map.get(t[1])
-            if be and bx and be > 0:
-                e = t[2] - (bx / be - 1) * 100
-                excess.append(e)
-                if t[0][:4] == "2022":
-                    down_excess.append(e)
-        excess_n = len(excess)
-        excess_avg = round(sum(excess) / excess_n, 2) if excess_n else None
-        excess_ci = [None, None]
-        if excess_n >= 5:
-            import random
-            be_boot = []
-            for _ in range(1000):
-                idx = [random.randint(0, excess_n - 1) for __ in range(excess_n)]
-                be_boot.append(sum(excess[k] for k in idx) / excess_n)
-            be_boot.sort()
-            lo, hi = int(1000 * 0.025), int(1000 * 0.975)
-            excess_ci = [round(be_boot[lo], 2), round(be_boot[hi], 2)]
-
-        # §5.3 補強：資訊比率 IR = mean(超額)/std(超額)；下行（2022）平均超額
-        info_ratio = None
-        if excess_n >= 5:
-            ex_sd = float(np.std(excess))
-            info_ratio = round(float(np.mean(excess)) / ex_sd, 2) if ex_sd > 0 else None
-        down_n = len(down_excess)
-        down_avg = round(sum(down_excess) / down_n, 2) if down_n else None
-
-        summary.update({
-            "win_rate_pct": round(win_rate, 1),
-            "avg_trade_return_pct": round(avg_ret, 2),
-            "win_rate_ci95": wr_ci,
-            "avg_return_ci95": ar_ci,
-            "profit_loss_ratio": round(pl_ratio, 2),
-            "sharpe_ratio": round(sharpe, 2),
-            "max_drawdown_pct": round(max_dd, 2),
-            "subperiod_pos": subperiod_pos,
-            "subperiod_frac": subperiod_frac,
-            "subperiod_buckets": n_qual,
-            "excess_avg": excess_avg,
-            "excess_ci95": excess_ci,
-            "excess_n": excess_n,
-            "info_ratio": info_ratio,
-            "downside_excess_avg": down_avg,
-            "downside_excess_n": down_n,
-            "cs_factor": sid_factor.get(sid),
-            "cs_top_k": (cs_top_k if sid_factor.get(sid) else None),
-        })
-        out[sid] = summary
+        out[sid] = _summarize_trades(strat_trades[sid], mkt, excess_bench_map,
+                                     cs_factor=sid_factor.get(sid), cs_top_k=cs_top_k)
     return out
 
 
@@ -14583,6 +14438,858 @@ def get_base_rate_status(job_id: str):
         resp["benchmark"] = job["config"].get("benchmark", "twii")
         resp["benchmark_label"] = _benchmark_label(resp["benchmark"])
     return resp
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 軌2 — 複合 alpha 搜尋/驗證引擎 MVP（R-PROD-6/7a/7c/7e）
+#   規格：ai-investment-firm/2026-06-25-composite-search-engine.md（§三防過擬合/
+#         §四 regime 切分/§九 MVP）。全複用既有 base-rate 引擎原語，不重造計算。
+#   單一真實來源：_cs_rank_pct（橫斷面排名）/ _summarize_trades（逐筆→summary）
+#                同時供 _fast_base_rate_market 與本搜尋引擎使用（零回歸：見 test_extract_equiv）。
+# ══════════════════════════════════════════════════════════════════════════
+
+# ── 共用原語①：橫斷面因子排名（從 _fast_base_rate_market 抽出，逐字等價）─────────
+def _cs_rank_pct(mkt: str, codes: list, feats: dict, factors_needed: set, bench_map: dict) -> dict:
+    """給定每股 feats，算每因子每日對全 universe 的百分位 rank ∈[0,1]（1=因子最高，動量最強）。
+    複用 _compute_cs_factors（正交因子 raw_mom/rel_str/resid_mom）/ _compute_sector_factors
+    （板塊因子 sector_rel/sector_rel_topsec=A4）。回 {factor: {code: {date: pct}}}。
+    與 _fast_base_rate_market 原內聯兩趟邏輯逐字等價（隔離測 test_extract_equiv 已證）。"""
+    factor_vals = {fac: {} for fac in factors_needed}  # fac -> {date -> {code -> val}}
+    sector_needed = factors_needed & _CS_SECTOR_FACTORS
+    orth_needed = factors_needed - sector_needed
+    sector_of = _get_sector_map(mkt, codes) if sector_needed else {}
+    smom_by_code = {}
+    for code in codes:
+        f = feats.get(code)
+        if not f:
+            continue
+        dts = f["dates"]
+        if orth_needed:
+            cf = _compute_cs_factors(f, bench_map, orth_needed)
+            for fac, arr in cf.items():
+                fv = factor_vals[fac]
+                for i in range(len(dts)):
+                    val = arr[i]
+                    if val == val:  # not NaN
+                        d = dts[i]
+                        bucket = fv.get(d)
+                        if bucket is None:
+                            bucket = fv[d] = {}
+                        bucket[code] = float(val)
+        if sector_needed and code in sector_of:
+            smom_by_code[code] = (dts, _nday_return_pct_series(f["c"], _CS_REL_N))
+    if sector_needed:
+        sec_fv = _compute_sector_factors(smom_by_code, sector_of, sector_needed)
+        for fac, dmap in sec_fv.items():
+            factor_vals[fac] = dmap
+    rank_pct = {fac: {} for fac in factors_needed}
+    for fac in factors_needed:
+        fv = factor_vals[fac]; rp = rank_pct[fac]
+        for d, cvals in fv.items():
+            m = len(cvals)
+            if m < _CS_MIN_XSECTION:
+                continue
+            items = sorted(cvals.items(), key=lambda kv: kv[1])
+            denom = (m - 1) if m > 1 else 1
+            for rank_i, (cc, _v) in enumerate(items):
+                rp.setdefault(cc, {})[d] = rank_i / denom
+    return rank_pct
+
+
+# ── 共用原語②：逐筆 trade → base-rate summary（從 _fast_base_rate_market 抽出，逐字等價）──
+def _summarize_trades(trades: list, mkt: str, excess_bench_map: dict,
+                      cs_factor=None, cs_top_k=None) -> dict:
+    """逐筆 trade list → base-rate summary（勝率/CI/P-L/Sharpe/MDD/子期間/超額CI/IR/下行超額）。
+    單一真實來源：_fast_base_rate_market 與複合搜尋引擎共用（避免重寫計算）。
+    trades: list of (entry_date, exit_date, net_ret%)。回傳欄位對齊 _extract_row 期望。"""
+    import numpy as np
+    rets = [t[2] for t in trades]
+    n_tr = len(rets)
+    summary = {"total_trades": n_tr, "ci_n_trades": n_tr, "market": mkt}
+    if n_tr == 0:
+        summary.update({"win_rate_pct": 0, "avg_trade_return_pct": 0,
+                        "win_rate_ci95": [None, None], "avg_return_ci95": [None, None],
+                        "profit_loss_ratio": 0, "sharpe_ratio": 0, "max_drawdown_pct": 0,
+                        "subperiod_pos": "0/0", "subperiod_frac": None, "subperiod_buckets": 0,
+                        "excess_avg": None, "excess_ci95": [None, None], "excess_n": 0,
+                        "info_ratio": None, "downside_excess_avg": None, "downside_excess_n": 0,
+                        "cs_factor": cs_factor, "cs_top_k": (cs_top_k if cs_factor else None)})
+        return summary
+
+    wins = [r for r in rets if r > 0]
+    losses = [-r for r in rets if r <= 0]
+    win_rate = len(wins) / n_tr * 100
+    avg_ret = sum(rets) / n_tr
+    avg_win = sum(wins) / len(wins) if wins else 0
+    avg_loss = sum(losses) / len(losses) if losses else 0
+    pl_ratio = (avg_win / avg_loss) if avg_loss > 0 else 0
+    arr = np.array(rets)
+    sharpe = float(arr.mean() / arr.std()) if arr.std() > 0 else 0  # 每筆 sharpe（資訊比）
+
+    # bootstrap 95% CI（1000 次，對齊投組引擎）
+    wr_ci = ar_ci = [None, None]
+    if n_tr >= 5:
+        import random
+        wins_ind = [1 if r > 0 else 0 for r in rets]
+        n_boot = 1000
+        bw, br = [], []
+        for _ in range(n_boot):
+            idx = [random.randint(0, n_tr - 1) for __ in range(n_tr)]
+            bw.append(sum(wins_ind[k] for k in idx) / n_tr * 100)
+            br.append(sum(rets[k] for k in idx) / n_tr)
+        bw.sort(); br.sort()
+        lo, hi = int(n_boot * 0.025), int(n_boot * 0.975)
+        wr_ci = [round(bw[lo], 1), round(bw[hi], 1)]
+        ar_ci = [round(br[lo], 2), round(br[hi], 2)]
+
+    # max drawdown：依出場日序列等權連乘
+    trades_sorted = sorted(trades, key=lambda t: t[1])  # 依 exit_date
+    eq = 1.0; peak = 1.0; max_dd = 0.0
+    for t in trades_sorted:
+        eq *= (1 + t[2] / 100)
+        peak = max(peak, eq)
+        dd = (peak - eq) / peak * 100
+        max_dd = max(max_dd, dd)
+
+    # ── beta 濾網原料 (R3) ──
+    min_bt = _BASE_RATE_THRESHOLDS["subperiod_min_trades"]
+    year_rets: dict = {}
+    for t in trades:
+        year_rets.setdefault(t[0][:4], []).append(t[2])
+    qualified = [rs for rs in year_rets.values() if len(rs) >= min_bt]
+    n_qual = len(qualified)
+    n_pos = sum(1 for rs in qualified if (sum(rs) / len(rs)) > 0)
+    subperiod_pos = f"{n_pos}/{n_qual}"
+    subperiod_frac = round(n_pos / n_qual, 2) if n_qual else None
+
+    # (B) 逐筆對齊持有期超額 vs 基準
+    excess = []
+    down_excess = []
+    for t in trades:
+        be, bx = excess_bench_map.get(t[0]), excess_bench_map.get(t[1])
+        if be and bx and be > 0:
+            e = t[2] - (bx / be - 1) * 100
+            excess.append(e)
+            if t[0][:4] == "2022":
+                down_excess.append(e)
+    excess_n = len(excess)
+    excess_avg = round(sum(excess) / excess_n, 2) if excess_n else None
+    excess_ci = [None, None]
+    if excess_n >= 5:
+        import random
+        be_boot = []
+        for _ in range(1000):
+            idx = [random.randint(0, excess_n - 1) for __ in range(excess_n)]
+            be_boot.append(sum(excess[k] for k in idx) / excess_n)
+        be_boot.sort()
+        lo, hi = int(1000 * 0.025), int(1000 * 0.975)
+        excess_ci = [round(be_boot[lo], 2), round(be_boot[hi], 2)]
+
+    info_ratio = None
+    if excess_n >= 5:
+        ex_sd = float(np.std(excess))
+        info_ratio = round(float(np.mean(excess)) / ex_sd, 2) if ex_sd > 0 else None
+    down_n = len(down_excess)
+    down_avg = round(sum(down_excess) / down_n, 2) if down_n else None
+
+    summary.update({
+        "win_rate_pct": round(win_rate, 1),
+        "avg_trade_return_pct": round(avg_ret, 2),
+        "win_rate_ci95": wr_ci,
+        "avg_return_ci95": ar_ci,
+        "profit_loss_ratio": round(pl_ratio, 2),
+        "sharpe_ratio": round(sharpe, 2),
+        "max_drawdown_pct": round(max_dd, 2),
+        "subperiod_pos": subperiod_pos,
+        "subperiod_frac": subperiod_frac,
+        "subperiod_buckets": n_qual,
+        "excess_avg": excess_avg,
+        "excess_ci95": excess_ci,
+        "excess_n": excess_n,
+        "info_ratio": info_ratio,
+        "downside_excess_avg": down_avg,
+        "downside_excess_n": down_n,
+        "cs_factor": cs_factor,
+        "cs_top_k": (cs_top_k if cs_factor else None),
+    })
+    return summary
+
+
+# ── §三 防過擬合：Deflated Sharpe Ratio（對試驗數 T 折減）─────────────────────
+def _deflated_sharpe_ratio(returns, trial_sharpes, T):
+    """Bailey & López de Prado (2014) Deflated Sharpe Ratio。
+    returns       = 候選逐筆報酬序列（算 SR̂/n/skew/kurt）
+    trial_sharpes = 本批 T 次試驗各自 Sharpe（算噪音期望最大 SR 的 Var({SRₙ})）
+    T             = 試驗計數（多重檢定校正輸入；§3.0 落地）
+    回 {sharpe, sr0, dsr, skew, kurt, n, T, var_sr}。DSR>0.95 = keeper 級（G2）。
+    純數值（numpy+statistics），可用已知序列驗算（見 test_pure.py）。"""
+    import numpy as np
+    from statistics import NormalDist
+    r = np.asarray([x for x in returns if x == x], dtype=float)
+    n = int(r.size)
+    if n < 2:
+        return {"sharpe": None, "sr0": None, "dsr": None, "skew": None,
+                "kurt": None, "n": n, "T": int(T), "var_sr": None}
+    sd = float(r.std(ddof=1))
+    sr_hat = float(r.mean() / sd) if sd > 0 else 0.0
+    m = r - r.mean()
+    s2 = float((m ** 2).mean())
+    if s2 > 0:
+        skew = float((m ** 3).mean() / s2 ** 1.5)
+        kurt = float((m ** 4).mean() / s2 ** 2)   # raw kurtosis（常態=3）
+    else:
+        skew, kurt = 0.0, 3.0
+    ts = np.asarray([x for x in (trial_sharpes or []) if x == x], dtype=float)
+    var_sr = float(ts.var(ddof=1)) if ts.size >= 2 else 0.0
+    Nd = NormalDist()
+    gamma = 0.5772156649015329  # Euler-Mascheroni
+    Te = max(int(T), 2)
+    e = float(np.e)
+    sr0 = (var_sr ** 0.5) * ((1.0 - gamma) * Nd.inv_cdf(1.0 - 1.0 / Te)
+                             + gamma * Nd.inv_cdf(1.0 - 1.0 / (Te * e)))
+    denom = 1.0 - skew * sr_hat + (kurt - 1.0) / 4.0 * sr_hat ** 2
+    dsr = None
+    if denom > 0:
+        z = (sr_hat - sr0) * ((n - 1) ** 0.5) / (denom ** 0.5)
+        dsr = float(Nd.cdf(z))
+    return {"sharpe": round(sr_hat, 4), "sr0": round(sr0, 4),
+            "dsr": (round(dsr, 4) if dsr is not None else None),
+            "skew": round(skew, 4), "kurt": round(kurt, 4),
+            "n": n, "T": int(T), "var_sr": round(var_sr, 6)}
+
+
+# ── §三 防過擬合：時間分塊 P&L（PBO 矩陣的列）────────────────────────────────
+def _bin_returns_to_blocks(trades, start, end, n_blocks=16):
+    """逐筆 trade 依「出場日」均分到 n_blocks 個等寬時間塊，回每塊平均報酬%（空塊=None）。
+    供 PBO（CSCV）建 P&L 矩陣（同 (start,end,n_blocks) 的候選天然對齊）。純數值。"""
+    import numpy as np
+    if n_blocks < 1 or not trades:
+        return [None] * n_blocks
+    try:
+        t0 = datetime.strptime(start, "%Y-%m-%d").toordinal()
+        t1 = datetime.strptime(end, "%Y-%m-%d").toordinal()
+    except Exception:
+        return [None] * n_blocks
+    span = max(t1 - t0, 1)
+    buckets = [[] for _ in range(n_blocks)]
+    for (entry, exit_d, ret) in trades:
+        try:
+            o = datetime.strptime(exit_d, "%Y-%m-%d").toordinal()
+        except Exception:
+            continue
+        b = int((o - t0) / span * n_blocks)
+        b = min(max(b, 0), n_blocks - 1)
+        buckets[b].append(ret)
+    return [round(float(np.mean(b)), 4) if b else None for b in buckets]
+
+
+def _cscv_sharpe_cols(M, idx, N):
+    """子集 idx（時間塊）上每候選（行）的 Sharpe（mean/std）；純 numpy 向量化。"""
+    import numpy as np
+    sub = M[idx, :]
+    if sub.shape[0] < 2:
+        return np.full(N, np.nan)
+    mu = np.nanmean(sub, axis=0)
+    sd = np.nanstd(sub, axis=0, ddof=1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(sd > 0, mu / sd, np.nan)
+
+
+def _cscv_process_combos(combo_chunk, M, blocks, S, N):
+    """處理一批 train 組合，回 (lambdas, degr)。純 numpy（GIL 釋放）→ 可多緒平行。"""
+    import numpy as np
+    all_blocks = set(range(S))
+    lambdas, degr = [], []
+    for train_sets in combo_chunk:
+        train_idx = np.concatenate([blocks[b] for b in train_sets])
+        test_idx = np.concatenate([blocks[b] for b in (all_blocks - set(train_sets))])
+        is_perf = _cscv_sharpe_cols(M, train_idx, N)
+        oos_perf = _cscv_sharpe_cols(M, test_idx, N)
+        if np.all(np.isnan(is_perf)):
+            continue
+        n_star = int(np.nanargmax(is_perf))
+        oos_star = oos_perf[n_star]
+        finite = oos_perf[np.isfinite(oos_perf)]
+        if finite.size < 2 or not np.isfinite(oos_star):
+            continue
+        rank = int((finite < oos_star).sum())            # OOS 打敗的候選數
+        omega = (rank + 1.0) / (finite.size + 1.0)        # 相對排名 ∈(0,1)
+        omega = min(max(omega, 1e-6), 1 - 1e-6)
+        lambdas.append(float(np.log(omega / (1.0 - omega))))
+        degr.append((float(is_perf[n_star]), float(oos_star)))
+    return lambdas, degr
+
+
+# ── §3.2 防過擬合：PBO（CSCV，Bailey-Borwein-LdP-Zhu 2017）──────────────────
+def _pbo_cscv(pnl_matrix, S=16, max_workers=8):
+    """Combinatorially Symmetric Cross-Validation 的回測過擬合機率。
+    pnl_matrix: shape (T_obs, N)，列=時間塊、行=候選複合（本批所有試驗）。
+    切 S 等長塊，列舉 C(S,S/2) 半訓半測；每組合取 IS-best 候選，算其 OOS 相對排名 ω、
+    λ=ln(ω/(1−ω))；PBO = #{λ≤0}/#{組合}（OOS 低於中位的比例）。PBO<0.20 = keeper 級（G3）。
+    combo 迴圈純 numpy → 用 ThreadPool 分塊平行（GIL 在 numpy 釋放）。"""
+    import numpy as np
+    from itertools import combinations
+    from concurrent.futures import ThreadPoolExecutor
+    M = np.asarray(pnl_matrix, dtype=float)
+    if M.ndim != 2 or M.shape[1] < 2:
+        return {"pbo": None, "reason": "need >=2 candidates", "n_combos": 0, "S": 0}
+    T_obs, N = M.shape
+    S = min(int(S), T_obs)
+    if S % 2:
+        S -= 1
+    if S < 2:
+        return {"pbo": None, "reason": f"too few rows ({T_obs}) for CSCV", "n_combos": 0, "S": S}
+    bounds = np.linspace(0, T_obs, S + 1).astype(int)
+    blocks = [np.arange(bounds[i], bounds[i + 1]) for i in range(S)]
+    half = S // 2
+    combos = list(combinations(range(S), half))
+    # 分塊平行（chunk 數 = workers；每 chunk 純 numpy）
+    workers = max(1, min(int(max_workers), len(combos)))
+    chunk = (len(combos) + workers - 1) // workers
+    chunks = [combos[i:i + chunk] for i in range(0, len(combos), chunk)]
+    lambdas, degr = [], []
+    if workers > 1 and len(chunks) > 1:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            for lam, dg in ex.map(lambda ck: _cscv_process_combos(ck, M, blocks, S, N), chunks):
+                lambdas.extend(lam); degr.extend(dg)
+    else:
+        lam, dg = _cscv_process_combos(combos, M, blocks, S, N)
+        lambdas.extend(lam); degr.extend(dg)
+    if not lambdas:
+        return {"pbo": None, "reason": "no valid CSCV combos", "n_combos": 0, "S": int(S)}
+    lam = np.array(lambdas)
+    pbo = float((lam <= 0).mean())
+    deg = np.array(degr)
+    perf_deg = None
+    if deg.shape[0] >= 2 and np.std(deg[:, 0]) > 0:
+        perf_deg = float(np.polyfit(deg[:, 0], deg[:, 1], 1)[0])   # OOS~IS 衰退斜率
+    return {"pbo": round(pbo, 4), "n_combos": int(lam.size), "S": int(S),
+            "lambda_median": round(float(np.median(lam)), 4),
+            "perf_degradation_slope": (round(perf_deg, 4) if perf_deg is not None else None),
+            "prob_oos_below_median": round(pbo, 4)}
+
+
+# ── R-PROD-6：依進場日 regime 切片 ──────────────────────────────────────────
+def _slice_trades_by_regime(trades, regime_map):
+    """逐筆 trade 用「進場日」regime 分桶（複用 _batch_calc_regime → {date: regime}）。
+    回 {regime: [trades]}。缺 regime 的進場日歸 UNKNOWN（誠實標記，不丟）。"""
+    out = {}
+    for t in trades:
+        reg = regime_map.get(t[0]) or "UNKNOWN"
+        out.setdefault(reg, []).append(t)
+    return out
+
+
+# ── R-PROD-7a：複合進場（AND-stack）emission（與 _emit_trades trig=None+rank 分支同邏輯）──
+def _emit_composite_trades(f, eligible, dst):
+    """複合進場：eligible = 該股「各層 AND 後」可進場日期集合。出場/淨成本/去重疊倉沿用
+    outcome 表 + open_until（與 _emit_trades trig=None 分支逐字同邏輯 → 單層時 byte-level 等價，
+    見 test_pure.py AND-stack 等價測）。"""
+    oexit, oret, dts = f["outcome_exit"], f["outcome_ret"], f["dates"]
+    open_until = -1
+    for i in range(f["n"]):
+        if i > open_until and oexit[i] >= 0 and oret[i] == oret[i]:
+            if dts[i] in eligible:
+                dst.append((dts[i], dts[oexit[i]], float(oret[i])))
+                open_until = oexit[i]
+
+
+# ── R-PROD-7a 籌碼層：法人連買（inst_net_buy）日期集合 ────────────────────────
+def _chip_streak_dates(codes: list, window: int = 3, min_net: float = 0.0) -> dict:
+    """法人連買：每檔在 chip_snapshot「連續 window 個交易日三大法人合計淨買超 > min_net(張)」的日期集合。
+    net = foreign_buy + itrust_buy + dealer_buy。回 {code: set(date)}。
+    僅 TW 有籌碼；無資料的市場/個股回空集（複合自然縮小、誠實標記）。一次性 DB 讀（I/O，主緒批次）。"""
+    out = {c: set() for c in codes}
+    if not codes:
+        return out
+    try:
+        con = db(); cur = con.cursor()
+        qs = ",".join("?" * len(codes))
+        rows = cur.execute(
+            f"SELECT code, date, (COALESCE(foreign_buy,0)+COALESCE(itrust_buy,0)+COALESCE(dealer_buy,0)) "
+            f"FROM chip_snapshot WHERE code IN ({qs}) ORDER BY code, date", list(codes)
+        ).fetchall()
+        con.close()
+    except Exception:
+        return out
+    by_code = {}
+    for code, d, net in rows:
+        by_code.setdefault(code, []).append((d, net))
+    w = max(int(window), 1)
+    for code, series in by_code.items():
+        streak = 0
+        elig = out.setdefault(code, set())
+        for k, (d, net) in enumerate(series):
+            if net is not None and net > min_net:
+                streak += 1
+            else:
+                streak = 0
+            # PIT 防洩漏：台股三大法人買賣超於 d 收盤(13:30)後才公布 → 連買 streak 在 d
+            # 完成時，d 當下尚拿不到該資訊。進場改落在「資料可得的下一交易日」(series[k+1])，
+            # 不再用 streak 完成當日 d，避免 look-ahead 製造假 alpha。
+            if streak >= w and k + 1 < len(series):
+                elig.add(series[k + 1][0])
+    return out
+
+
+# 可當「cs 層」的橫斷面因子白名單（A4 = sector_rel_topsec）
+_COMPOSITE_CS_FACTORS = {"raw_mom", "rel_str", "resid_mom", "sector_rel", "sector_rel_topsec"}
+
+
+def _normalize_layers(layers: list):
+    """驗證/正規化複合層列表。回 (layers_norm, err)。
+    支援三型可 AND：cs（{factor, top_k}）/ pead（{type:'pead'}）/ chip（{type:'chip',window,min_net}）。
+    最多一個 cs 層（MVP），至少一層。"""
+    if not isinstance(layers, list) or not layers:
+        return None, "layers 需為非空陣列"
+    if len(layers) > 8:
+        return None, "layers 上限為 8 層"
+    norm = []
+    cs_count = 0
+    for L in layers:
+        if not isinstance(L, dict):
+            return None, f"層格式錯誤：{L}"
+        typ = L.get("type")
+        if typ == "pead":
+            norm.append({"type": "pead"})
+        elif typ == "chip":
+            norm.append({"type": "chip",
+                         "window": int(L.get("window", 3)),
+                         "min_net": float(L.get("min_net", 0.0))})
+        elif L.get("factor") in _COMPOSITE_CS_FACTORS:
+            cs_count += 1
+            tk = L.get("top_k", _CS_DEFAULT_K)
+            try:
+                tk = min(max(float(tk), 0.01), 1.0)
+            except (TypeError, ValueError):
+                tk = _CS_DEFAULT_K
+            norm.append({"factor": L["factor"], "top_k": tk})
+        else:
+            return None, f"未知層：{L}（cs factor 須屬 {sorted(_COMPOSITE_CS_FACTORS)}，或 type=pead/chip）"
+    if cs_count > 1:
+        return None, "MVP 僅支援單一 cs 層（其餘為 pead/chip）"
+    return norm, None
+
+
+# ── R-PROD-7a/7b 核心：複合 AND-stack 評估（全複用既有引擎原語）──────────────
+def _eval_composite_market(mkt, codes, start, end, layers, preloaded,
+                           benchmark="equal_weight", regime_map=None,
+                           progress_cb=None, should_cancel=None):
+    """複合 AND-stack 評估：進場＝各層條件同時成立（AND），出場/淨成本/CI/公平基準/ALPHA 閘
+    沿用 base-rate 同尺。複用 _compute_stock_features / _cs_rank_pct / _a5_pead_triggers /
+    _chip_streak_dates / _emit_composite_trades / _summarize_trades / _extract_row / _slice_trades_by_regime。
+    回 {row(全期), trades, per_regime, cs_factor, cs_top_k, n_stocks, layer_kinds}。"""
+    all_dates, bar_data = preloaded
+    bench_map = _get_benchmark_close_map(mkt, start, end)
+    # 公平基準（與 _fast_base_rate_market 同邏輯；MVP 預設等權公平基準）
+    _bench = (benchmark or "equal_weight").lower()
+    if _bench == "equal_weight":
+        excess_bench_map = _equal_weight_bench_map(codes, all_dates, bar_data)
+    elif _bench == "0050" and mkt == "TW":
+        _m0050 = _fetch_index_close_map("0050.TW", start, end)
+        excess_bench_map = _m0050 if _m0050 else bench_map
+    else:
+        excess_bench_map = bench_map
+
+    # 解析層
+    cs_layer = pead_layer = chip_layer = None
+    for L in layers:
+        if L.get("type") == "pead":
+            pead_layer = L
+        elif L.get("type") == "chip":
+            chip_layer = L
+        elif L.get("factor") in _COMPOSITE_CS_FACTORS:
+            cs_layer = L
+
+    # context pass：每股 feats（outcome 表）
+    feats = {}
+    for ci, code in enumerate(codes):
+        if should_cancel and should_cancel():
+            break
+        if progress_cb and ci % 10 == 0:
+            progress_cb(ci, len(codes) * 2)
+        f = _compute_stock_features(code, all_dates, bar_data)
+        if not f:
+            continue
+        feats[code] = f
+
+    # cs 層橫斷面排名
+    cs_factor = cs_top_k = thresh = None
+    rank_pct = {}
+    if cs_layer:
+        cs_factor = cs_layer["factor"]
+        cs_top_k = float(cs_layer.get("top_k", _CS_DEFAULT_K))
+        thresh = 1.0 - cs_top_k
+        rank_pct = _cs_rank_pct(mkt, codes, feats, {cs_factor}, bench_map)
+
+    # 籌碼層（一次性 DB 讀）
+    chip_elig = _chip_streak_dates(codes, chip_layer.get("window", 3),
+                                   chip_layer.get("min_net", 0.0)) if chip_layer else {}
+    # PEAD 事件
+    earnings_by_code = _get_earnings_map(mkt, codes) if pead_layer else {}
+
+    # 進場 pass：逐股組各層 eligible 日期集合 → AND → emit
+    all_trades = []
+    for ci, code in enumerate(codes):
+        if should_cancel and should_cancel():
+            break
+        if progress_cb and ci % 10 == 0:
+            progress_cb(len(codes) + ci, len(codes) * 2)
+        f = feats.get(code)
+        if not f:
+            continue
+        dts = f["dates"]
+        layer_sets = []
+        if cs_layer:
+            rmap = rank_pct.get(cs_factor, {}).get(code, {})
+            layer_sets.append({d for d, p in rmap.items() if p >= thresh})
+        if pead_layer:
+            trig = _a5_pead_triggers(dts, f["c"], bench_map, earnings_by_code.get(code, []))
+            layer_sets.append({dts[i] for i in range(len(dts)) if trig[i]})
+        if chip_layer:
+            layer_sets.append(chip_elig.get(code, set()))
+        if not layer_sets:
+            continue
+        eligible = set.intersection(*layer_sets) if len(layer_sets) > 1 else layer_sets[0]
+        if not eligible:
+            continue
+        _emit_composite_trades(f, eligible, all_trades)
+
+    # 全期彙總 + ALPHA 閘
+    summary = _summarize_trades(all_trades, mkt, excess_bench_map,
+                                cs_factor=cs_factor, cs_top_k=cs_top_k)
+    row = _extract_row(summary, mkt, "COMPOSITE")
+
+    # R-PROD-6 regime 切片（per-regime G1 閘 → TREND_UP-only 條件 keeper）
+    per_regime = {}
+    if regime_map:
+        for reg, trs in _slice_trades_by_regime(all_trades, regime_map).items():
+            rs = _summarize_trades(trs, mkt, excess_bench_map,
+                                   cs_factor=cs_factor, cs_top_k=cs_top_k)
+            per_regime[reg] = _extract_row(rs, mkt, "COMPOSITE")
+
+    layer_kinds = [("cs:" + cs_factor) if cs_layer else None,
+                   "pead" if pead_layer else None, "chip" if chip_layer else None]
+    return {"row": row, "trades": all_trades, "per_regime": per_regime,
+            "cs_factor": cs_factor, "cs_top_k": cs_top_k,
+            "n_stocks": len(feats), "layer_kinds": [k for k in layer_kinds if k]}
+
+
+# ── R-PROD-7e：試驗持久化（知識森林 store，重啟不丟、續搜基礎）─────────────────
+def _ensure_composite_search_tables():
+    """冪等建表：composite_candidates（每次複合評估 = 一筆試驗）。"""
+    con = db()
+    con.execute("""CREATE TABLE IF NOT EXISTS composite_candidates(
+        cand_id        TEXT PRIMARY KEY,
+        created_at     TEXT,
+        parent_id      TEXT,
+        market         TEXT, start TEXT, end TEXT, benchmark TEXT,
+        layers_json    TEXT,
+        depth          INTEGER,
+        n              INTEGER,
+        win_rate       REAL,
+        avg_return     REAL,
+        excess_avg     REAL,
+        excess_ci_low  REAL,
+        excess_ci_high REAL,
+        sharpe         REAL,
+        status         TEXT,
+        dsr            REAL,
+        pbo            REAL,
+        trial_T        INTEGER,
+        per_regime_json TEXT,
+        returns_json    TEXT,
+        pnl_blocks_json TEXT,
+        notes          TEXT
+    )""")
+    con.commit(); con.close()
+
+
+_COMPOSITE_JOBS: dict = {}   # job_id -> {status, progress, total, current, result, error, ...}
+
+
+def _composite_search_worker(job_id, market, codes, start, end, layers, benchmark, regime_slice, parent_id):
+    """背景：載入資料 → _eval_composite_market → DSR（對全持久化試驗 T 折減）→ 落地 →
+    PBO（CSCV，對本批 pnl_blocks）→ 更新該筆。全本地計算，零 token。"""
+    import json
+    job = _COMPOSITE_JOBS[job_id]
+    try:
+        _ensure_composite_search_tables()
+        job["status"] = "running"; job["current"] = f"{market}/loading {len(codes)} stocks..."
+        preloaded = _load_backtest_data(codes, market, start, end)
+        # regime map（R-PROD-6；切片用）
+        regime_map = {}
+        if regime_slice:
+            try:
+                regime_map = {r["date"]: r["regime"] for r in _batch_calc_regime(market, start, end)}
+            except Exception as e:
+                print(f"[search] regime map failed: {e}", flush=True)
+
+        def _prog(done, tot):
+            job["progress"] = done; job["total"] = tot
+            job["current"] = f"{market}/composite eval {done}/{tot}"
+
+        res = _eval_composite_market(market, codes, start, end, layers, preloaded,
+                                     benchmark=benchmark, regime_map=regime_map,
+                                     progress_cb=_prog, should_cancel=lambda: job.get("cancelled"))
+        row = res["row"]
+        trades = res["trades"]
+        returns = [t[2] for t in trades]
+        pnl_blocks = _bin_returns_to_blocks(trades, start, end, 16)
+        sharpe = row.get("sharpe") or 0.0
+        cand_id = secrets.token_hex(8)
+        excess_ci = row.get("excess_ci95") or [None, None]
+
+        # ── 落地本筆（dsr/pbo 暫 NULL，下面回填）──
+        con = db(); cur = con.cursor()
+        cur.execute("""INSERT INTO composite_candidates
+            (cand_id,created_at,parent_id,market,start,end,benchmark,layers_json,depth,
+             n,win_rate,avg_return,excess_avg,excess_ci_low,excess_ci_high,sharpe,status,
+             dsr,pbo,trial_T,per_regime_json,returns_json,pnl_blocks_json,notes)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            cand_id, datetime.now().isoformat(), parent_id, market, start, end, benchmark,
+            json.dumps(layers, ensure_ascii=False), len(layers),
+            row.get("N"), row.get("win_rate"), row.get("avg_return"), row.get("excess_avg"),
+            excess_ci[0], excess_ci[1], sharpe, row.get("status"),
+            None, None, None,
+            json.dumps(res["per_regime"], ensure_ascii=False),
+            json.dumps(returns), json.dumps(pnl_blocks),
+            f"layers={res['layer_kinds']} stocks={res['n_stocks']}"))
+        con.commit()
+
+        # ── §3.1 DSR：trial_sharpes = 全持久化試驗 Sharpe；T = 累計試驗數 ──
+        all_sharpes = [r[0] for r in cur.execute(
+            "SELECT sharpe FROM composite_candidates WHERE sharpe IS NOT NULL").fetchall()]
+        T = cur.execute("SELECT COUNT(*) FROM composite_candidates").fetchone()[0]
+        dsr_res = _deflated_sharpe_ratio(returns, all_sharpes, T)
+
+        # ── §3.2 PBO：本批（同 market/start/end/n_blocks）所有試驗的 pnl_blocks 建矩陣 ──
+        pbo_res = {"pbo": None, "reason": "need >=2 candidates"}
+        batch = cur.execute(
+            "SELECT pnl_blocks_json FROM composite_candidates WHERE market=? AND start=? AND end=?",
+            (market, start, end)).fetchall()
+        cols = []
+        for (pj,) in batch:
+            try:
+                blk = json.loads(pj) if pj else None
+            except Exception:
+                blk = None
+            if blk and len(blk) == 16:
+                cols.append([(x if x is not None else float("nan")) for x in blk])
+        if len(cols) >= 2:
+            import numpy as np
+            M = np.array(cols, dtype=float).T   # (16, N)
+            pbo_res = _pbo_cscv(M, S=16)
+
+        cur.execute("UPDATE composite_candidates SET dsr=?, pbo=?, trial_T=? WHERE cand_id=?",
+                    (dsr_res.get("dsr"), pbo_res.get("pbo"), T, cand_id))
+        con.commit(); con.close()
+
+        # ── 分級閘判讀（G1 既有 status；G2 DSR>0.95；G3 PBO<0.20）──
+        g1 = row.get("status")
+        g2 = (dsr_res.get("dsr") is not None and dsr_res["dsr"] > 0.95)
+        g3 = (pbo_res.get("pbo") is not None and pbo_res["pbo"] < 0.20)
+        if g1 == "ALPHA" and g2 and g3:
+            grade = "穩健候選(過G1-G3，待US/live)"
+        elif g1 == "ALPHA":
+            grade = "ALPHA候選(過G1，DSR/PBO未達或不足)"
+        else:
+            grade = g1
+
+        job["result"] = {
+            "cand_id": cand_id, "market": market, "start": start, "end": end,
+            "benchmark": benchmark, "layers": layers, "trial_T": T,
+            "g1_status": g1, "gate_grade": grade,
+            "g1_row": row, "dsr": dsr_res, "pbo": pbo_res,
+            "per_regime": res["per_regime"], "n_stocks": res["n_stocks"],
+            "n_trades": row.get("N"), "cs_factor": res["cs_factor"], "cs_top_k": res["cs_top_k"],
+        }
+        job["status"] = "cancelled" if job.get("cancelled") else "done"
+        job["completed_at"] = datetime.now().isoformat()
+        print(f"[search] composite {cand_id} done: N={row.get('N')} status={g1} "
+              f"DSR={dsr_res.get('dsr')} PBO={pbo_res.get('pbo')} T={T}", flush=True)
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        job["status"] = "error"; job["error"] = str(e)
+        job["completed_at"] = datetime.now().isoformat()
+
+
+@app.post("/api/search/composite")
+def run_composite_search(config: dict, _: None = Depends(require_token)):
+    """R-PROD-7d：LLM 零 token 觸發一次複合 AND-stack 評估（背景 job，回 job_id 輪詢）。
+    body: {layers:[{factor,top_k}|{type:'pead'}|{type:'chip',window,min_net}], market, start, end,
+           benchmark, regime_slice, parent_id}。複用 base-rate 引擎；結果含 G1/DSR/PBO/per-regime，落地持久化。"""
+    layers_raw = config.get("layers")
+    layers, err = _normalize_layers(layers_raw)
+    if err:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    market = str(config.get("market", "TW")).upper()
+    start = str(config.get("start", "2020-01-01"))
+    end = str(config.get("end", datetime.now().strftime("%Y-%m-%d")))
+    # 輸入驗證：start/end 須為合法 ISO 日期且 start<=end（壞日期不再靜默退化成空試驗）
+    try:
+        sdt = datetime.strptime(start, "%Y-%m-%d")
+        edt = datetime.strptime(end, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "error": "start/end 須為 YYYY-MM-DD 格式"}, status_code=400)
+    if sdt > edt:
+        return JSONResponse({"ok": False, "error": "start 不可晚於 end"}, status_code=400)
+    benchmark = str(config.get("benchmark", "equal_weight")).lower()
+    if benchmark not in _BENCHMARK_WHITELIST:
+        benchmark = "equal_weight"
+    regime_slice = bool(config.get("regime_slice", True))
+    parent_id = config.get("parent_id")
+
+    # universe（複用 get_universe）
+    uni = get_universe(market)
+    if isinstance(uni, JSONResponse):
+        return JSONResponse({"ok": False, "error": f"universe not available for {market}"}, status_code=400)
+    raw = uni.get("data", uni.get("stocks", []))
+    codes = [s if isinstance(s, str) else s.get("code", "") for s in raw]
+    codes = [c for c in codes if c]
+    if not codes:
+        return JSONResponse({"ok": False, "error": f"empty universe for {market}"}, status_code=400)
+
+    # job store 上限防呆：超過上限時，淘汰最舊的「已結束(done/error)」job（保留進行中的）
+    if len(_COMPOSITE_JOBS) >= 200:
+        finished = [(jid, j.get("completed_at") or j.get("started_at") or "")
+                    for jid, j in _COMPOSITE_JOBS.items() if j.get("status") in ("done", "error")]
+        for jid, _ts in sorted(finished, key=lambda x: x[1])[:max(1, len(finished) // 2)]:
+            _COMPOSITE_JOBS.pop(jid, None)
+
+    job_id = secrets.token_hex(8)
+    _COMPOSITE_JOBS[job_id] = {
+        "status": "starting", "progress": 0, "total": 0, "current": "", "cancelled": False,
+        "result": None, "error": None,
+        "config": {"market": market, "start": start, "end": end, "benchmark": benchmark,
+                   "layers": layers, "regime_slice": regime_slice},
+        "started_at": datetime.now().isoformat(), "completed_at": None,
+    }
+    threading.Thread(target=_composite_search_worker,
+                     args=(job_id, market, codes, start, end, layers, benchmark, regime_slice, parent_id),
+                     daemon=True).start()
+    return {"ok": True, "job_id": job_id, "layers": layers, "market": market,
+            "message": f"Composite search started ({len(codes)} stocks). "
+                       f"Poll GET /api/search/composite/{job_id}."}
+
+
+@app.get("/api/search/composite/{job_id}")
+def get_composite_search(job_id: str):
+    """輪詢複合搜尋 job：done → 回 G1/DSR/PBO/per-regime 摘要（zero-token 給 LLM 讀）。"""
+    # job_id 格式防呆（token_hex(8) → 16 位 hex；非法格式直接 404，不必查 dict）
+    if (not isinstance(job_id, str) or not (8 <= len(job_id) <= 64)
+            or any(c not in "0123456789abcdef" for c in job_id)):
+        return JSONResponse({"error": "job not found"}, status_code=404)
+    job = _COMPOSITE_JOBS.get(job_id)
+    if not job:
+        return JSONResponse({"error": "job not found"}, status_code=404)
+    resp = {"job_id": job_id, "status": job["status"], "progress": job["progress"],
+            "total": job["total"], "current": job.get("current", "")}
+    if job["status"] == "done":
+        resp["result"] = job["result"]
+    elif job["status"] == "error":
+        resp["error"] = job.get("error")
+    return resp
+
+
+@app.post("/api/search/overfit")
+def run_overfit_check(config: dict, _: None = Depends(require_token)):
+    """R-PROD-7c：對「本批試驗」算 PBO（CSCV）+ 各候選 DSR。
+    body: {cand_ids:[...]} 或 {market,start,end}（同窗的全部試驗）。零 token、純讀持久化 + 本地計算。"""
+    import json
+    _ensure_composite_search_tables()
+    con = db(); cur = con.cursor()
+    cand_ids = config.get("cand_ids")
+    if cand_ids:
+        if not isinstance(cand_ids, list) or len(cand_ids) > 1000:
+            con.close()
+            return JSONResponse({"ok": False, "error": "cand_ids 須為陣列且≤1000"}, status_code=400)
+        qs = ",".join("?" * len(cand_ids))
+        rows = cur.execute(
+            f"SELECT cand_id,layers_json,sharpe,returns_json,pnl_blocks_json FROM composite_candidates "
+            f"WHERE cand_id IN ({qs})", list(cand_ids)).fetchall()
+    else:
+        market = str(config.get("market", "TW")).upper()
+        start = str(config.get("start", "2020-01-01"))
+        end = str(config.get("end", datetime.now().strftime("%Y-%m-%d")))
+        try:
+            datetime.strptime(start, "%Y-%m-%d"); datetime.strptime(end, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            con.close()
+            return JSONResponse({"ok": False, "error": "start/end 須為 YYYY-MM-DD 格式"}, status_code=400)
+        rows = cur.execute(
+            "SELECT cand_id,layers_json,sharpe,returns_json,pnl_blocks_json FROM composite_candidates "
+            "WHERE market=? AND start=? AND end=?", (market, start, end)).fetchall()
+    T = cur.execute("SELECT COUNT(*) FROM composite_candidates").fetchone()[0]
+    all_sharpes = [r[0] for r in cur.execute(
+        "SELECT sharpe FROM composite_candidates WHERE sharpe IS NOT NULL").fetchall()]
+    con.close()
+    if not rows:
+        return {"ok": False, "error": "no candidates matched", "trial_T": T}
+
+    cols = []
+    per_cand = []
+    for cid, lj, sharpe, rj, pj in rows:
+        try:
+            rets = json.loads(rj) if rj else []
+        except Exception:
+            rets = []
+        dsr_res = _deflated_sharpe_ratio(rets, all_sharpes, T)
+        per_cand.append({"cand_id": cid, "layers": (json.loads(lj) if lj else None),
+                         "sharpe": sharpe, "dsr": dsr_res.get("dsr"), "n": dsr_res.get("n")})
+        try:
+            blk = json.loads(pj) if pj else None
+        except Exception:
+            blk = None
+        if blk and len(blk) == 16:
+            cols.append([(x if x is not None else float("nan")) for x in blk])
+    pbo_res = {"pbo": None, "reason": "need >=2 candidates"}
+    if len(cols) >= 2:
+        import numpy as np
+        pbo_res = _pbo_cscv(np.array(cols, dtype=float).T, S=16)
+    return {"ok": True, "trial_T": T, "n_candidates": len(rows),
+            "pbo": pbo_res, "per_candidate": per_cand,
+            "gate": {"G2_DSR_gt_0.95": "keeper級", "G3_PBO_lt_0.20": "keeper級"}}
+
+
+@app.get("/api/search/candidates")
+def list_composite_candidates(market: str = "", limit: int = 100,
+                              _: None = Depends(require_token)):
+    """列出已持久化的複合試驗（續搜基礎；證明重啟不丟）。"""
+    import json
+    try:
+        limit = min(max(int(limit), 1), 1000)   # clamp 防呆：避免一次拉爆全表
+    except (TypeError, ValueError):
+        limit = 100
+    if market:
+        market = str(market).strip().upper()
+        if not market.isalnum() or len(market) > 8:
+            return JSONResponse({"ok": False, "error": "invalid market"}, status_code=400)
+    _ensure_composite_search_tables()
+    con = db(); cur = con.cursor()
+    if market:
+        rows = cur.execute(
+            "SELECT cand_id,created_at,market,start,end,layers_json,n,excess_avg,excess_ci_low,"
+            "sharpe,status,dsr,pbo,trial_T FROM composite_candidates WHERE market=? "
+            "ORDER BY created_at DESC LIMIT ?", (market.upper(), limit)).fetchall()
+    else:
+        rows = cur.execute(
+            "SELECT cand_id,created_at,market,start,end,layers_json,n,excess_avg,excess_ci_low,"
+            "sharpe,status,dsr,pbo,trial_T FROM composite_candidates "
+            "ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+    total = cur.execute("SELECT COUNT(*) FROM composite_candidates").fetchone()[0]
+    con.close()
+    cols = ["cand_id", "created_at", "market", "start", "end", "layers", "n", "excess_avg",
+            "excess_ci_low", "sharpe", "status", "dsr", "pbo", "trial_T"]
+    out = []
+    for r in rows:
+        d = dict(zip(cols, r))
+        try:
+            d["layers"] = json.loads(d["layers"]) if d["layers"] else None
+        except Exception:
+            pass
+        out.append(d)
+    return {"ok": True, "trial_T_total": total, "count": len(out), "candidates": out}
 
 
 # ══════════════════════════════════════════════════
