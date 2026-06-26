@@ -3341,6 +3341,43 @@ def _reconcile_revenue_backfill_on_startup():
 
 _reconcile_revenue_backfill_on_startup()
 
+
+# ── 半自動 Forward Daily Cron run-log（鏡像 revenue_backfill 持久化慣例）────────────────────
+# 編排本體在 backend 之外的 ops/forward_daily_cron.py（standalone，不 import 本檔、不加常駐 thread）。
+# 此處僅「純加法、唯讀方向」：建表冪等 + 啟動對帳 + 一支唯讀 status endpoint，供 cockpit 查 cron 落地。
+# 對既有 forward/search/auto-roll 行為零影響（不被任何既有路徑呼叫）。
+def _ensure_forward_cron_table():
+    """半自動 forward cron 每日 run-log 持久化表（重啟後可查；同 run_date INSERT OR REPLACE 冪等）。
+    放 monitor.db（與 forward ft_* 同庫）。欄位對齊 spec §4.1。"""
+    try:
+        con = db()
+        con.execute("""CREATE TABLE IF NOT EXISTS forward_cron_runs(
+            run_date TEXT PRIMARY KEY, started_at TEXT, completed_at TEXT,
+            status TEXT, market TEXT, search_run_id TEXT,
+            rolled INTEGER DEFAULT 0, rejected_collinear INTEGER DEFAULT 0,
+            rejected_gate INTEGER DEFAULT 0, replaced INTEGER DEFAULT 0,
+            picks_total INTEGER DEFAULT 0, settled INTEGER DEFAULT 0,
+            near_graduation_json TEXT, error TEXT, summary_json TEXT, updated_at TEXT
+        )""")
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[forward-cron] 建表失敗: {e}")
+
+def _reconcile_forward_cron_on_startup():
+    """啟動對帳：上次卡在 'running' 的 cron run（例如 prod 重啟或 cron 進程被砍）標 'interrupted'，
+    避免重啟後永遠掛 running。要續跑：cron 隔日自然再跑，或人工帶 --force 重觸。"""
+    try:
+        _ensure_forward_cron_table()
+        con = db(); cur = con.cursor()
+        cur.execute("UPDATE forward_cron_runs SET status='interrupted', updated_at=? "
+                    "WHERE status='running'", (datetime.now().isoformat(),))
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[forward-cron] 啟動對帳失敗: {e}")
+
+_reconcile_forward_cron_on_startup()
+
+
 def _announce_date_for_period(period_ym: str) -> str:
     """🔑PIT 公布日（保守）：營收所屬月 period_ym('YYYY-MM') → 次月15日 'YYYY-MM-15'。
     台股月營收法定『次月10日前』公布，但10日遇假日順延至次一營業日（典型：1月營收次月10日撞春節，
@@ -18906,6 +18943,40 @@ def forward_track():
     return {"ok": True, "as_of": today, "overall": overall,
             "roster_orthogonality": orthogonality,
             "provisional_monitoring": provisional_monitoring, "strategies": out}
+
+
+@app.get("/api/forward/cron/status")
+def forward_cron_status(limit: int = 30):
+    """半自動 forward cron run-log 唯讀查詢（cockpit 查 cron 落地用）。純讀 forward_cron_runs，
+    不觸發任何編排、不寫資料、不依賴 token。編排本體在 ops/forward_daily_cron.py（standalone）。"""
+    _ensure_forward_cron_table()
+    try:
+        limit = min(max(int(limit), 1), 365)
+    except (TypeError, ValueError):
+        limit = 30
+    con = db(); cur = con.cursor()
+    cols = ["run_date", "started_at", "completed_at", "status", "market", "search_run_id",
+            "rolled", "rejected_collinear", "rejected_gate", "replaced",
+            "picks_total", "settled", "near_graduation_json", "error", "summary_json", "updated_at"]
+    rows = cur.execute(
+        f"SELECT {','.join(cols)} FROM forward_cron_runs ORDER BY run_date DESC LIMIT ?",
+        (limit,)).fetchall()
+    con.close()
+    runs = []
+    for r in rows:
+        d = dict(zip(cols, r))
+        for jk in ("near_graduation_json", "summary_json"):
+            if d.get(jk):
+                try:
+                    d[jk[:-5]] = json.loads(d[jk])
+                except Exception:
+                    d[jk[:-5]] = None
+            else:
+                d[jk[:-5]] = None
+            d.pop(jk, None)
+        runs.append(d)
+    last = runs[0] if runs else None
+    return {"ok": True, "count": len(runs), "last": last, "runs": runs}
 
 
 @app.get("/api/forward/picks")
