@@ -14267,6 +14267,11 @@ _CS_FACTOR_FAMILY = {
     "sector_rel": "sector", "sector_rel_topsec": "sector",
     "inst_net_buy": "chip", "trust_net_buy": "chip", "short_squeeze": "chip",
     "revenue_mom": "fundamental",   # P0-2：月營收動量（基本面族，與價格/籌碼正交）
+    # Type 1a：價格族正交積木（純 OHLCV + 免費宏觀序列自算，零新管線）
+    "low_beta": "style",            # BAB（低 β 風險調整後贏）
+    "rate_sensitivity": "macro",    # 對 US10Y 久期/折現敏感
+    "dollar_sensitivity": "macro",  # 對 DXY 出口商暴險
+    "short_rev": "reversal",        # 短期過度反應反轉（DeBondt-Thaler）
 }
 
 
@@ -14315,6 +14320,47 @@ _REVENUE_CS_META = {
         "pit_rule": "月營收次月10日前公布 → announce_date=次月10日，進場僅落其後交易日（嚴格 >，進場∩營收月=∅）",
         "mechanism": "基本面動量/反應不足：月營收 YoY 為慢變數，市場對基本面持續改善反應不足（台股月營收高頻獨有，與動量/籌碼正交）",
         "family": "fundamental"},
+}
+
+# ── Type 1a R-PROD-7f：價格族橫斷面因子（純 OHLCV + 免費宏觀序列自算，零新管線）──────────────
+# 全用現有資料：low_beta/short_rev 僅需 market.db OHLCV（個股 + 市場指數，沿用 _get_benchmark_close_map）；
+# rate_sensitivity/dollar_sensitivity 另需免費宏觀序列（^TNX=US10Y、DX-Y.NYB=DXY，沿用 _fetch_index_close_map
+# 30min 快取，零新管線）。全市場可用（不像籌碼/月營收 TW-only）。複用 outcome 快取，不重算 K 線。
+# 【給 Reviewer：🔑PIT（核心）】每因子在 index i 用「≤dts[i] 的資料」算出 stat，落點 entry=dts[i+1]（次一交易日）
+# → 進場日的因子值只含 ≤T−1 資料，與既有 _chip_factor_series/_revenue_factor_series 的「次一交易日落點」
+# PIT 修法逐字同精神（進場∩資訊可得當日=∅、進場>資訊可得日一個交易日）。暖身期/缺值=NaN（不排名）。
+_PRICE_CS_FACTORS = {"low_beta", "rate_sensitivity", "dollar_sensitivity", "short_rev"}
+_PRICE_BETA_WIN      = 120   # 滾動 β 回歸窗（agenda 60–120d，default 120；param_space 供日後 Bayesian）
+_PRICE_BETA_MIN_FRAC = 0.5   # 回歸窗內有效（個股報酬∧回歸子變動皆非 NaN）樣本最低占比，不足則該日不算
+_PRICE_REV_N         = 5     # short_rev 短期反轉回看天數（agenda 1–5d，default 5）
+
+# 價格族因子註冊 metadata（入庫三道資格 §3.4：①機制 ②PIT ③參數 metadata；dir∈{+1,−1} 為 R1(a) per-layer 方向）。
+# low_beta：raw=β，dir 預設 −1（BAB → 取 bottom K%＝低 β 股）；其餘 raw=β/−報酬，dir 由搜尋層決定。
+_PRICE_CS_META = {
+    "low_beta": {
+        "param_space": {"beta_win": {"min": 60, "max": 250, "default": _PRICE_BETA_WIN, "type": "int"},
+                        "dir": {"choices": [1, -1], "default": -1, "type": "int"}},
+        "pit_rule": "個股對指數滾動 β 用 ≤T−1 報酬窗算 → 落次一交易日進場（只用 ≤T−1）",
+        "mechanism": "BAB（Frazzini-Pedersen）：低 β 股風險調整後贏；dir=−1 取低 β（raw=β，反向 rank）",
+        "family": "style"},
+    "rate_sensitivity": {
+        "param_space": {"beta_win": {"min": 60, "max": 250, "default": _PRICE_BETA_WIN, "type": "int"},
+                        "dir": {"choices": [1, -1], "default": 1, "type": "int"}},
+        "pit_rule": "個股對 US10Y(^TNX) yield 差分滾動 β 用 ≤T−1 窗算 → 落次一交易日進場",
+        "mechanism": "久期/折現敏感：對長端利率變動的暴險（降息 regime 高 β 受惠），dir 由 regime 決定",
+        "family": "macro"},
+    "dollar_sensitivity": {
+        "param_space": {"beta_win": {"min": 60, "max": 250, "default": _PRICE_BETA_WIN, "type": "int"},
+                        "dir": {"choices": [1, -1], "default": 1, "type": "int"}},
+        "pit_rule": "個股對 DXY(DX-Y.NYB) 報酬滾動 β 用 ≤T−1 窗算 → 落次一交易日進場",
+        "mechanism": "匯率暴險：出口商 vs 內需對美元敏感度（弱勢美元利出口），dir 由 regime 決定",
+        "family": "macro"},
+    "short_rev": {
+        "param_space": {"rev_n": {"min": 1, "max": 10, "default": _PRICE_REV_N, "type": "int"},
+                        "dir": {"choices": [1, -1], "default": 1, "type": "int"}},
+        "pit_rule": "−(個股 N 日報酬) 用 ≤T−1 收盤算 → 落次一交易日進場",
+        "mechanism": "過度反應反轉（DeBondt-Thaler）：近 N 日大跌者 snap-back（raw=−報酬→高 rank=跌最多）",
+        "family": "reversal"},
 }
 
 _SECTOR_MAP_MEM: dict = {}    # in-process cache: f"{market}:{code}" -> sector_str（避免同跑重複查）
@@ -15112,6 +15158,155 @@ def _compute_revenue_cs_factors(mkt: str, codes: list, feats: dict, factors_need
     return out
 
 
+# ── Type 1a：價格族 cs 因子（pure 計算，無 DB/yfinance，可隔離測 PIT/算法）──────────────
+def _price_cs_factor_series(dates: list, c, bench_map: dict, tnx_map: dict, dxy_map: dict,
+                            factors_needed: set, beta_win: int = _PRICE_BETA_WIN,
+                            rev_n: int = _PRICE_REV_N,
+                            min_frac: float = _PRICE_BETA_MIN_FRAC) -> dict:
+    """單一個股的價格族 cs 因子原始值時間序列（橫斷面排名前的 raw value）。純函式、無 DB、無 yfinance。
+
+    輸入：
+      dates    : 該股交易日清單（升冪，'YYYY-MM-DD'；來自 feats['dates']）。
+      c        : 該股收盤序列（對齊 dates）。
+      bench_map: {date: 指數收盤}（low_beta 回歸子；沿用 _get_benchmark_close_map，^TWII/SPY）。
+      tnx_map  : {date: ^TNX 收盤(US10Y yield×10)}（rate_sensitivity 回歸子；None=不算該因子）。
+      dxy_map  : {date: DXY 收盤}（dollar_sensitivity 回歸子；None=不算該因子）。
+      factors_needed ⊆ _PRICE_CS_FACTORS。
+    回 {factor: {entry_date: raw_val}}。
+
+    因子定義（raw value，橫斷面 rank 在 _cs_rank_pct）：
+      low_beta           = 個股日報酬對「指數日報酬」滾動 β（dir=−1 取低 β＝BAB）。
+      rate_sensitivity   = 個股日報酬對「^TNX yield 差分(Δ)」滾動 β（久期敏感；yield 用差分非報酬）。
+      dollar_sensitivity = 個股日報酬對「DXY 日報酬(pct)」滾動 β（匯率暴險）。
+      short_rev          = −(個股 N 日報酬%)（近 N 日跌最多→高 rank→反轉做多）。
+
+    【給 Reviewer — 🔑PIT 防洩漏（核心）】每因子在 index i 用「≤dts[i] 的資料」算出 stat（β 窗
+    [i−W+1, i]、N 日報酬 c[i]/c[i−N]），key 落在 dts[i+1]（次一交易日）→ 進場日的因子值只含
+    ≤T−1 資料，與 _chip_factor_series/_revenue_factor_series 的『次一交易日落點』PIT 修法逐字同精神
+    （進場∩資訊可得當日=∅、進場>資訊可得日一個交易日）。回歸子序列以 dates 對齊，缺值(US/TW 假日
+    不重疊)→該日變動 NaN→剔出回歸樣本（PIT 安全，不外插未來）。"""
+    import numpy as np
+    out = {fac: {} for fac in factors_needed if fac in _PRICE_CS_FACTORS}
+    if not out:
+        return out
+    n = len(dates)
+    if n < 2:
+        return out  # 無「次一交易日」可落點 → PIT 下無可用值
+    c = np.asarray(c, dtype=float)
+
+    # 個股日報酬（簡單報酬；r_s[i] 為 dts[i−1]→dts[i] 的報酬）
+    r_s = np.full(n, np.nan)
+    for i in range(1, n):
+        if c[i - 1] > 0:
+            r_s[i] = c[i] / c[i - 1] - 1.0
+
+    want_lowbeta = "low_beta" in out
+    want_rate    = "rate_sensitivity" in out
+    want_dollar  = "dollar_sensitivity" in out
+    want_srev    = "short_rev" in out
+
+    def _aligned(dmap):
+        return np.array([(dmap.get(d, np.nan) if dmap else np.nan) for d in dates], dtype=float)
+
+    def _ret_series(dmap):       # 價格型回歸子（指數/DXY）→ 日報酬(pct)
+        arr = _aligned(dmap); o = np.full(n, np.nan)
+        for i in range(1, n):
+            if arr[i - 1] == arr[i - 1] and arr[i] == arr[i] and arr[i - 1] > 0:
+                o[i] = arr[i] / arr[i - 1] - 1.0
+        return o
+
+    def _diff_series(dmap):      # yield 型回歸子(^TNX)→ 日差分(Δyield，避免近零 pct 爆量)
+        arr = _aligned(dmap); o = np.full(n, np.nan)
+        for i in range(1, n):
+            if arr[i - 1] == arr[i - 1] and arr[i] == arr[i]:
+                o[i] = arr[i] - arr[i - 1]
+        return o
+
+    r_idx = _ret_series(bench_map) if want_lowbeta else None
+    r_tnx = _diff_series(tnx_map) if (want_rate and tnx_map) else None
+    r_dxy = _ret_series(dxy_map) if (want_dollar and dxy_map) else None
+
+    W = max(int(beta_win), 5)
+
+    def _beta_at(i, rf):
+        """r_s 對 rf 在窗 [i−W+1, i] 的 OLS β（資料 ≤dts[i]）；樣本不足/零變異 → NaN。"""
+        ys = r_s[i - W + 1:i + 1]; xs = rf[i - W + 1:i + 1]
+        m = (xs == xs) & (ys == ys)
+        if int(m.sum()) < W * min_frac:
+            return np.nan
+        x = xs[m]; y = ys[m]
+        xm = x.mean(); sxx = float(((x - xm) ** 2).sum())
+        if sxx <= 0:
+            return np.nan
+        return float(((x - xm) * (y - y.mean())).sum() / sxx)
+
+    Nr = max(int(rev_n), 1)
+    for i in range(n - 1):                  # i=資訊可得日索引；進場 = dts[i+1]（PIT：次一交易日）
+        entry = dates[i + 1]
+        if i >= W - 1:
+            if want_lowbeta:
+                b = _beta_at(i, r_idx)
+                if b == b:
+                    out["low_beta"][entry] = b
+            if r_tnx is not None:
+                b = _beta_at(i, r_tnx)
+                if b == b:
+                    out["rate_sensitivity"][entry] = b
+            if r_dxy is not None:
+                b = _beta_at(i, r_dxy)
+                if b == b:
+                    out["dollar_sensitivity"][entry] = b
+        if want_srev and i - Nr >= 0 and c[i - Nr] > 0:
+            out["short_rev"][entry] = -((c[i] / c[i - Nr] - 1.0) * 100.0)
+    return out
+
+
+def _compute_price_cs_factors(mkt: str, codes: list, feats: dict, factors_needed: set,
+                              bench_map: dict) -> dict:
+    """價格族 cs 因子 orchestrator：rate/dollar 需要的免費宏觀序列一次抓齊（^TNX/DXY，30min 快取）→
+    對每股呼叫 pure _price_cs_factor_series → 組成 {factor: {date: {code: raw_val}}}（與
+    _compute_chip_cs_factors/_compute_revenue_cs_factors 同形狀，直接餵 _cs_rank_pct 排名迴圈）。
+    宏觀序列抓取窗由 feats 日期範圍決定（PIT：只抓回測窗內，不引入未來；無資料→該因子自然縮小、誠實標）。"""
+    price_needed = set(factors_needed) & _PRICE_CS_FACTORS
+    out = {fac: {} for fac in price_needed}
+    if not price_needed or not codes:
+        return out
+    tnx_map = dxy_map = None
+    need_rate = "rate_sensitivity" in price_needed
+    need_dollar = "dollar_sensitivity" in price_needed
+    if need_rate or need_dollar:
+        alld = set()
+        for code in codes:
+            f = feats.get(code)
+            if f and f.get("dates"):
+                alld.update(f["dates"])
+        if alld:
+            lo, hi = min(alld), max(alld)
+            try:                              # yfinance end 為 exclusive → +1 日確保含 hi
+                from datetime import datetime, timedelta
+                hi_x = (datetime.strptime(hi, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+            except Exception:
+                hi_x = hi
+            if need_rate:
+                tnx_map = _fetch_index_close_map("^TNX", lo, hi_x)
+            if need_dollar:
+                dxy_map = _fetch_index_close_map("DX-Y.NYB", lo, hi_x)
+    for code in codes:
+        f = feats.get(code)
+        if not f:
+            continue
+        dts = f.get("dates"); c = f.get("c")
+        if not dts or c is None:
+            continue
+        cf = _price_cs_factor_series(dts, c, bench_map, tnx_map, dxy_map, price_needed)
+        for fac, dmap in cf.items():
+            fv = out[fac]
+            for d, val in dmap.items():
+                if val == val:                # not NaN
+                    fv.setdefault(d, {})[code] = val
+    return out
+
+
 def _emit_trades(sid: str, trig, f: dict, rank_map, thresh: float, dst: list):
     """記錄某策略的逐筆 trade（entry_date, exit_date, net_ret%）到 dst。
        trig=None → 純橫斷面策略（每日皆候選，由 rank 決定）；trig 陣列 → 既有訊號策略。
@@ -15538,7 +15733,8 @@ def _cs_rank_pct(mkt: str, codes: list, feats: dict, factors_needed: set, bench_
     sector_needed = factors_needed & _CS_SECTOR_FACTORS
     chip_needed = factors_needed & _CHIP_CS_FACTORS          # P0-1：籌碼因子（讀 chip_snapshot，PIT 對齊次一交易日）
     rev_needed = factors_needed & _REVENUE_CS_FACTORS        # P0-2：月營收動量（讀 revenue_monthly，PIT 對齊 announce_date 後交易日）
-    orth_needed = factors_needed - sector_needed - chip_needed - rev_needed
+    price_needed = factors_needed & _PRICE_CS_FACTORS        # Type 1a：價格族（OHLCV±免費宏觀序列，PIT 對齊次一交易日）
+    orth_needed = factors_needed - sector_needed - chip_needed - rev_needed - price_needed
     sector_of = _get_sector_map(mkt, codes) if sector_needed else {}
     smom_by_code = {}
     for code in codes:
@@ -15571,6 +15767,10 @@ def _cs_rank_pct(mkt: str, codes: list, feats: dict, factors_needed: set, bench_
     if rev_needed:                                           # P0-2：月營收 cs 因子 → 同排名管線
         rev_fv = _compute_revenue_cs_factors(mkt, codes, feats, rev_needed)
         for fac, dmap in rev_fv.items():
+            factor_vals[fac] = dmap
+    if price_needed:                                         # Type 1a：價格族 cs 因子 → 同排名管線
+        price_fv = _compute_price_cs_factors(mkt, codes, feats, price_needed, bench_map)
+        for fac, dmap in price_fv.items():
             factor_vals[fac] = dmap
     rank_pct = {fac: {} for fac in factors_needed}
     for fac in factors_needed:
@@ -16107,8 +16307,10 @@ def _chip_streak_dates(codes: list, window: int = 3, min_net: float = 0.0) -> di
 # 可當「cs 層」的橫斷面因子白名單（A4 = sector_rel_topsec）。
 # P0-1：加入籌碼因子 _CHIP_CS_FACTORS（inst_net_buy/trust_net_buy/short_squeeze）→ 搜尋引擎自動納入。
 # P0-2：加入月營收因子 _REVENUE_CS_FACTORS（revenue_mom，基本面族）→ 搜尋引擎自動納入。
+# Type 1a：加入價格族 _PRICE_CS_FACTORS（low_beta/rate_sensitivity/dollar_sensitivity/short_rev）→ 可手動 AND-stack。
 _COMPOSITE_CS_FACTORS = {"raw_mom", "rel_str", "resid_mom",
-                         "sector_rel", "sector_rel_topsec"} | _CHIP_CS_FACTORS | _REVENUE_CS_FACTORS
+                         "sector_rel", "sector_rel_topsec"} | _CHIP_CS_FACTORS | _REVENUE_CS_FACTORS \
+                        | _PRICE_CS_FACTORS
 
 
 def _normalize_layers(layers: list):
