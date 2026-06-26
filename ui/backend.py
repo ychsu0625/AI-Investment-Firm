@@ -16891,8 +16891,11 @@ _AUTO_SEARCH_LOCK = threading.Lock()
 _AUTO_FACTOR_POOL = ("sector_rel_topsec", "sector_rel", "resid_mom", "rel_str", "raw_mom")
 _AUTO_CHIP_CS_POOL = ("inst_net_buy", "trust_net_buy", "short_squeeze")  # P0-1：可疊加的籌碼 cs 層（A4∧籌碼）
 _AUTO_REVENUE_CS_POOL = ("revenue_mom",)  # P0-2：可疊加的月營收 cs 層（A4∧基本面正交複合）
+# R-PROD-7h-1：價格族 4 新因子入搜尋池（解鎖 style/macro/reversal 三族跨族正交堆疊）。純加法 add_cs move。
+_AUTO_PRICE_CS_POOL = ("low_beta", "rate_sensitivity", "dollar_sensitivity", "short_rev")
 _AUTO_TOPK_POOL   = (0.10, 0.20, 0.30)
 _AUTO_MAX_DEPTH   = 4                   # §2.5：層上限（控過擬合/容量）；k 層 cs∧cs + pead/chip 合計 ≤ 此
+_AUTO_REPORT_CORR_PRUNE = 0.85          # R-PROD-7h-2：add_cs 候選 pnl_blocks 對 frontier corr≥此 → 軟剪（換湯不換藥）
 # lessons 剪枝鉤：已知失敗單因子（預設空，留給 lessons 注入；含此因子的 cs 層一律剪）
 _AUTO_LESSONS_SKIP_FACTORS: set = set()
 
@@ -16934,11 +16937,22 @@ def _auto_replace_cs(current: list, factor=None, top_k=None) -> list:
     return out
 
 
+def _auto_price_cs_layer(cf: str) -> dict:
+    """價格族 add_cs 候選層工廠：套 _PRICE_CS_META 的 default dir（low_beta=−1 BAB；其餘 +1）。
+    （_normalize_layers：dir=+1 省略 key → 零回歸；僅 dir=−1 寫入。）"""
+    d = ((_PRICE_CS_META.get(cf) or {}).get("param_space", {}).get("dir", {}) or {}).get("default", 1)
+    layer = {"factor": cf, "top_k": _CS_DEFAULT_K}
+    if d == -1:
+        layer["dir"] = -1
+    return layer
+
+
 def _auto_search_candidates(current: list,
                             factor_pool=_AUTO_FACTOR_POOL,
                             topk_pool=_AUTO_TOPK_POOL,
                             chip_pool=_AUTO_CHIP_CS_POOL,
-                            rev_pool=_AUTO_REVENUE_CS_POOL) -> list:
+                            rev_pool=_AUTO_REVENUE_CS_POOL,
+                            price_pool=_AUTO_PRICE_CS_POOL) -> list:
     """前向貪婪：列舉「下一步」候選（確定性、有界）。回 [(label, layers)]。
     可插拔層 moves：①加 PEAD ②加 chip(法人連買 streak) ③加籌碼 cs 層(A4∧inst_net_buy，R-PROD-7a)
     ③b 加月營收 cs 層(A4∧revenue_mom，基本面正交) ④換 cs 因子(resid_mom/rel_str/…) ⑤換 top_k∈{.10,.20,.30}。
@@ -16960,6 +16974,9 @@ def _auto_search_candidates(current: list,
     for cf in rev_pool:                                # ③b 加月營收 cs 層（基本面正交：A4∧revenue_mom）
         if cf not in present_factors:
             cands.append((f"add_cs:{cf}", current + [{"factor": cf, "top_k": _CS_DEFAULT_K}]))
+    for cf in price_pool:                              # ③c 加價格族 cs 層（R-PROD-7h：style/macro/reversal 跨族）
+        if cf not in present_factors:
+            cands.append((f"add_cs:{cf}", current + [_auto_price_cs_layer(cf)]))
     if len(cs_layers) == 1:                            # 換因子/換 top_k 僅單 cs 層時（保替換語義+零回歸）
         cs = cs_layers[0]
         cur_factor = cs.get("factor")
@@ -17040,12 +17057,39 @@ def _auto_should_stop(trials, max_trials, stale, stale_limit, stop_requested, de
     return False, None
 
 
-def _auto_pick_restart_factor(used_factors, pool=_AUTO_FACTOR_POOL):
-    """換族 random-restart：挑一個尚未用過的 cs 因子族（耗盡 → None → 收斂停止）。"""
+_AUTO_RESTART_UNION_POOL = (_AUTO_FACTOR_POOL + _AUTO_PRICE_CS_POOL
+                            + _AUTO_CHIP_CS_POOL + _AUTO_REVENUE_CS_POOL)
+
+
+def _auto_pick_restart_factor(used_factors, pool=_AUTO_RESTART_UNION_POOL):
+    """換族 random-restart（R-PROD-7h-3）：從聯集池（價格+籌碼+營收+原 factor 池）抽尚未用過的 cs 因子，
+    且偏好「尚未出現過的 family」（用 _cs_family；真跳出 A4/價格盆地，非近親）。耗盡 → None → 收斂停止。"""
+    used_fams = {_cs_family(f) for f in used_factors}
+    # 第一優先：未用過 + 其 family 也未出現過（跨族跳出）
+    for f in pool:
+        if f not in used_factors and _cs_family(f) not in used_fams:
+            return f
+    # 退而求其次：未用過的因子（同族不同因子）
     for f in pool:
         if f not in used_factors:
             return f
     return None
+
+
+def _auto_family_diversity_sort(current: list, cands: list) -> list:
+    """R-PROD-7h-3 family-diversity 排序：把「引入 current 尚未出現 family」的 add_cs 候選排最前
+    （跨族 span 最大化）→ 在候選封頂(max_candidates_per_round)前優先保留跨族腿，不被同族擠掉。
+    確定性穩定排序：(0=跨族新 family add_cs, 1=其他)；組內保原序。cands=[(label, layers)]。"""
+    cur_fams = {_cs_family(L["factor"]) for L in current if L.get("factor") in _COMPOSITE_CS_FACTORS}
+
+    def _key(item):
+        label, layers = item
+        if isinstance(label, str) and label.startswith("add_cs:"):
+            cf = label.split(":", 1)[1]
+            if cf in _COMPOSITE_CS_FACTORS and _cs_family(cf) not in cur_fams:
+                return 0
+        return 1
+    return sorted(cands, key=_key)
 
 
 def _auto_status_view(st: dict) -> dict:
@@ -17195,7 +17239,8 @@ def _auto_search_worker(run_id):
                                          should_cancel=lambda: _auto_stop_requested(run_id))
             persisted = _persist_composite_eval(res, market, start, end, benchmark, layers)
             phi, g1 = _auto_phi_g1(res, target_regime)
-            return res, persisted, phi, g1
+            blocks = _bin_returns_to_blocks(res.get("trades", []), start, end, 16)  # 7h-2 報酬-corr 軟剪基質
+            return res, persisted, phi, g1, blocks
 
         # 本地計數（worker 私有，避免每筆鎖；里程碑同步進 state）
         trials = 0
@@ -17209,7 +17254,7 @@ def _auto_search_worker(run_id):
 
         # ── 基準：先 eval 種子，建立 best_phi 起點 ──
         current = [dict(L) for L in st0["seed_layers"]]
-        res0, p0, phi0, g10 = _eval(current)
+        res0, p0, phi0, g10, frontier_blocks = _eval(current)   # frontier_blocks：7h-2 報酬-corr 軟剪比對基準
         trials += 1
         evaluated.add(_layers_canon(current))
         best_phi = phi0
@@ -17231,7 +17276,7 @@ def _auto_search_worker(run_id):
                 break
 
             rnd += 1
-            # 列舉 → 剪枝（lessons/twii/深度）→ dedup → 候選封頂（有界）
+            # 列舉 → 剪枝（lessons/twii/深度）→ dedup → family-diversity 排序 → 候選封頂（有界）
             raw_cands = _auto_search_candidates(current)
             cands = []
             for lbl, lay in raw_cands:
@@ -17241,6 +17286,7 @@ def _auto_search_worker(run_id):
                 if pr is not None:
                     continue
                 cands.append((lbl, lay))
+            cands = _auto_family_diversity_sort(current, cands)   # 7h-3：跨族 add_cs 排前，封頂前優先保留
             cands = cands[:max_cands]
             _auto_touch(run_id, round=rnd, current=current,
                         current_msg=f"round {rnd}: {len(cands)} candidates")
@@ -17253,29 +17299,42 @@ def _auto_search_worker(run_id):
                 for lbl, lay in cands:
                     if _auto_stop_requested(run_id) or trials >= max_trials:
                         break
-                    res, p, phi, g1 = _eval(lay)
+                    res, p, phi, g1, blk = _eval(lay)
                     trials += 1
                     evaluated.add(_layers_canon(lay))
+                    # 7h-2 報酬-corr 軟剪：add_cs 候選 pnl_blocks 對 frontier corr≥0.85 = 換湯不換藥 → 剪
+                    rc = _ft_block_pearson(blk, frontier_blocks) if str(lbl).startswith("add_cs:") else None
+                    if rc is not None and rc >= _AUTO_REPORT_CORR_PRUNE:
+                        history.append({"trial": trials, "label": lbl, "layers": lay, "phi": phi,
+                                        "g1": g1, "cand_id": p["cand_id"],
+                                        "pruned": f"report-corr {round(rc,3)}≥{_AUTO_REPORT_CORR_PRUNE}"})
+                        _auto_touch(run_id, trials=trials, history=history[-50:],
+                                    current_msg=f"round {rnd}: soft-prune {lbl} (報酬-corr {round(rc,3)})")
+                        continue
                     cr = {"label": lbl, "layers": lay, "phi": phi, "g1_pass": g1,
-                          "cand_id": p["cand_id"], "dsr": p["dsr"], "pbo": p["pbo"]}
+                          "cand_id": p["cand_id"], "dsr": p["dsr"], "pbo": p["pbo"], "blocks": blk}
                     cand_results.append(cr)
                     history.append({"trial": trials, "label": lbl, "layers": lay,
                                     "phi": phi, "g1": g1, "cand_id": p["cand_id"]})
-                    _auto_touch(run_id, trials=trials, frontier_candidates=cand_results,
+                    _auto_touch(run_id, trials=trials,
+                                frontier_candidates=[{k: v for k, v in c.items() if k != "blocks"}
+                                                     for c in cand_results],
                                 history=history[-50:],
                                 current_msg=f"round {rnd}: eval {lbl} → Φ={phi} G1={g1}")
 
             # ── 一輪決策（純函式）：留改善層 / 剪退步層 ──
+            _fc_view = [{k: v for k, v in c.items() if k != "blocks"} for c in cand_results]
             best, kept, dropped = _auto_greedy_round_decision(best_phi, cand_results, min_improvement)
             if best is None:
                 stale += 1
-                _auto_touch(run_id, stale_rounds=stale, frontier_candidates=cand_results)
+                _auto_touch(run_id, stale_rounds=stale, frontier_candidates=_fc_view)
                 # stale 達上限 → 換族 random-restart（換因子族）或停止
                 if stale >= stale_limit and enable_restart:
                     rf = _auto_pick_restart_factor(used_factors)
                     if rf is not None:
                         current = [{"factor": rf, "top_k": _CS_DEFAULT_K}]
                         used_factors.add(rf)
+                        frontier_blocks = None      # 新族 frontier 尚未評估 → 暫停報酬-corr 軟剪至重建
                         stale = 0
                         _auto_touch(run_id, frontier=current, current=current,
                                     used_factors=list(used_factors), stale_rounds=stale,
@@ -17287,6 +17346,7 @@ def _auto_search_worker(run_id):
                 # 貪婪：吃下最佳增益層，advance frontier
                 current = best["layers"]
                 best_phi = best["phi"]
+                frontier_blocks = best.get("blocks")   # 7h-2：frontier 前進 → 更新報酬-corr 比對基準
                 stale = 0
                 cf = next((L.get("factor") for L in current
                            if L.get("factor") in _COMPOSITE_CS_FACTORS), None)
