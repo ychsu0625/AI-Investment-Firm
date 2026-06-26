@@ -17965,7 +17965,10 @@ def _layers_factor_set(layers: list) -> frozenset:
 def _ft_match_candidate(layers, market, cur):
     """用 factor-set 把 forward 策略 ↔ composite_candidate 對齊（同 market，取 excess_ci_low 最高且有 16 塊者）。
     回 {blocks, dsr, excess_ci_low} 或 None。讓 manual 策略也能拿到 blocks/DSR/ci 參與 E4 去重 + 取代支配，
-    否則既有 5 支 manual 永無 corr/支配指標可比。"""
+    否則既有 5 支 manual 永無 corr/支配指標可比。
+    ★F2 單窗對齊假設：match 鍵僅 factor-set + market（忽略 start/end）→ 隱含「對齊的 candidate 與被對齊策略
+    的 16 塊來自同一回測窗」。同一 daemon run 用固定窗時成立；若 DB 混入多窗候選，回填的 blocks 可能跨窗錯位，
+    使後續 E4 corr 失準。此為已知假設，非 bug——daemon 固定窗下安全。"""
     want = _layers_factor_set(layers)
     if not want:
         return None
@@ -18005,12 +18008,16 @@ def _ft_strategy_blocks(sid, layers, market, cur):
     return m["blocks"] if m else None
 
 
-def _ft_load_roster(cur, exclude_sid=None):
+def _ft_load_roster(cur, exclude_sid=None, market=None):
     """載入 active forward roster（含每支 16 塊 blocks，供 E4 去重 / 取代支配 / 8d 正交矩陣）。
-    每支帶 roll_dsr / roll_excess_ci_low：auto 用落地欄；manual（欄為 None）回填自對齊 candidate（取代支配可比）。"""
+    每支帶 roll_dsr / roll_excess_ci_low：auto 用落地欄；manual（欄為 None）回填自對齊 candidate（取代支配可比）。
+    ★F1 跨市場隔離：market=None 載全市場；指定 market 則只載該市場 active。E4 去重/取代支配的 16 塊
+    Pearson 隱含「同 (start,end) 對齊」前提——跨市場（甚至跨 daemon 窗）block i 對應不同日曆區間 →
+    跨市場 corr 是錯位比較、語義無效，且 replace 路徑會誤退役他市場策略。故 auto-roll 須傳當前滾入候選
+    的 market、forward_track 正交矩陣按 market 分組各自算。"""
     rows = cur.execute(
         "SELECT id,name,market,layers_json,roll_dsr,roll_excess_ci_low,pnl_blocks_json FROM ft_strategies "
-        "WHERE status='active'").fetchall()
+        "WHERE status='active' AND (? IS NULL OR market=?)", (market, market)).fetchall()
     roster = []
     for sid, name, mkt, lj, rdsr, rci, pbj in rows:
         if exclude_sid is not None and sid == exclude_sid:
@@ -18052,7 +18059,12 @@ def _ft_eval_roll_gates(cand: dict, regime: str, roster: list, cfg: dict) -> dic
     crisis_fl = cfg.get("crisis_floor", _FT_ROLL_CRISIS_FLOOR)
     enable_replace = cfg.get("enable_replace", False)
     per = cand.get("per_regime") or {}
-    target = per.get(regime) if (regime and regime != "ALL") else (cand.get("row") or {})
+    # ★F4：regime != ALL → 取該 regime 切片；ALL → 用全窗指標（by_set 帶 status + excess_avg），
+    #   而非引用不存在的 cand["row"]（會使 target={} → E1=None → 恆 reject_gate 的靜默壞分支）。
+    if regime and regime != "ALL":
+        target = per.get(regime) or {}
+    else:
+        target = {"status": cand.get("status"), "excess_avg": cand.get("excess_avg")}
     reasons = []
 
     # E1 viable edge：目標 regime status==ALPHA（ci_lower>0，全窗）
@@ -18345,20 +18357,27 @@ def forward_auto_roll(config: dict = None, _: None = Depends(require_token)):
         limit = min(max(int(cfg.get("limit", _FT_ROLL_SCAN_LIMIT)), 1), 2000)
     except (TypeError, ValueError):
         limit = _FT_ROLL_SCAN_LIMIT
-    gate_cfg = {"dsr_min": float(cfg.get("dsr_min", _FT_ROLL_DSR_MIN)),
-                "dedup_threshold": float(cfg.get("dedup_threshold", _FT_DEDUP_CORR_MAX)),
-                "crisis_floor": float(cfg.get("crisis_floor", _FT_ROLL_CRISIS_FLOOR)),
+    def _cfg_float(key, default):                # ★F5：body 傳非數字 → 回退預設，不 500（比照 limit 防護）
+        try:
+            return float(cfg.get(key, default))
+        except (TypeError, ValueError):
+            return default
+    gate_cfg = {"dsr_min": _cfg_float("dsr_min", _FT_ROLL_DSR_MIN),
+                "dedup_threshold": _cfg_float("dedup_threshold", _FT_DEDUP_CORR_MAX),
+                "crisis_floor": _cfg_float("crisis_floor", _FT_ROLL_CRISIS_FLOOR),
                 "enable_replace": bool(cfg.get("enable_replace", False))}
 
     con = db(); cur = con.cursor()
     rows = cur.execute(
-        "SELECT cand_id,layers_json,status,dsr,pbo,excess_ci_low,per_regime_json,pnl_blocks_json,created_at "
+        "SELECT cand_id,layers_json,status,excess_avg,dsr,pbo,excess_ci_low,per_regime_json,pnl_blocks_json,created_at "
         "FROM composite_candidates WHERE market=? ORDER BY created_at DESC LIMIT ?",
         (market, limit)).fetchall()
 
-    # 同 factor-set 去冗：每個 factor-set 只取 excess_ci_low 最高且有 16 塊者（避免評估 19 筆 A4∧rev）
+    # 同 factor-set 去冗：每個 factor-set 只取 excess_ci_low 最高且有 16 塊者（避免評估 19 筆 A4∧rev）。
+    # ★F2：去冗鍵僅 factor-set（不含 start/end）→ 隱含「同一 daemon run 用固定回測窗」假設；
+    #   若混入多窗候選，16 塊去重 corr 可能跨窗錯位。同 run 固定窗 → 通常 OK，此處明示假設。
     by_set = {}
-    for cand_id, lj, status, dsr, pbo, ci, prj, pbj, _ts in rows:
+    for cand_id, lj, status, exavg, dsr, pbo, ci, prj, pbj, _ts in rows:
         try:
             layers = json.loads(lj)
             blocks = json.loads(pbj) if pbj else None
@@ -18374,17 +18393,21 @@ def forward_auto_roll(config: dict = None, _: None = Depends(require_token)):
         civ = ci if ci is not None else -9e9
         if prev is None or civ > prev["_ci_sort"]:
             by_set[fset] = {"cand_id": cand_id, "layers": layers, "status": status,
-                            "dsr": dsr, "pbo": pbo, "excess_ci_low": ci, "per_regime": per,
-                            "blocks": blocks, "_ci_sort": civ}
+                            "excess_avg": exavg, "dsr": dsr, "pbo": pbo, "excess_ci_low": ci,
+                            "per_regime": per, "blocks": blocks, "_ci_sort": civ}
     cands = sorted(by_set.values(), key=lambda c: c["_ci_sort"], reverse=True)
 
-    roster = _ft_load_roster(cur)              # 現有 active roster（含 blocks，含 manual 經 factor-set 回填）
+    roster = _ft_load_roster(cur, market=market)   # ★F1 只載同 market roster：E4/取代支配僅對同市場算
     rolled, rejected_collinear, replaced, rejected_gate = [], [], [], []
     now = datetime.now().isoformat()
+    dry_sid_seq = -1   # ★F3 dry_run roster 合成臨時 id（負數遞減）：同輪多支互相共線時不撞 sid=None → 支配 peer 查找正確、預覽分類與實滾一致
 
     for c in cands:
         name = _ft_auto_name(c["layers"])
-        # 冪等：同名 active 已存在 → 跳過（避免重滾）
+        # 冪等：同名 active 已存在 → 跳過（避免重滾）。
+        # ★F6 NIT（by-design，留標記）：同名 retired 者不在此 skip → 下方 ON CONFLICT DO UPDATE status='active'
+        #   會「復活」之；理論上被取代/退役者日後仍可被滾回（churn）。當前 enable_replace 預設 False 不主動退役，
+        #   風險低；若未來開啟取代且觀察到 churn，再於此補 retired 同名 skip。
         exist = cur.execute("SELECT id,status FROM ft_strategies WHERE name=?", (name,)).fetchone()
         if exist and exist[1] == "active":
             continue
@@ -18427,6 +18450,8 @@ def forward_auto_roll(config: dict = None, _: None = Depends(require_token)):
             con.commit()
             new_sid = cur.execute("SELECT id FROM ft_strategies WHERE name=?", (name,)).fetchone()[0]
             audit["strategy_id"] = new_sid
+        else:
+            new_sid = dry_sid_seq; dry_sid_seq -= 1   # ★F3 dry_run 合成臨時 id（負數，全程唯一）
         # in-memory roster 同步（dry/實滾皆做）：取代移除弱者、新支加入 → 同輪後續候選也對它去重
         if replaced_sid is not None:
             roster = [p for p in roster if p.get("sid") != replaced_sid]
@@ -18624,14 +18649,15 @@ def forward_track():
         ov["excess"] += closed_exc; ov["ret"] += closed_ret
 
     # ── R-FWD-8d roster 正交稽核：每支 active 策略對其餘 roster 的 max 報酬-corr（16 塊 Pearson）──
-    roster = _ft_load_roster(cur)              # 含 blocks（manual 經 factor-set 回填）
+    # ★F1：正交矩陣按 market 分組各自算——跨市場 16 塊對應不同日曆窗 → corr 錯位無效，only same-market。
+    roster = _ft_load_roster(cur)              # 含 blocks（manual 經 factor-set 回填）；全市場載，下面按 market 過濾 peer
     by_sid = {p["sid"]: p for p in roster}
     n_pairs_over = 0
     for o in out:
         if o["status"] != "active":
             o["max_corr_to_roster"] = None; o["max_corr_peer"] = None; continue
         me = by_sid.get(o["strategy_id"])
-        others = [p for p in roster if p["sid"] != o["strategy_id"]]
+        others = [p for p in roster if p["sid"] != o["strategy_id"] and p.get("market") == o["market"]]
         mc, peer = _ft_max_corr_to_roster(me.get("blocks") if me else None, others)
         o["max_corr_to_roster"] = (round(mc, 4) if mc is not None else None)
         o["max_corr_peer"] = (by_sid[peer]["name"] if peer in by_sid else None)
