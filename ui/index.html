@@ -150,20 +150,21 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
    組標題(nav-grp-hdr)＝區段標籤：弱化＋字距＋頂部分隔線，一眼看出「不是一顆頁鈕」；
    子項(nav-btn)展開時住進較深的內凹面板(nav-grp-items)，與外面的組標題明顯分層。*/
 .nav-group{display:flex;flex-direction:column;align-items:center;width:100%;flex-shrink:0}
-.nav-grp-hdr{width:48px;min-height:34px;padding:5px 0 4px;margin:3px 0 1px;border:none;background:none;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  color:var(--text3);font-size:12px;letter-spacing:.6px;line-height:1.1;border-radius:var(--r);position:relative;
-  opacity:.62;transition:background .15s,color .15s,opacity .15s}
-.nav-grp-hdr::before{content:"";position:absolute;top:-2px;left:50%;transform:translateX(-50%);
-  width:22px;height:1px;background:var(--border)}
+/* 組標題＝純文字「區段標籤」：無 icon、小字、大字距、頂部分隔線 → 與下方「有 icon 的頁鈕」明顯分流 */
+.nav-grp-hdr{width:48px;min-height:28px;padding:8px 0 4px;margin:7px 0 1px;border:none;background:none;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:var(--text3);font-size:10px;font-weight:600;letter-spacing:1.4px;line-height:1.1;border-radius:var(--r);position:relative;
+  opacity:.5;text-transform:uppercase;transition:background .15s,color .15s,opacity .15s}
+.nav-grp-hdr::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:40px;height:1px;background:var(--border)}
 .nav-group:first-child .nav-grp-hdr::before{display:none}
 .nav-grp-hdr:hover{background:var(--bg4);color:var(--text2);opacity:1}
-.nav-grp-hdr svg{width:15px;height:15px;fill:currentColor;opacity:.9}
-.nav-grp-hdr .ng-caret{position:absolute;right:4px;top:4px;font-size:9px;opacity:.7;transition:transform .15s}
+.nav-grp-hdr svg{display:none}            /* 區段標籤不放 icon → 一眼分得出「組 vs 頁」 */
+.nav-grp-hdr .ng-caret{position:absolute;right:5px;top:7px;font-size:9px;opacity:.7;transition:transform .15s}
 .nav-group.expanded .nav-grp-hdr .ng-caret,
 .nav-group:has(.nav-btn.active) .nav-grp-hdr .ng-caret{transform:rotate(90deg)}
-/* 含當前頁的組 → 標題微亮（看得出在哪一組，但不與子項 active 搶焦點）*/
-.nav-group:has(.nav-btn.active) .nav-grp-hdr{color:var(--blue);opacity:.9}
+/* 含當前頁的組 → 標題只做極輕提示（不藍、不與 active 子項的藍框搶焦點）*/
+.nav-group:has(.nav-btn.active) .nav-grp-hdr{color:var(--text2);opacity:.8}
 /* 子項面板：展開時做成較深的內凹 well，子項住在裡面 → 與外面的組標題分層 */
 .nav-grp-items{display:none;flex-direction:column;align-items:center;gap:3px;width:44px;
   padding:5px 0;margin:1px 0 4px;border-radius:9px;background:var(--bg)}
@@ -266,6 +267,70 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 .ck-more-grp{font-size:12px;font-weight:700;color:var(--text3);margin:4px 0 2px;letter-spacing:.3px}
 /* 右欄：出場 / 持倉分區小標 */
 .ck-subhd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;color:var(--text2);margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--border)}
+
+/* ══ v1.2 drill-down 論證 slide-over（個股 / 策略；不離開決策台）══ */
+.ck-zone-link,.ck-grp-link{cursor:pointer}
+.ck-zone-link:hover,.ck-grp-link:hover{text-decoration:underline}
+.ck-grp-go,.ck-zone-go{color:var(--blue);font-size:11px;font-weight:500;margin-left:4px}
+.ck-sheet-ov{position:fixed;inset:0;background:rgba(1,4,9,.55);z-index:90;opacity:0;pointer-events:none;transition:opacity .2s}
+.ck-sheet-ov.open{opacity:1;pointer-events:auto}
+.ck-sheet{position:fixed;top:0;right:0;height:100%;width:440px;max-width:92vw;
+  background:var(--bg2);border-left:1px solid var(--border);z-index:91;display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .22s ease;box-shadow:-10px 0 30px rgba(0,0,0,.35)}
+.ck-sheet.open{transform:translateX(0)}
+.ck-sheet-hd{display:flex;align-items:flex-start;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.ck-sheet-ttl{flex:1;min-width:0}
+.ck-sheet-t1{font-size:16px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ck-sheet-t2{font-size:12px;color:var(--text3);margin-top:3px}
+.ck-sheet-x{flex-shrink:0;width:30px;height:30px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);
+  border-radius:6px;cursor:pointer;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center}
+.ck-sheet-x:hover{background:var(--bg4);color:var(--text)}
+.ck-sheet-body{flex:1;overflow-y:auto;padding:14px 16px;padding-bottom:40px}
+.ck-sec{margin-bottom:16px}
+.ck-sec-h{font-size:12px;font-weight:700;color:var(--text2);letter-spacing:.3px;margin:0 0 8px}
+.ck-sec-h .ck-sec-n{color:var(--text3);font-weight:500}
+.ck-stratchip{display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;padding:6px 10px;margin:0 6px 6px 0;cursor:pointer;font-size:12px;color:var(--text);transition:border-color .15s,background .15s}
+.ck-stratchip:hover{border-color:var(--blue);background:var(--bg4)}
+.ck-stratchip .ck-sc-st{font-size:11px;color:var(--text3)}
+.ck-stratchip .ck-sc-go{color:var(--blue);font-size:11px}
+.ck-fac{margin-bottom:9px}
+.ck-fac-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:12px;margin-bottom:3px}
+.ck-fac-l{color:var(--text);font-weight:600}
+.ck-fac-r{font-variant-numeric:tabular-nums;color:var(--text2);display:flex;align-items:center;gap:7px}
+.ck-fac-pass{font-size:11px;padding:1px 6px;border-radius:3px;font-weight:600;background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
+.ck-fac-pass.ok{background:rgba(63,185,80,.14);color:var(--green);border-color:transparent}
+.ck-fac-bar{position:relative;height:7px;border-radius:4px;background:var(--bg);border:1px solid var(--border)}
+.ck-fac-fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--text3)}
+.ck-fac-fill.ok{background:var(--green)}
+.ck-fac-thr{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--blue);opacity:.85}
+.ck-fac-na{font-size:12px;color:var(--text3);line-height:1.6}
+.ck-ai-box{background:var(--purple-bg);border:1px solid var(--purple);border-radius:7px;padding:10px 12px}
+.ck-ai-row{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-bottom:6px}
+.ck-ai-row b{color:var(--purple)}
+.ck-ai-sig{font-size:12px;color:var(--text2);line-height:1.6}
+.ck-sheet-btn{display:block;width:100%;text-align:center;background:var(--blue);color:#fff;border:none;
+  border-radius:7px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;margin-top:6px}
+.ck-sheet-btn:hover{filter:brightness(1.08)}
+.ck-sheet-back{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--blue);cursor:pointer;margin-bottom:10px}
+.ck-sheet-back:hover{text-decoration:underline}
+.ck-lay{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px}
+.ck-lay-chip{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:4px 9px;font-size:12px;color:var(--text)}
+.ck-lay-chip .ck-lay-k{color:var(--text3);font-size:11px}
+.ck-lay-and{color:var(--text3);font-size:12px}
+.ck-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+.ck-mini-c{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;min-width:0}
+.ck-mini-l{font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ck-mini-v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text);margin-top:2px}
+.ck-mini-v.up{color:var(--red)}.ck-mini-v.dn{color:var(--green)}
+.ck-row{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:6px;padding:8px 11px;margin-bottom:6px;cursor:pointer;transition:border-color .15s,background .15s}
+.ck-row:hover{border-color:var(--blue);background:var(--bg4)}
+.ck-row-l{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.ck-row-tk{font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.ck-row-nm{font-size:12px;color:var(--text2)}
+.ck-row-r{font-size:12px;color:var(--text3);white-space:nowrap;font-variant-numeric:tabular-nums}
+@media(max-width:760px){ .ck-sheet{width:100%;max-width:100%} }
 
 /* cards */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
@@ -932,7 +997,7 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
           <div class="ck-col">
             <div class="ck-col-hd">
               <span>② 今日該買 <span class="ck-hint">共識排序：多來源確認優先</span></span>
-              <span class="ck-drill" onclick="showPage('expert')">建議論證 →</span>
+              <span class="ck-drill" onclick="ckOpenStrategies()">建議論證 →</span>
             </div>
             <div id="ck-buy-list"><div class="empty-state">載入中…</div></div>
           </div>
@@ -956,6 +1021,19 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
           </div>
           <div class="ck-kpis" id="ck-kpis"><div class="empty-state">載入中…</div></div>
         </div>
+
+        <!-- v1.2 drill-down 論證 slide-over（個股 / 策略；fixed → 覆蓋視窗，不離開決策台）-->
+        <div class="ck-sheet-ov" id="ck-sheet-ov" onclick="ckCloseSheet()"></div>
+        <aside class="ck-sheet" id="ck-sheet" role="dialog" aria-modal="true" aria-labelledby="ck-sheet-t1">
+          <div class="ck-sheet-hd">
+            <div class="ck-sheet-ttl">
+              <div class="ck-sheet-t1" id="ck-sheet-t1"></div>
+              <div class="ck-sheet-t2" id="ck-sheet-t2"></div>
+            </div>
+            <button class="ck-sheet-x" onclick="ckCloseSheet()" aria-label="關閉論證面板" title="關閉 (Esc)">✕</button>
+          </div>
+          <div class="ck-sheet-body" id="ck-sheet-body"></div>
+        </aside>
 
       </div>
 
@@ -5612,7 +5690,7 @@ function tradeRender() {
       <td style="text-align:right;color:var(--text3)">${Math.round(t.tax||0).toLocaleString()}</td>
       <td style="text-align:right;font-weight:600;color:${net>=0?'var(--green)':'var(--red)'}">${Math.round(net).toLocaleString()}</td>
       <td style="color:var(--text3);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.note||''}</td>
-      <td style="white-space:nowrap"><button onclick="tradeEdit(${t.id})" style="background:none;border:none;cursor:pointer;font-size:13px" title="編輯">✏️</button><button onclick="tradeDelete(${t.id})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:13px" title="刪除">🗑</button></td>
+      <td style="white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:10px"><button onclick="tradeEdit(${t.id})" style="background:none;border:none;cursor:pointer;font-size:17px;line-height:1;padding:5px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center" title="編輯">✏️</button><button onclick="tradeDelete(${t.id})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:17px;line-height:1;padding:5px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center" title="刪除">🗑</button></span></td>
     </tr>`;
   }
   html += '</tbody></table>';
@@ -8766,10 +8844,9 @@ async function _rhRescan() {
 // ══════════════════════════════════════════════════════════════════════════
 function toggleNavGroup(hdr){
   const grp = hdr.closest('.nav-group'); if(!grp) return;
-  const open = !grp.classList.contains('expanded');
-  // 手風琴：點開一組時收起其他「手動展開」的組（含當前頁的組仍由 :has 保持可見）
-  document.querySelectorAll('#nav .nav-group').forEach(g=>{ if(g!==grp) g.classList.remove('expanded'); });
-  grp.classList.toggle('expanded', open);
+  // v1.2：各組獨立 toggle（多組可同時展開；手動展開的組不因切頁/開別組而收合）
+  // 含當前頁的組由 :has(.nav-btn.active) 持續保持可見，與此手動 expanded 狀態互不干擾。
+  grp.classList.toggle('expanded');
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -8788,6 +8865,21 @@ const _CK_GATE = {
   UNKNOWN:{txt:'⚪ 無法判斷', sub:'指數資料不足，暫不給進場結論'}
 };
 const _CK_VIXZH = {VIX_LOW:'低波(自滿)', VIX_MID:'中性', VIX_HIGH:'高波(恐懼)'};
+
+// ── v1.2 drill-down 論證：因子人話名 + 狀態（由 ckLoadPicks 填，純前端、零後端）──
+const _CK_FAC = {
+  raw_mom:'絕對動量', rel_str:'相對強度', resid_mom:'殘差動量',
+  sector_rel:'板塊相對', sector_rel_topsec:'板塊相對強',
+  inst_net_buy:'外資淨買', trust_net_buy:'投信淨買', short_squeeze:'軋空力道',
+  revenue_mom:'月營收動量'
+};
+function _ckFacName(f){ return _CK_FAC[f]||f; }
+let _ckStrat={};        // sid -> {name,layers,regime_gate,vix_gate,horizon_days,market,benchmark}
+let _ckTrack={};        // sid -> track 戰績
+let _ckPicksByTk={};    // ticker -> [pick(含 rank,_sid,status,...)]
+let _ckPicksBySid={};   // sid -> [pick]
+let _ckAi={};           // code -> ic rec
+let _ckFlagSid=null;    // 旗艦策略 sid（A4∧revenue_mom）
 
 let _ckBusy=false;
 async function cockpitLoad(){
@@ -8855,7 +8947,7 @@ function ckPickCard(p, cls, tags, statusZh, excess){
   const ref=p.ref_price!=null?Number(p.ref_price).toLocaleString(undefined,{maximumFractionDigits:2}):'--';
   const excCls=_ckSignCls(excess); const excTxt=(excess!=null&&excess!=='')?(_ckArrow(excess)+_ckPct(excess)):'';
   const m=((p._mkt||'TW')==='US')?'US':'TW';
-  return '<div class="ck-card '+cls+'" onclick="openChart(\''+tk+'\',\''+m+'\')">'+
+  return '<div class="ck-card '+cls+'" onclick="ckOpenStock(\''+tk+'\',\''+m+'\')">'+
     '<div class="ck-card-top"><span class="ck-tk">'+tk+'</span><span class="ck-nm">'+nm+'</span>'+tags+'</div>'+
     '<div class="ck-card-meta">'+
       (p._strat?'<span>'+_ckEsc(p._strat)+'</span>':'')+
@@ -8870,7 +8962,7 @@ function ckAiCard(x){
   const conf=x.confidence!=null?Math.round(Number(x.confidence)*100)+'%':'';
   const score=x.score!=null?Number(x.score).toFixed(0):'';
   const m=((x.market||'TW')==='US')?'US':'TW';
-  return '<div class="ck-card ai" onclick="openChart(\''+tk+'\',\''+m+'\')">'+
+  return '<div class="ck-card ai" onclick="ckOpenStock(\''+tk+'\',\''+m+'\')">'+
     '<div class="ck-card-top"><span class="ck-tk">'+tk+'</span><span class="ck-nm">'+nm+'</span>'+
       '<span class="ck-tag ai">AI建議</span></div>'+
     '<div class="ck-card-meta">'+
@@ -8896,7 +8988,7 @@ function ckConsCard(c){
   if(c.fwdN>0) meta.push('<span>前向 '+c.fwdN+' 策略</span>');
   if(ref) meta.push('<span>參考價 '+ref+'</span>');
   if(c.aiScore!=null) meta.push('<span>AI '+Math.round(c.aiScore)+'</span>');
-  return '<div class="ck-card cons" onclick="openChart(\''+tk+'\',\''+m+'\')">'+
+  return '<div class="ck-card cons" onclick="ckOpenStock(\''+tk+'\',\''+m+'\')">'+
     '<div class="ck-card-top"><span class="ck-tk">'+tk+'</span><span class="ck-nm">'+nm+'</span>'+
       '<span class="ck-tag cons-n">'+c.srcs.length+' 來源</span>'+badges+'</div>'+
     (meta.length?('<div class="ck-card-meta">'+meta.join('')+'</div>'):'')+'</div>';
@@ -8912,11 +9004,22 @@ async function ckLoadPicks(){
   if(!buyEl||!sellEl) return;
   const mkt=(typeof currentMarket!=='undefined'?currentMarket:'TW');
 
+  // v1.2：重置 drill-down 論證索引（每次刷新重建；純前端、零後端）
+  _ckStrat={}; _ckTrack={}; _ckPicksByTk={}; _ckPicksBySid={}; _ckFlagSid=null;
+
   // 來源 1/2：前向實盤 4 策略 picks（依策略名分類：旗艦=A4∧revenue_mom / 籌碼=inst_net_buy / 其他前向）
   let strategies=[];
   try{
     const t=await fetch(API+'/api/forward/track',{headers:authHeaders()}).then(r=>r.json());
+    ((t&&t.strategies)||[]).forEach(s=>{ _ckTrack[String(s.strategy_id)]=s; });   // 戰績（drill 用）
     strategies=((t&&t.strategies)||[]).filter(s=>s.status==='active');
+  }catch(e){}
+  // 策略定義（layers/top_k/regime_gate/vix_gate）→ drill 論證用
+  try{
+    const sd=await fetch(API+'/api/forward/strategies',{headers:authHeaders()}).then(r=>r.json());
+    ((sd&&sd.strategies)||[]).forEach(s=>{ _ckStrat[String(s.id)]={
+      name:s.name, layers:s.layers||[], regime_gate:s.regime_gate, vix_gate:s.vix_gate,
+      horizon_days:s.horizon_days, market:s.market, benchmark:s.benchmark }; });
   }catch(e){}
   let allPicks=[];
   if(strategies.length){
@@ -8928,8 +9031,12 @@ async function ckLoadPicks(){
         const nm=o.s.name||'';
         const isChip=/inst_net_buy/i.test(nm);
         const isFlag=/revenue_mom/i.test(nm)&&!isChip&&!/vix/i.test(nm);
+        if(isFlag && _ckFlagSid==null) _ckFlagSid=o.s.strategy_id;
         o.picks.forEach(p=>{ p._strat=nm; p._sid=o.s.strategy_id; p._horizon=o.s.horizon_days;
-          p._mkt=o.s.market; p._isChip=isChip; p._isFlag=isFlag; allPicks.push(p); });
+          p._mkt=o.s.market; p._isChip=isChip; p._isFlag=isFlag; allPicks.push(p);
+          const tk=String(p.ticker), sk=String(o.s.strategy_id);
+          (_ckPicksByTk[tk]=_ckPicksByTk[tk]||[]).push(p);
+          (_ckPicksBySid[sk]=_ckPicksBySid[sk]||[]).push(p); });
       });
     }catch(e){}
   }
@@ -8940,6 +9047,7 @@ async function ckLoadPicks(){
     aiBuy=(((rr&&rr.data)||[]).filter(x=>String(x.direction||'').toUpperCase()==='BUY'));
   }catch(e){}
   const aiByCode={}; aiBuy.forEach(x=>{ aiByCode[String(x.code)]=x; });
+  _ckAi=aiByCode;   // drill 論證：個股 AI 區塊用
 
   // ── 共識計算（本地 set 運算，零後端、零 LLM token）──
   const fwdActive=allPicks.filter(p=>p.status==='pending'||p.status==='open');
@@ -8986,8 +9094,10 @@ async function ckLoadPicks(){
       p.status==='pending'?'今日新選(待進場)':'持有中', p.status==='closed'?p.realized_excess:p.mark_excess));
   });
   if(flagCards.length){
-    zones.push('<div class="ck-zone"><div class="ck-zone-hd">🚩 旗艦 A4∧月營收 '+
-      '<span class="ck-zone-n">DSR 最佳策略</span></div><div class="ck-cards">'+flagCards.join('')+'</div></div>');
+    const flagHd = _ckFlagSid!=null
+      ? '<div class="ck-zone-hd ck-zone-link" onclick="ckOpenStrategy('+_ckFlagSid+')">🚩 旗艦 A4∧月營收 <span class="ck-zone-n">DSR 最佳策略<span class="ck-zone-go"> · 論證 →</span></span></div>'
+      : '<div class="ck-zone-hd">🚩 旗艦 A4∧月營收 <span class="ck-zone-n">DSR 最佳策略</span></div>';
+    zones.push('<div class="ck-zone">'+flagHd+'<div class="ck-cards">'+flagCards.join('')+'</div></div>');
   }
   // 其他策略：收合，不攤平 → 依策略分組（A4基準 / 籌碼對照 / @VIX 變體）+ AI 建議
   const otherPicks=fwdActive.filter(p=>!p._isFlag&&!consSet.has(String(p.ticker)));
@@ -8996,12 +9106,18 @@ async function ckLoadPicks(){
   otherPicks.forEach(p=>{ const k=p._strat||'其他'; if(!byStrat[k]){byStrat[k]=[];stratOrder.push(k);} byStrat[k].push(p); });
   let body='', renderedOther=0;
   stratOrder.forEach(k=>{
+    const sid=(byStrat[k][0]&&byStrat[k][0]._sid);
     const seen=new Set(); const cards=[];
     byStrat[k].forEach(p=>{ const tk=String(p.ticker); if(seen.has(tk))return; seen.add(tk);
       const tag=p._isChip?'<span class="ck-tag src-chip">籌碼</span>':'<span class="ck-tag fwd">前向</span>';
       cards.push(ckPickCard(p,'',tag, p.status==='pending'?'今日新選':'持有中',
         p.status==='closed'?p.realized_excess:p.mark_excess)); });
-    if(cards.length){ body+='<div class="ck-more-grp">'+_ckEsc(k)+' ('+cards.length+')</div>'+cards.join(''); renderedOther+=cards.length; }
+    if(cards.length){
+      const grpHd = sid!=null
+        ? '<div class="ck-more-grp ck-grp-link" onclick="ckOpenStrategy('+sid+')">'+_ckEsc(k)+' ('+cards.length+')<span class="ck-grp-go">論證 →</span></div>'
+        : '<div class="ck-more-grp">'+_ckEsc(k)+' ('+cards.length+')</div>';
+      body+=grpHd+cards.join(''); renderedOther+=cards.length;
+    }
   });
   if(aiOnly.length){ body+='<div class="ck-more-grp">AI 建議 ('+aiOnly.length+')</div>'+aiOnly.map(ckAiCard).join(''); renderedOther+=aiOnly.length; }
   if(renderedOther){
@@ -9036,7 +9152,7 @@ async function ckLoadPositions(){
       const flag=(it.market==='US')?'🇺🇸':'🇹🇼';
       const w=(it.weight_pct!=null)?Number(it.weight_pct).toFixed(1)+'%':'--';
       const over=(it.weight_pct!=null&&it.weight_pct>20);
-      return '<div class="ck-card pos" onclick="openChart(\''+_ckEsc(it.code)+'\',\''+m+'\')">'+
+      return '<div class="ck-card pos" onclick="ckOpenStock(\''+_ckEsc(it.code)+'\',\''+m+'\')">'+
         '<div class="ck-card-top"><span class="ck-tk">'+_ckEsc(it.code)+'</span>'+
         '<span class="ck-nm">'+_ckEsc(it.name||'')+'</span>'+
         '<span class="ck-tag">'+flag+' 持倉</span>'+
@@ -9073,6 +9189,195 @@ async function ckLoadKpis(){
     'open '+(ov.open||0)+' · pend '+(ov.pending||0)+' · closed '+(ov.closed||0), ''));
   cards.push(ckKpi('起跑天數', maxDays+' 天', (strategies.length||0)+' 個策略追蹤', ''));
   el.innerHTML=cards.join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  v1.2 drill-down 論證層（個股 / 策略 slide-over）— 漸進揭露；純前端、零後端
+//  資料源：picks.rank（因子百分位）+ strategies.layers（top_k/dir/gate）+ track（live 戰績）+ ic recs（AI）
+// ══════════════════════════════════════════════════════════════════════════
+function ckCloseSheet(){
+  const sh=document.getElementById('ck-sheet'), ov=document.getElementById('ck-sheet-ov');
+  if(sh) sh.classList.remove('open');
+  if(ov) ov.classList.remove('open');
+}
+function _ckSheet(title, sub, bodyHtml){
+  const sh=document.getElementById('ck-sheet'), ov=document.getElementById('ck-sheet-ov');
+  const t1=document.getElementById('ck-sheet-t1'), t2=document.getElementById('ck-sheet-t2'), bd=document.getElementById('ck-sheet-body');
+  if(!sh||!bd) return;
+  t1.innerHTML=title; t2.innerHTML=sub||''; bd.innerHTML=bodyHtml;
+  bd.scrollTop=0;
+  if(ov) ov.classList.add('open'); sh.classList.add('open');
+}
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') ckCloseSheet(); });
+
+// 因子百分位 bar：pct∈[0,1]（1=最高）；dir+1 取「前 K%」(pct≥1−K)、dir−1 取「後 K%」(pct≤K)
+function _ckFacBar(factor, pct, top_k, dir){
+  const label=_ckFacName(factor);
+  const k=(top_k!=null&&!isNaN(top_k))?Number(top_k):0.2;
+  const d=(dir!=null&&Number(dir)<0)?-1:1;
+  if(pct==null||pct===''||isNaN(pct)){
+    return '<div class="ck-fac"><div class="ck-fac-top"><span class="ck-fac-l">'+_ckEsc(label)+'</span>'+
+      '<span class="ck-fac-na">資料缺 · 由其他層通過</span></div></div>';
+  }
+  const pn=Number(pct);
+  const pass = d>=0 ? (pn>=1-k) : (pn<=k);
+  const bandTxt = (d>=0?'前':'後')+Math.round(k*100)+'%';
+  const thrPos = (d>=0 ? (1-k) : k)*100;
+  const fillW = Math.max(0,Math.min(100,pn*100));
+  return '<div class="ck-fac"><div class="ck-fac-top">'+
+    '<span class="ck-fac-l">'+_ckEsc(label)+'</span>'+
+    '<span class="ck-fac-r"><span>'+Math.round(pn*100)+'%</span>'+
+      '<span class="ck-fac-pass '+(pass?'ok':'')+'">'+bandTxt+(pass?' ✓':' ✕')+'</span></span></div>'+
+    '<div class="ck-fac-bar"><div class="ck-fac-fill '+(pass?'ok':'')+'" style="width:'+fillW.toFixed(0)+'%"></div>'+
+      '<div class="ck-fac-thr" style="left:'+thrPos.toFixed(0)+'%"></div></div></div>';
+}
+
+// ① 個股論證面板：被哪些策略選中 + 關鍵因子百分位 + AI + 看完整分析
+function ckOpenStock(tk, mkt){
+  tk=String(tk); const m=(mkt==='US')?'US':'TW';
+  const picks=_ckPicksByTk[tk]||[];
+  const ai=_ckAi[tk];
+  const nm=(picks[0]&&picks[0].name)||(ai&&ai.name)||'';
+  const flag=(m==='US')?'🇺🇸':'🇹🇼';
+  // 依策略分組（一檔可被多策略選中）
+  const bySid={}; picks.forEach(p=>{ (bySid[String(p._sid)]=bySid[String(p._sid)]||[]).push(p); });
+  const sids=Object.keys(bySid);
+  // ① 被哪些策略選中（chip 可點 → 策略論證）
+  let secStrat;
+  if(sids.length){
+    secStrat=sids.map(sid=>{
+      const sdef=_ckStrat[sid]; const sn=(sdef&&sdef.name)||(bySid[sid][0]._strat)||('策略#'+sid);
+      const st=bySid[sid][0].status;
+      const stZh=st==='pending'?'今日新選':(st==='open'?'持有中':(st==='closed'?'已結算':st));
+      return '<span class="ck-stratchip" onclick="ckOpenStrategy('+sid+')">'+
+        '<span>'+_ckEsc(sn)+'</span><span class="ck-sc-st">'+stZh+'</span><span class="ck-sc-go">論證 →</span></span>';
+    }).join('');
+  } else {
+    secStrat='<div class="ck-fac-na">目前無前向策略選中此檔（可能為 AI 建議或既有持倉）</div>';
+  }
+  // ② 關鍵因子百分位（跨選中策略聚合；同因子取最嚴 top_k）
+  const facAgg={}, facOrder=[], events=[];
+  sids.forEach(sid=>{
+    const sdef=_ckStrat[sid]; if(!sdef||!sdef.layers) return;
+    const rank=(bySid[sid][0].rank)||{};
+    sdef.layers.forEach(L=>{
+      if(L&&L.type==='pead'){ if(events.indexOf('財報事件 PEAD')<0)events.push('財報事件 PEAD'); return; }
+      if(L&&L.type==='chip'){ const e='籌碼連買'+(L.window?('（'+L.window+'日）'):''); if(events.indexOf(e)<0)events.push(e); return; }
+      const f=L&&L.factor; if(!f) return;
+      const pct=(rank[f]!=null?rank[f]:null);
+      if(!facAgg[f]){ facAgg[f]={pct:pct, top_k:L.top_k, dir:(L.dir||1)}; facOrder.push(f); }
+      else { if(facAgg[f].pct==null&&pct!=null)facAgg[f].pct=pct;
+        if(L.top_k!=null&&(facAgg[f].top_k==null||L.top_k<facAgg[f].top_k))facAgg[f].top_k=L.top_k; }
+    });
+  });
+  let secFac='';
+  if(facOrder.length) secFac=facOrder.map(f=>_ckFacBar(f, facAgg[f].pct, facAgg[f].top_k, facAgg[f].dir)).join('');
+  if(events.length) secFac+='<div class="ck-fac"><div class="ck-fac-top"><span class="ck-fac-l">事件 / 籌碼層</span>'+
+    '<span class="ck-fac-pass ok">'+events.map(_ckEsc).join(' · ')+' ✓</span></div></div>';
+  if(!secFac) secFac='<div class="ck-fac-na">此檔非因子策略選中，無因子百分位可顯示</div>';
+  // ③ AI 建議（若 AI 也選中）
+  let secAi='';
+  if(ai){
+    const score=ai.score!=null?Number(ai.score).toFixed(0):'--';
+    const conf=ai.confidence!=null?Math.round(Number(ai.confidence)*100)+'%':'--';
+    const sig=((ai.signals||[]).slice(0,5).join(' · '))||String(ai.ai_analysis||'').slice(0,120);
+    secAi='<div class="ck-sec"><div class="ck-sec-h">③ AI 建議 <span class="ck-sec-n">技術面快評</span></div>'+
+      '<div class="ck-ai-box"><div class="ck-ai-row"><span>分數 <b>'+_ckEsc(score)+'</b></span>'+
+      '<span>信心 <b>'+_ckEsc(conf)+'</b></span><span>方向 <b>BUY</b></span></div>'+
+      (sig?'<div class="ck-ai-sig">'+_ckEsc(sig)+'</div>':'')+'</div></div>';
+  }
+  const body=
+    '<div class="ck-sec"><div class="ck-sec-h">① 被哪些策略選中 <span class="ck-sec-n">點策略看完整論證</span></div>'+secStrat+'</div>'+
+    '<div class="ck-sec"><div class="ck-sec-h">② 關鍵因子百分位 <span class="ck-sec-n">為什麼這檔被選 · 藍線＝門檻</span></div>'+secFac+'</div>'+
+    secAi+
+    '<button class="ck-sheet-btn" onclick="ckCloseSheet();openChart(\''+_ckEsc(tk)+'\',\''+m+'\')">看完整分析 →</button>';
+  const title='<span>'+flag+' '+_ckEsc(tk)+'</span>'+(nm?'<span class="ck-nm">'+_ckEsc(nm)+'</span>':'');
+  _ckSheet(title, '個股論證 · 決策台', body);
+}
+
+// ② 策略論證面板：堆疊條件(layers/top_k) + 閘門 + live 戰績 + 今日該策略 picks
+function ckOpenStrategy(sid){
+  sid=String(sid);
+  const sdef=_ckStrat[sid], tr=_ckTrack[sid];
+  if(!sdef){ _ckSheet('<span>策略 #'+_ckEsc(sid)+'</span>','策略論證','<div class="ck-fac-na">策略定義載入中或不存在，稍後再試</div>'); return; }
+  // 堆疊條件（AND）
+  const layHtml=(sdef.layers||[]).map(L=>{
+    if(L&&L.type==='pead') return '<span class="ck-lay-chip">財報事件 PEAD</span>';
+    if(L&&L.type==='chip') return '<span class="ck-lay-chip">籌碼連買 <span class="ck-lay-k">'+(L.window||3)+'日</span></span>';
+    const dir=(L&&L.dir!=null&&Number(L.dir)<0)?-1:1;
+    const band=(dir>=0?'前':'後')+Math.round((L&&L.top_k!=null?L.top_k:0.2)*100)+'%';
+    return '<span class="ck-lay-chip">'+_ckEsc(_ckFacName(L&&L.factor))+' <span class="ck-lay-k">'+band+'</span></span>';
+  }).join('<span class="ck-lay-and">∧</span>');
+  // 閘門
+  const gates=[];
+  if(sdef.regime_gate) gates.push('regime='+_ckEsc(sdef.regime_gate));
+  if(sdef.vix_gate) gates.push('VIX='+_ckEsc(sdef.vix_gate));
+  gates.push('持有 '+(sdef.horizon_days!=null?sdef.horizon_days:'--')+'日');
+  gates.push('基準 '+_ckEsc(sdef.benchmark||'equal_weight'));
+  // live 戰績
+  let live='<div class="ck-fac-na">尚無 live 戰績資料</div>';
+  if(tr){
+    const ce=tr.closed_avg_excess;
+    const ceTxt=ce!=null?(_ckArrow(ce)+_ckPct(ce)):(tr.n_picks?'追蹤中':'--');
+    const mini=[
+      ['平均超額', ceTxt, _ckSignCls(ce)],
+      ['勝率', tr.win_rate_pct!=null?(Number(tr.win_rate_pct).toFixed(0)+'%'):'--', ''],
+      ['追蹤檔數', (tr.n_picks||0)+'', ''],
+      ['open/pend/closed', (tr.open||0)+'/'+(tr.pending||0)+'/'+(tr.closed||0), ''],
+      ['起跑天數', (tr.days_since_start||0)+'天', ''],
+      ['live 平均', tr.live_avg_excess!=null?(_ckArrow(tr.live_avg_excess)+_ckPct(tr.live_avg_excess)):'--', _ckSignCls(tr.live_avg_excess)]
+    ];
+    live='<div class="ck-mini">'+mini.map(x=>'<div class="ck-mini-c"><div class="ck-mini-l">'+_ckEsc(x[0])+
+      '</div><div class="ck-mini-v '+(x[2]||'')+'">'+_ckEsc(x[1])+'</div></div>').join('')+'</div>';
+    const bw=[];
+    if(tr.best) bw.push('最佳 '+_ckEsc(tr.best.ticker)+' '+_ckArrow(tr.best.excess)+_ckPct(tr.best.excess));
+    if(tr.worst) bw.push('最差 '+_ckEsc(tr.worst.ticker)+' '+_ckArrow(tr.worst.excess)+_ckPct(tr.worst.excess));
+    if(bw.length) live+='<div class="ck-fac-na" style="margin-top:4px">'+bw.join(' · ')+'</div>';
+  }
+  // 今日該策略 picks（active）
+  const ps=_ckPicksBySid[sid]||[]; const seen=new Set();
+  const active=ps.filter(p=>{ if(p.status!=='pending'&&p.status!=='open')return false;
+    const t=String(p.ticker); if(seen.has(t))return false; seen.add(t); return true; });
+  let picksHtml='<div class="ck-fac-na">今日無 pick（可能未過 regime/VIX 閘）</div>';
+  if(active.length){
+    picksHtml=active.map(p=>{
+      const t=String(p.ticker); const pm=(p._mkt==='US')?'US':'TW';
+      const stZh=p.status==='pending'?'今日新選':'持有中';
+      return '<div class="ck-row" onclick="ckOpenStock(\''+_ckEsc(t)+'\',\''+pm+'\')">'+
+        '<span class="ck-row-l"><span class="ck-row-tk">'+_ckEsc(t)+'</span><span class="ck-row-nm">'+_ckEsc(p.name||'')+'</span></span>'+
+        '<span class="ck-row-r">'+stZh+' ›</span></div>';
+    }).join('');
+  }
+  const body=
+    '<span class="ck-sheet-back" onclick="ckOpenStrategies()">‹ 所有策略</span>'+
+    '<div class="ck-sec"><div class="ck-sec-h">堆疊條件（AND）<span class="ck-sec-n">層層篩選 · top_k 門檻</span></div>'+
+      '<div class="ck-lay">'+(layHtml||'<span class="ck-fac-na">無</span>')+'</div>'+
+      '<div class="ck-fac-na" style="margin-top:6px">閘門：'+gates.join(' · ')+'</div></div>'+
+    '<div class="ck-sec"><div class="ck-sec-h">live-forward 戰績 <span class="ck-sec-n">前向實盤 OOS · 紙上實盤</span></div>'+live+'</div>'+
+    '<div class="ck-sec"><div class="ck-sec-h">今日該策略 picks <span class="ck-sec-n">'+active.length+' 檔 · 點看個股論證</span></div>'+picksHtml+'</div>';
+  _ckSheet('<span>'+_ckEsc(sdef.name||('策略#'+sid))+'</span>', '策略論證 · '+_ckEsc(sdef.market||'TW'), body);
+}
+
+// ③ 建議論證總覽：列出今日所有策略（方法 + live 戰績），每列可點 → 單一策略論證
+function ckOpenStrategies(){
+  const sids=Object.keys(_ckStrat);
+  let rows='<div class="ck-fac-na">策略載入中…（請確認前向實盤已啟動）</div>';
+  if(sids.length){
+    rows=sids.map(sid=>{
+      const s=_ckStrat[sid], tr=_ckTrack[sid];
+      const lay=(s.layers||[]).map(L=>L&&L.type?(L.type==='pead'?'PEAD':'籌碼'):_ckFacName(L&&L.factor)).join('∧');
+      const ce=tr&&tr.closed_avg_excess;
+      const liveTxt = tr ? (ce!=null?(_ckArrow(ce)+_ckPct(ce)):(tr.n_picks?(tr.n_picks+'檔追蹤中'):'今日無 pick')) : '--';
+      return '<div class="ck-row" onclick="ckOpenStrategy('+sid+')">'+
+        '<span class="ck-row-l"><span class="ck-row-tk" style="font-size:13px">'+_ckEsc(s.name)+'</span>'+
+          '<span class="ck-row-nm">'+_ckEsc(lay)+(s.regime_gate?(' · '+_ckEsc(s.regime_gate)):'')+'</span></span>'+
+        '<span class="ck-row-r '+(_ckSignCls(ce))+'">'+_ckEsc(liveTxt)+' ›</span></div>';
+    }).join('');
+  }
+  const body='<div class="ck-sec">'+
+    '<div class="ck-fac-na" style="margin-bottom:12px">「今日該買」由下列前向實盤策略各自選股後做<b style="color:var(--text2)">共識排序</b>（多來源確認優先）。點任一策略，看其堆疊條件、閘門與實盤戰績。</div>'+
+    rows+'</div>';
+  _ckSheet('<span>策略論證總覽</span>', '建議從何而來 · '+sids.length+' 個策略', body);
 }
 
 // 首屏即決策台 → 直接載入；每 60s 在決策台可見時刷新（含 header 切換 TW/US 後自動跟上）
