@@ -11652,6 +11652,20 @@ def _ensure_ic_calibration_table():
             VALUES('TREND_UP','A4topsec',58.0,0.83,0.29,1.43,2748,'ALPHA_CANDIDATE','equal_weight',?,?)""",
             ("MVP 硬寫地基：A4 板塊兩層複合 TREND_UP 條件切片，對等權公平基準超額（公司唯一過 ALPHA 閘的候選 alpha）",
              datetime.now().isoformat()))
+    # ── 旗艦 A4∧月營收（EXP-2026-006）真驗校準 row：冪等 upsert（不存在才種，已存在不覆寫，夜間 job 可後續更新）──
+    seed_rev = con.execute(
+        "SELECT 1 FROM ic_confidence_calibration WHERE regime='TREND_UP' AND bucket='A4_revenue'"
+    ).fetchone()
+    if not seed_rev:
+        # win_rate 留 NULL：研發 g1_row 勝率%未持久化（LEDGER 只記 excess/CI/N/DSR），誠實不臆造。
+        #   → _ic_calc_confidence 對 win_rate=None 退回既有啟發式信心（不假裝校準背書）；
+        #   badge/excess/CI/DSR 背書照常。待 AIF 補 g1_row 真值後夜間 job 覆寫即生效校準背書。
+        con.execute("""INSERT INTO ic_confidence_calibration
+            (regime,bucket,win_rate,excess_avg,ci_low,ci_high,n,status,benchmark,note,updated_at)
+            VALUES('TREND_UP','A4_revenue',NULL,2.08,1.11,3.01,847,'ALPHA_CANDIDATE','equal_weight',?,?)""",
+            ("A4∧月營收 旗艦·DSR跨閘·PBO假警報已解(6月OOS holdout不崩)·順勢型｜dsr=0.968｜EXP-2026-006"
+             "｜win_rate 待補 g1_row 真值(未持久化→暫退啟發式信心，excess/CI/DSR 背書照常)",
+             datetime.now().isoformat()))
     con.commit(); con.close()
 
 
@@ -11753,6 +11767,67 @@ def _a4_topsec_runtime_map(market: str, asof_date: str = "", _window_days: int =
     return out
 
 
+_REVENUE_RUNTIME_CACHE = {}  # (market, asof_date) -> (ts, map)
+
+def _revenue_mom_runtime_map(market: str, asof_date: str = "", _window_days: int = 220) -> dict:
+    """旗艦 A4∧月營收 的 runtime 月營收 overlay（鏡像 _a4_topsec_runtime_map）。
+
+    與回測『同源同邏輯』：複用同一組純函式
+      get_universe → _load_backtest_data → _compute_stock_features
+      → _compute_revenue_cs_factors（讀 revenue_monthly，PIT 對齊 announce_date<d 嚴格）
+    回傳最新交易日的 {code: revenue_mom_raw} + 橫斷面 rank_pct（1=月營收動量最強，與回測 cs 排名同邏輯）。
+    PIT 防洩漏由 _revenue_factor_series 保證（每交易日只納 announce_date 嚴格 < d 的已公布月營收）。
+
+    【TW-gated】月營收僅 TW（revenue_monthly market='TW'）。mkt≠TW 回空 map → A4_revenue 桶在 US 自然不形成
+    （A4_US 已證無 alpha，不借 TW 信心）。整 universe 算一次、快取（與 A4 runtime 同 TTL）。"""
+    market = (market or "TW").upper()
+    if not asof_date:
+        asof_date = datetime.now().strftime("%Y-%m-%d")
+    cache_key = (market, asof_date)
+    cached = _REVENUE_RUNTIME_CACHE.get(cache_key)
+    if cached and time.time() - cached[0] < 3600:
+        return cached[1]
+    out = {"date": None, "rank_pct": {}, "raw": {},
+           "n_universe": 0, "n_revenue": 0, "market": market}
+    if market != "TW":                                      # TW-gated：他市場不形成 A4_revenue 桶
+        _REVENUE_RUNTIME_CACHE[cache_key] = (time.time(), out); return out
+    try:
+        uni = get_universe(market)
+        if isinstance(uni, JSONResponse):
+            _REVENUE_RUNTIME_CACHE[cache_key] = (time.time(), out); return out
+        raw = uni.get("data", uni.get("stocks", []))
+        codes = [s if isinstance(s, str) else s.get("code", "") for s in raw]
+        codes = [c for c in codes if c]
+        if not codes:
+            _REVENUE_RUNTIME_CACHE[cache_key] = (time.time(), out); return out
+        out["n_universe"] = len(codes)
+        from datetime import timedelta as _td
+        start = (datetime.strptime(asof_date, "%Y-%m-%d") - _td(days=_window_days)).strftime("%Y-%m-%d")
+        all_dates, bar_data = _load_backtest_data(codes, market, start, asof_date)
+        feats = {}
+        for code in codes:
+            f = _compute_stock_features(code, all_dates, bar_data)
+            if f:
+                feats[code] = f
+        rev_fv = _compute_revenue_cs_factors(market, codes, feats, {"revenue_mom"})
+        dmap = rev_fv.get("revenue_mom", {})               # {date: {code: raw_val}}
+        latest = max(dmap.keys()) if dmap else None         # 最新有月營收 cs 值的交易日
+        out["date"] = latest
+        if latest:
+            cvals = dict(dmap[latest])
+            out["raw"] = cvals
+            out["n_revenue"] = len(cvals)
+            if len(cvals) >= _CS_MIN_XSECTION:              # 同 base-rate 暖身樣本門檻才排名
+                items = sorted(cvals.items(), key=lambda kv: kv[1])   # 升冪 → 高值 rank_pct 近 1
+                denom = (len(cvals) - 1) if len(cvals) > 1 else 1
+                for ri, (cc, _v) in enumerate(items):
+                    out["rank_pct"][cc] = ri / denom
+    except Exception as e:
+        out["error"] = str(e)
+    _REVENUE_RUNTIME_CACHE[cache_key] = (time.time(), out)
+    return out
+
+
 def _ic_chip_consecutive_buy(code: str, market: str = "TW") -> int:
     """法人（外資）連續買超天數（R-PROD-4 最小版，TW 限定，讀 chip_snapshot）。"""
     if (market or "TW").upper() != "TW":
@@ -11773,11 +11848,15 @@ def _ic_chip_consecutive_buy(code: str, market: str = "TW") -> int:
     return consec
 
 
+_A4_REVENUE_RANK_THR = 0.50   # A4_revenue 升級門檻＝研發旗艦 revenue_mom 層 top_k=0.50（rank_pct≥0.50），
+                              # 與 EXP-2026-006 真驗策略逐字對齊（§3 校準數字背書的就是這個切片）。
+
 def _ic_mvp_assess(code: str, name: str, market: str, tech: dict,
-                   regime: str, a4_map: dict) -> dict:
+                   regime: str, a4_map: dict, revenue_map: dict = None) -> dict:
     """組裝個股 MVP 評估：複合桶判定 + A4 runtime 組件 + 倉位係數 + 信心度背書。
     純組裝，不改 tech['score']（技術分數零擾動 → 零回歸）。
-    複合桶＝ TREND_UP × A4topsec ∧ 技術多頭 ∧ (情緒不惡化 ∨ 法人連買)。"""
+    基礎複合桶＝ TREND_UP × A4topsec ∧ 技術多頭 ∧ (情緒不惡化 ∨ 法人連買)。
+    更高階桶 A4_revenue＝ A4topsec ∧ 月營收動量 rank_pct≥_A4_REVENUE_RANK_THR（旗艦 A4∧月營收，TW-only）。"""
     regime = (regime or "UNKNOWN").upper()
     pos_coef = _regime_position_coef(regime)
     inds = tech.get("indicators", {}) or {}
@@ -11807,10 +11886,28 @@ def _ic_mvp_assess(code: str, name: str, market: str, tech: dict,
     consec_buy = _ic_chip_consecutive_buy(code, market)
     chip_confirm = consec_buy >= 2
 
-    # 複合桶判定
+    # 複合桶判定（基礎桶）
     bucket = None
     if regime == "TREND_UP" and beats_sector and tech_bullish and (sentiment_ok or chip_confirm):
         bucket = "A4topsec"
+
+    # ── 更高階桶 A4_revenue：A4topsec ∧ 月營收動量強（旗艦 A4∧月營收，TW-only）。純加法升級 ──
+    revenue_map = revenue_map or {}
+    rev_rank = (revenue_map.get("rank_pct") or {}).get(code)
+    rev_present = rev_rank is not None
+    rev_strong = rev_present and rev_rank >= _A4_REVENUE_RANK_THR
+    revenue_component = {
+        "present": rev_present,
+        "rank_pct": round(rev_rank, 4) if rev_rank is not None else None,
+        "raw": (revenue_map.get("raw") or {}).get(code),
+        "threshold": _A4_REVENUE_RANK_THR,
+        "strong": rev_strong,
+        "asof": revenue_map.get("date"),
+        "source": "runtime revenue_mom cs (= 回測 _compute_revenue_cs_factors 同源，announce_date<d PIT)",
+    }
+    if bucket == "A4topsec" and rev_strong:
+        bucket = "A4_revenue"                                # 升級：旗艦複合桶
+
     cal_row = _ic_calibration_lookup(regime, bucket) if bucket else None
 
     badge = "🧪 啟發式"
@@ -11818,20 +11915,28 @@ def _ic_mvp_assess(code: str, name: str, market: str, tech: dict,
         st = cal_row.get("status")
         badge = "🎓 過閘keeper" if st == "KEEPER" else ("🎓 候選" if st == "ALPHA_CANDIDATE" else "🧪 啟發式")
 
+    is_rev = (bucket == "A4_revenue")
     return {
         "regime": regime,
         "position_coef": pos_coef,
         "bucket": bucket,
-        "bucket_desc": "TREND_UP × A4topsec ∧ 技術多頭 ∧ (情緒不惡化 ∨ 法人連買)" if bucket else None,
+        "bucket_desc": (
+            "TREND_UP × A4topsec ∧ 月營收動量 rank_pct≥%.2f（旗艦 A4∧月營收·TW）" % _A4_REVENUE_RANK_THR
+            if is_rev else
+            ("TREND_UP × A4topsec ∧ 技術多頭 ∧ (情緒不惡化 ∨ 法人連買)" if bucket else None)),
         "bucket_factors": {
             "a4_topsec": beats_sector, "tech_bullish": tech_bullish,
             "sentiment_ok": sentiment_ok, "chip_consecutive_buy": consec_buy,
+            "revenue_strong": rev_strong,
         },
         "a4": a4_component,
+        "revenue": revenue_component,
         "confidence_backing": cal_row,
         "grad_badge": badge,
         "candidate_note": (
-            "A4 為 ALPHA 候選（順勢型·2022 破功·單市場·CI 邊際）→ 候選級信心，RISK_OFF 自動降曝險"
+            ("A4∧月營收 旗艦 ALPHA 候選（DSR0.97·順勢型·單市場 TW·CI 邊際）→ 候選級信心，RISK_OFF 自動降曝險"
+             if is_rev else
+             "A4 為 ALPHA 候選（順勢型·2022 破功·單市場·CI 邊際）→ 候選級信心，RISK_OFF 自動降曝險")
             if bucket else None),
     }
 
@@ -11863,6 +11968,7 @@ def ic_refresh_recs(data: dict = {}, _: None = Depends(require_token)):
     mvp_engine = bool(data.get("mvp_engine", False))
     _regime_cache: dict = {}
     _a4_cache: dict = {}
+    _rev_cache: dict = {}
     def _regime_for(_m):
         if _m not in _regime_cache:
             try:
@@ -11874,6 +11980,10 @@ def ic_refresh_recs(data: dict = {}, _: None = Depends(require_token)):
         if _m not in _a4_cache:
             _a4_cache[_m] = _a4_topsec_runtime_map(_m) if mvp_engine else {}
         return _a4_cache[_m]
+    def _rev_for(_m):   # 旗艦 A4∧月營收 runtime overlay（TW-gated；mvp_engine 關時零變動）
+        if _m not in _rev_cache:
+            _rev_cache[_m] = _revenue_mom_runtime_map(_m) if mvp_engine else {}
+        return _rev_cache[_m]
 
     con = db()
     cur = con.cursor()
@@ -11927,7 +12037,7 @@ def ic_refresh_recs(data: dict = {}, _: None = Depends(require_token)):
         mvp = None; cal_row = None
         if mvp_engine:
             regime = _regime_for(mkt).get("regime", "UNKNOWN")
-            mvp = _ic_mvp_assess(code, name, mkt, tech, regime, _a4_for(mkt))
+            mvp = _ic_mvp_assess(code, name, mkt, tech, regime, _a4_for(mkt), _rev_for(mkt))
             cal_row = mvp.get("confidence_backing")
             # R-PROD-1 regime 閘：非 TREND_UP 不輸出新 BUY（降為 HOLD，僅持倉管理）
             if mvp["regime"] != "TREND_UP" and direction == "BUY":
