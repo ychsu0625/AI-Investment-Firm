@@ -3144,6 +3144,93 @@ def _ensure_revenue_table():
 
 _ensure_revenue_table()
 
+
+def _ensure_us_short_interest_table():
+    """Type 2 US-SI：美股 FINRA 空單餘額 PIT 落地表（冪等建表，monitor.db，與 chip backfill 同庫慣例）。
+    settlement_date=FINRA 申報 as-of 日（半月頻，每月約 2 筆）；publish_date=FINRA 公布日（settlement
+    後約8營業日，保守取較晚日防 look-ahead，PIT 錨，存入時算好）。si_ratio=days_to_cover=short_shares/ADV。"""
+    try:
+        con = db()
+        con.execute("""CREATE TABLE IF NOT EXISTS us_short_interest(
+            code             TEXT NOT NULL,
+            settlement_date  TEXT NOT NULL,
+            publish_date     TEXT NOT NULL,
+            short_shares     REAL,
+            avg_daily_volume REAL,
+            days_to_cover    REAL,
+            short_pct_float  REAL,
+            src              TEXT DEFAULT 'finra_openbb',
+            updated_at       TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(code, settlement_date)
+        )""")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_us_si_code ON us_short_interest(code)")
+        con.commit(); con.close()
+    except Exception as e:
+        print(f"[US-SI] 建表失敗: {e}")
+
+_ensure_us_short_interest_table()
+
+
+# FINRA settlement → publish 約 8 營業日（保守，寧晚不早防 look-ahead；FINRA 官方對照表細節見報告風險未決）。
+_US_SI_PUBLISH_LAG_BDAYS = 8
+
+
+def _us_si_publish_date(settlement_date: str, lag_bdays: int = _US_SI_PUBLISH_LAG_BDAYS) -> str:
+    """🔑PIT 公布日（保守）：FINRA settlement_date('YYYY-MM-DD') + 約 8 個營業日 → publish_date。
+    鏡像 _announce_date_for_period 的「保守取較晚公布日」精神：因子進場僅落 publish_date 之後（嚴格 >）
+    → 確保『進場 > FINRA 公布日』即使遇假日順延亦成立 → 永不 look-ahead（個股實際公布多早於此 → 只會更晚進場）。"""
+    d = datetime.strptime(settlement_date[:10], "%Y-%m-%d").date()
+    added = 0
+    while added < lag_bdays:
+        d += timedelta(days=1)
+        if d.weekday() < 5:        # Mon-Fri（不扣美股假日 → 寧可更晚一兩日，PIT 安全方向）
+            added += 1
+    return d.strftime("%Y-%m-%d")
+
+
+def _backfill_us_short_interest(codes: list, start: str = "2010-01-01") -> dict:
+    """Type 2 US-SI 回補：嘗試用 OpenBB obb.equity.shorts.short_interest（FINRA，免費無 key）回補
+    2010+ 美股 SI 到 us_short_interest（monitor.db）。OpenBB 未裝/抓不到 → 誠實回 ok=False（real backfill
+    pending），不寫假資料。供 cockpit 在 :8766 沒人用時帶 universe codes 觸發；本函式只負責 fetch+落地。"""
+    try:
+        from openbb import obb              # noqa: F401（未裝則 ImportError → 誠實降級）
+    except Exception as e:
+        return {"ok": False, "added": 0, "reason": f"OpenBB 未安裝/不可用：{e}（real FINRA backfill pending）"}
+    added = 0; errs = []
+    con = db()
+    for code in (codes or []):
+        try:
+            res = obb.equity.shorts.short_interest(symbol=code, provider="finra")
+            recs = res.results if hasattr(res, "results") else res
+            for row in recs:
+                g = (lambda k: getattr(row, k, None) if not isinstance(row, dict) else row.get(k))
+                settle = str(g("settlement_date") or g("settlementDate") or "")[:10]
+                if not settle:
+                    continue
+                sh = g("short_volume") or g("current_short_position") or g("short_shares")
+                adv = g("average_daily_volume") or g("avg_daily_volume")
+                dtc = g("days_to_cover")
+                pctf = g("short_percent_of_float") or g("short_pct_float")
+                if dtc is None and sh and adv:
+                    try: dtc = float(sh) / float(adv)
+                    except Exception: dtc = None
+                pub = _us_si_publish_date(settle)
+                con.execute(
+                    "INSERT OR REPLACE INTO us_short_interest"
+                    "(code,settlement_date,publish_date,short_shares,avg_daily_volume,days_to_cover,short_pct_float)"
+                    " VALUES(?,?,?,?,?,?,?)",
+                    (code, settle, pub,
+                     float(sh) if sh is not None else None,
+                     float(adv) if adv is not None else None,
+                     float(dtc) if dtc is not None else None,
+                     float(pctf) if pctf is not None else None))
+                added += 1
+        except Exception as e:
+            errs.append(f"{code}:{e}")
+    con.commit(); con.close()
+    return {"ok": added > 0, "added": added, "errs": errs[:10]}
+
+
 def _ensure_revenue_backfill_table():
     """月營收回補進度持久化表（重啟後可查狀態 / 憑增量跳過續跑）。"""
     try:
@@ -14266,6 +14353,7 @@ _CS_FACTOR_FAMILY = {
     "raw_mom": "momentum", "rel_str": "momentum", "resid_mom": "momentum",
     "sector_rel": "sector", "sector_rel_topsec": "sector",
     "inst_net_buy": "chip", "trust_net_buy": "chip", "short_squeeze": "chip",
+    "short_interest": "chip",       # Type 2 US-SI：美股 FINRA 空單餘額（chip 族，與價格族正交）
     "revenue_mom": "fundamental",   # P0-2：月營收動量（基本面族，與價格/籌碼正交）
     # Type 1a：價格族正交積木（純 OHLCV + 免費宏觀序列自算，零新管線）
     "low_beta": "style",            # BAB（低 β 風險調整後贏）
@@ -14361,6 +14449,29 @@ _PRICE_CS_META = {
         "pit_rule": "−(個股 N 日報酬) 用 ≤T−1 收盤算 → 落次一交易日進場",
         "mechanism": "過度反應反轉（DeBondt-Thaler）：近 N 日大跌者 snap-back（raw=−報酬→高 rank=跌最多）",
         "family": "reversal"},
+}
+
+# ── Type 2 R-PROD US-SI：美股籌碼橫斷面因子（short_interest，讀 us_short_interest，US-gated）──
+# 鏡像 _CHIP_CS_FACTORS（TW chip）→ 美股換源：FINRA 半月頻空單餘額（greenfield 新管線，monitor.db）。
+# 【給 Reviewer：PIT】FINRA settlement 後約 8 營業日才 publish → 因子值只落 publish_date 之後交易日
+# （嚴格 >，鏡像 _revenue_factor_series 的 announce_date）→「進場∩settlement期=∅」「進場>publish_date」雙成立。
+# 本次只註冊 short_interest（inst_13f 為後續階段，留好 set 擴充；cot_net 走 regime 永不入此白名單）。
+_US_CHIP_CS_FACTORS = {"short_interest"}
+_US_SI_FIELD_DEFAULT = "si_ratio"   # 排名欄位：si_ratio(=days_to_cover) / days_to_cover / si_pct_float
+_US_SI_WIN_DEFAULT   = 1            # 回看 N 個『已公布』申報取均值（window=1 即最近一筆已公布 SI）
+
+# 美股籌碼因子註冊 metadata（鏡像 _CHIP_CS_META；dir 預設 −1=informed-bear，搜尋層可翻 +1 試擠空，
+# 註冊時不賭方向，見 spec §2.1 警語）。param_space 對齊 _get_strategy_params_space 契約 {min,max,default,type}。
+_US_CHIP_CS_META = {
+    "short_interest": {
+        "param_space": {"field": {"choices": ["si_ratio", "days_to_cover", "si_pct_float"],
+                                  "default": _US_SI_FIELD_DEFAULT, "type": "str"},
+                        "window": {"min": 1, "max": 3, "default": _US_SI_WIN_DEFAULT, "type": "int"},
+                        "dir": {"choices": [1, -1], "default": -1, "type": "int"}},
+        "pit_rule": "FINRA settlement 後約8營業日 publish → 因子僅落 publish_date 之後交易日（嚴格 >，進場∩settlement期=∅）",
+        "mechanism": "空方資訊優勢（Boehmer-Jones-Zhang 2008）：高 short interest / 高 days-to-cover 個股後續 underperform，"
+                     "dir=−1 避開/做空高 SI（主機制）；高 days-to-cover×擠空 regime 時搜尋層可翻 dir=+1（軋空 fuel，次案）",
+        "family": "chip"},
 }
 
 _SECTOR_MAP_MEM: dict = {}    # in-process cache: f"{market}:{code}" -> sector_str（避免同跑重複查）
@@ -15158,6 +15269,85 @@ def _compute_revenue_cs_factors(mkt: str, codes: list, feats: dict, factors_need
     return out
 
 
+# ── Type 2 US-SI：美股 short_interest cs 因子（pure 計算，無 DB，可隔離測 PIT/算法）──────────
+def _short_interest_series(si_records: list, trading_dates: list,
+                           field: str = _US_SI_FIELD_DEFAULT, window: int = _US_SI_WIN_DEFAULT) -> dict:
+    """單一美股 short interest 原始值時間序列（橫斷面排名前的 raw value）。純函式、無 DB、無 yfinance。
+
+    輸入：
+      si_records   : [(settlement_date, publish_date, si_ratio, days_to_cover, si_pct_float), ...]
+                     （FINRA 半月頻 SI 申報；本函式內自行依 settlement_date 排序）。
+      trading_dates: 該股交易日清單（升冪，'YYYY-MM-DD'；來自 feats['dates']）。
+      field        : 'si_ratio'(=short_shares/ADV，即 days_to_cover) / 'days_to_cover' / 'si_pct_float'。
+      window       : 回看 N 筆『已公布』申報取均值（window=1 即最近一筆已公布 SI）。
+    回 {trading_date: raw_val}（fill-forward：每交易日用『publish_date < d（嚴格）』的最近 window 筆均值）。
+
+    【給 Reviewer — 🔑PIT 防洩漏（核心，最致命）】每交易日 d 只納入 publish_date < d（嚴格小於）的
+    SI 申報。FINRA settlement 後約8營業日才 publish_date 公布，故 d 嚴格晚於『FINRA 公布日』→ 進場日
+    永不落在 settlement 期內、且嚴格晚於公布日 →「進場日 ∩ settlement 期 = ∅」「進場日 > 公布日」雙成立
+    （隔離測 test_us_si_pit 已斷言）。fill-forward 僅用『已公布』記錄向後填值（SI 為半月慢變數，下一筆
+    公布前持有同一值），j 指標單調前移、不回看未來，不引入任何未來資訊。鏡像 _revenue_factor_series。"""
+    out = {}
+    if not si_records or not trading_dates:
+        return out
+    # record tuple: (settlement_date, publish_date, si_ratio, days_to_cover, si_pct_float)
+    fld_idx = {"si_ratio": 2, "days_to_cover": 3, "si_pct_float": 4}.get(str(field), 2)
+    W = max(int(window), 1)
+    recs = sorted(si_records, key=lambda r: r[0])    # 依 settlement_date 升冪（→ publish_date 亦升冪）
+    n = len(recs)
+    j = 0                                            # 指標：publish_date < d 的已公布記錄數（單調前移）
+    for d in trading_dates:
+        while j < n and recs[j][1] < d:             # 嚴格 < → PIT：FINRA 公布日當天不進場
+            j += 1
+        if j == 0:
+            continue                                 # 此交易日尚無任何已公布 SI 申報
+        lo = max(0, j - W)
+        vals = [recs[k][fld_idx] for k in range(lo, j) if recs[k][fld_idx] is not None]
+        if vals:
+            out[d] = float(sum(vals)) / len(vals)
+    return out
+
+
+def _compute_us_chip_cs_factors(mkt: str, codes: list, feats: dict, factors_needed: set,
+                                field: str = _US_SI_FIELD_DEFAULT, window: int = _US_SI_WIN_DEFAULT) -> dict:
+    """美股籌碼 cs 因子 orchestrator：批次讀 us_short_interest（I/O）→ 對每股呼叫 pure
+    _short_interest_series → 組成 {factor: {date: {code: raw_val}}}（與 _compute_chip_cs_factors 同形狀，
+    可直接餵 _cs_rank_pct 排名迴圈）。美股籌碼僅 US；他市場/無資料回空（複合自然縮小、誠實標記）。
+    【鏡像 _compute_chip_cs_factors，US-gated（!= "US" → 回空），與 TW chip gate 互斥、零交叉污染。】"""
+    us_chip_needed = set(factors_needed) & _US_CHIP_CS_FACTORS
+    out = {fac: {} for fac in us_chip_needed}
+    if not us_chip_needed or not codes or str(mkt).upper() != "US":
+        return out
+    try:
+        con = db(); cur = con.cursor()
+        qs = ",".join("?" * len(codes))
+        rows = cur.execute(
+            f"SELECT code, settlement_date, publish_date, days_to_cover, short_pct_float "
+            f"FROM us_short_interest WHERE code IN ({qs}) ORDER BY code, settlement_date", list(codes)
+        ).fetchall()
+        con.close()
+    except Exception:
+        return out
+    by_code = {}
+    for r in rows:
+        # si_ratio == days_to_cover（short_shares/ADV）；tuple 對齊 _short_interest_series 期望順序
+        # (settlement_date, publish_date, si_ratio, days_to_cover, si_pct_float)
+        by_code.setdefault(r[0], []).append((r[1], r[2], r[3], r[3], r[4]))
+    fv = out["short_interest"]
+    for code, recs in by_code.items():
+        f = feats.get(code)
+        if not f:
+            continue
+        dts = f.get("dates")
+        if not dts:
+            continue
+        series = _short_interest_series(recs, dts, field=field, window=window)
+        for d, val in series.items():
+            if val == val:                          # not NaN
+                fv.setdefault(d, {})[code] = val
+    return out
+
+
 # ── Type 1a：價格族 cs 因子（pure 計算，無 DB/yfinance，可隔離測 PIT/算法）──────────────
 def _price_cs_factor_series(dates: list, c, bench_map: dict, tnx_map: dict, dxy_map: dict,
                             factors_needed: set, beta_win: int = _PRICE_BETA_WIN,
@@ -15732,9 +15922,10 @@ def _cs_rank_pct(mkt: str, codes: list, feats: dict, factors_needed: set, bench_
     factor_vals = {fac: {} for fac in factors_needed}  # fac -> {date -> {code -> val}}
     sector_needed = factors_needed & _CS_SECTOR_FACTORS
     chip_needed = factors_needed & _CHIP_CS_FACTORS          # P0-1：籌碼因子（讀 chip_snapshot，PIT 對齊次一交易日）
+    us_chip_needed = factors_needed & _US_CHIP_CS_FACTORS    # Type 2 US-SI：美股籌碼（讀 us_short_interest，PIT 對齊 publish_date 後交易日）
     rev_needed = factors_needed & _REVENUE_CS_FACTORS        # P0-2：月營收動量（讀 revenue_monthly，PIT 對齊 announce_date 後交易日）
     price_needed = factors_needed & _PRICE_CS_FACTORS        # Type 1a：價格族（OHLCV±免費宏觀序列，PIT 對齊次一交易日）
-    orth_needed = factors_needed - sector_needed - chip_needed - rev_needed - price_needed
+    orth_needed = factors_needed - sector_needed - chip_needed - us_chip_needed - rev_needed - price_needed
     sector_of = _get_sector_map(mkt, codes) if sector_needed else {}
     smom_by_code = {}
     for code in codes:
@@ -15763,6 +15954,10 @@ def _cs_rank_pct(mkt: str, codes: list, feats: dict, factors_needed: set, bench_
     if chip_needed:                                          # P0-1：籌碼 cs 因子 → 同排名管線
         chip_fv = _compute_chip_cs_factors(mkt, codes, feats, chip_needed)
         for fac, dmap in chip_fv.items():
+            factor_vals[fac] = dmap
+    if us_chip_needed:                                       # Type 2 US-SI：美股籌碼 cs 因子（US-gated）→ 同排名管線
+        us_chip_fv = _compute_us_chip_cs_factors(mkt, codes, feats, us_chip_needed)
+        for fac, dmap in us_chip_fv.items():
             factor_vals[fac] = dmap
     if rev_needed:                                           # P0-2：月營收 cs 因子 → 同排名管線
         rev_fv = _compute_revenue_cs_factors(mkt, codes, feats, rev_needed)
@@ -16310,7 +16505,7 @@ def _chip_streak_dates(codes: list, window: int = 3, min_net: float = 0.0) -> di
 # Type 1a：加入價格族 _PRICE_CS_FACTORS（low_beta/rate_sensitivity/dollar_sensitivity/short_rev）→ 可手動 AND-stack。
 _COMPOSITE_CS_FACTORS = {"raw_mom", "rel_str", "resid_mom",
                          "sector_rel", "sector_rel_topsec"} | _CHIP_CS_FACTORS | _REVENUE_CS_FACTORS \
-                        | _PRICE_CS_FACTORS
+                        | _PRICE_CS_FACTORS | _US_CHIP_CS_FACTORS
 
 
 def _normalize_layers(layers: list):
@@ -16891,6 +17086,9 @@ _AUTO_SEARCH_LOCK = threading.Lock()
 _AUTO_FACTOR_POOL = ("sector_rel_topsec", "sector_rel", "resid_mom", "rel_str", "raw_mom")
 _AUTO_CHIP_CS_POOL = ("inst_net_buy", "trust_net_buy", "short_squeeze")  # P0-1：可疊加的籌碼 cs 層（A4∧籌碼）
 _AUTO_REVENUE_CS_POOL = ("revenue_mom",)  # P0-2：可疊加的月營收 cs 層（A4∧基本面正交複合）
+# Type 2 US-SI：可疊加的美股籌碼 cs 層（daemon mkt="US" run 自動列舉 A4_US∧short_interest）。
+# 本次只 short_interest；inst_13f 為後續階段（留好擴充）。US-gated orchestrator → TW run 此因子自然回空。
+_AUTO_US_CHIP_CS_POOL = ("short_interest",)
 # R-PROD-7h-1：價格族 4 新因子入搜尋池（解鎖 style/macro/reversal 三族跨族正交堆疊）。純加法 add_cs move。
 _AUTO_PRICE_CS_POOL = ("low_beta", "rate_sensitivity", "dollar_sensitivity", "short_rev")
 _AUTO_TOPK_POOL   = (0.10, 0.20, 0.30)
@@ -16952,7 +17150,8 @@ def _auto_search_candidates(current: list,
                             topk_pool=_AUTO_TOPK_POOL,
                             chip_pool=_AUTO_CHIP_CS_POOL,
                             rev_pool=_AUTO_REVENUE_CS_POOL,
-                            price_pool=_AUTO_PRICE_CS_POOL) -> list:
+                            price_pool=_AUTO_PRICE_CS_POOL,
+                            us_chip_pool=_AUTO_US_CHIP_CS_POOL) -> list:
     """前向貪婪：列舉「下一步」候選（確定性、有界）。回 [(label, layers)]。
     可插拔層 moves：①加 PEAD ②加 chip(法人連買 streak) ③加籌碼 cs 層(A4∧inst_net_buy，R-PROD-7a)
     ③b 加月營收 cs 層(A4∧revenue_mom，基本面正交) ④換 cs 因子(resid_mom/rel_str/…) ⑤換 top_k∈{.10,.20,.30}。
@@ -16972,6 +17171,9 @@ def _auto_search_candidates(current: list,
         if cf not in present_factors:
             cands.append((f"add_cs:{cf}", current + [{"factor": cf, "top_k": _CS_DEFAULT_K}]))
     for cf in rev_pool:                                # ③b 加月營收 cs 層（基本面正交：A4∧revenue_mom）
+        if cf not in present_factors:
+            cands.append((f"add_cs:{cf}", current + [{"factor": cf, "top_k": _CS_DEFAULT_K}]))
+    for cf in us_chip_pool:                            # ③b2 加美股籌碼 cs 層（Type 2 US-SI：A4_US∧short_interest，US-gated）
         if cf not in present_factors:
             cands.append((f"add_cs:{cf}", current + [{"factor": cf, "top_k": _CS_DEFAULT_K}]))
     for cf in price_pool:                              # ③c 加價格族 cs 層（R-PROD-7h：style/macro/reversal 跨族）
@@ -17058,7 +17260,7 @@ def _auto_should_stop(trials, max_trials, stale, stale_limit, stop_requested, de
 
 
 _AUTO_RESTART_UNION_POOL = (_AUTO_FACTOR_POOL + _AUTO_PRICE_CS_POOL
-                            + _AUTO_CHIP_CS_POOL + _AUTO_REVENUE_CS_POOL)
+                            + _AUTO_CHIP_CS_POOL + _AUTO_REVENUE_CS_POOL + _AUTO_US_CHIP_CS_POOL)
 
 
 def _auto_pick_restart_factor(used_factors, pool=_AUTO_RESTART_UNION_POOL):
