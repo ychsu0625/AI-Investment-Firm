@@ -132,7 +132,7 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
   transition:background .15s,color .15s;
 }
 .nav-btn:hover{background:var(--bg4);color:var(--text2)}
-.nav-btn.active{background:var(--blue-bg);color:var(--blue)}
+.nav-btn.active{background:var(--blue-bg);color:var(--blue);box-shadow:inset 0 0 0 1.5px var(--blue-d)}
 .nav-btn svg{width:17px;height:17px;fill:currentColor}
 .nav-zone-sep{height:1px;background:var(--border);width:36px;margin:2px 0;flex-shrink:0}
 .nav-zone-label{font-size:12px;color:var(--text3);text-align:center;line-height:1.3;letter-spacing:-.3px;max-width:48px;overflow:hidden;white-space:nowrap;flex-shrink:0}
@@ -146,22 +146,27 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 .page.flex-page{display:none;flex:1;flex-direction:column;overflow:hidden;padding:0;position:relative}
 .page.flex-page.active{display:flex}
 
-/* ══ 收斂導覽：5 組可展開（漸進揭露；所有 page 仍全部可達）══ */
+/* ══ 收斂導覽：5 組可展開（漸進揭露；所有 page 仍全部可達）══
+   組標題(nav-grp-hdr)＝區段標籤：弱化＋字距＋頂部分隔線，一眼看出「不是一顆頁鈕」；
+   子項(nav-btn)展開時住進較深的內凹面板(nav-grp-items)，與外面的組標題明顯分層。*/
 .nav-group{display:flex;flex-direction:column;align-items:center;width:100%;flex-shrink:0}
-.nav-grp-hdr{width:48px;min-height:40px;padding:5px 0;margin:1px 0;border:none;background:none;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  color:var(--text3);font-size:12px;line-height:1.15;border-radius:var(--r);position:relative;
-  transition:background .15s,color .15s}
-.nav-grp-hdr:hover{background:var(--bg4);color:var(--text2)}
-.nav-grp-hdr svg{width:18px;height:18px;fill:currentColor}
-.nav-grp-hdr .ng-caret{position:absolute;right:3px;top:3px;font-size:9px;opacity:.55;transition:transform .15s}
+.nav-grp-hdr{width:48px;min-height:34px;padding:5px 0 4px;margin:3px 0 1px;border:none;background:none;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  color:var(--text3);font-size:12px;letter-spacing:.6px;line-height:1.1;border-radius:var(--r);position:relative;
+  opacity:.62;transition:background .15s,color .15s,opacity .15s}
+.nav-grp-hdr::before{content:"";position:absolute;top:-2px;left:50%;transform:translateX(-50%);
+  width:22px;height:1px;background:var(--border)}
+.nav-group:first-child .nav-grp-hdr::before{display:none}
+.nav-grp-hdr:hover{background:var(--bg4);color:var(--text2);opacity:1}
+.nav-grp-hdr svg{width:15px;height:15px;fill:currentColor;opacity:.9}
+.nav-grp-hdr .ng-caret{position:absolute;right:4px;top:4px;font-size:9px;opacity:.7;transition:transform .15s}
 .nav-group.expanded .nav-grp-hdr .ng-caret,
 .nav-group:has(.nav-btn.active) .nav-grp-hdr .ng-caret{transform:rotate(90deg)}
-/* 含當前頁的組 → 標題高亮（即使收合也看得出在哪一組）*/
-.nav-group:has(.nav-btn.active) .nav-grp-hdr{color:var(--blue)}
-.nav-grp-items{display:none;flex-direction:column;align-items:center;gap:3px;width:100%;
-  padding:2px 0 5px;margin-bottom:3px;border-bottom:1px solid var(--border)}
-.nav-group:last-child .nav-grp-items{border-bottom:none}
+/* 含當前頁的組 → 標題微亮（看得出在哪一組，但不與子項 active 搶焦點）*/
+.nav-group:has(.nav-btn.active) .nav-grp-hdr{color:var(--blue);opacity:.9}
+/* 子項面板：展開時做成較深的內凹 well，子項住在裡面 → 與外面的組標題分層 */
+.nav-grp-items{display:none;flex-direction:column;align-items:center;gap:3px;width:44px;
+  padding:5px 0;margin:1px 0 4px;border-radius:9px;background:var(--bg)}
 /* 使用者手動展開，或該組含當前頁 → 顯示子項 */
 .nav-group.expanded .nav-grp-items,
 .nav-group:has(.nav-btn.active) .nav-grp-items{display:flex}
@@ -233,6 +238,34 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 @media(max-width:420px){
   .ck-kpis{grid-template-columns:1fr}
 }
+/* ② 共識排序：高共識區(置頂 highlight) / 旗艦 / 其他策略(收合) */
+.ck-zone{margin-bottom:10px}
+.ck-zone:last-child{margin-bottom:0}
+.ck-zone-hd{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text2);margin:0 0 7px;letter-spacing:.3px}
+.ck-zone-hd .ck-zone-n{color:var(--text3);font-weight:500}
+.ck-zone-tip{font-size:12px;font-weight:400;color:var(--text3)}
+.ck-zone.consensus{border:2px solid var(--blue);border-radius:8px;padding:10px 11px;background:rgba(88,166,255,.05)}
+.ck-zone.consensus .ck-zone-hd{color:var(--blue)}
+.ck-zone.consensus .ck-cards{gap:8px}
+.ck-card.cons{border-left-color:var(--blue);background:var(--bg2)}
+.ck-card.flag{border-left-color:var(--yellow)}
+.ck-card.pos{border-left-color:var(--border2)}
+/* 來源 badge：前向 / 籌碼 / AI / 旗艦 / 來源數 */
+.ck-tag.src-fwd{background:rgba(63,185,80,.10);color:var(--green);border-color:transparent}
+.ck-tag.src-chip{background:var(--yellow-bg);color:var(--yellow);border-color:var(--yellow)}
+.ck-tag.src-ai{background:var(--purple-bg);color:var(--purple);border-color:var(--purple)}
+.ck-tag.flag{background:var(--yellow-bg);color:var(--yellow);border-color:var(--yellow)}
+.ck-tag.cons-n{background:var(--blue-bg);color:var(--blue);border-color:var(--blue)}
+/* 其他策略：收合展開（不攤平，依策略分組）*/
+.ck-more{width:100%;text-align:left;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;font-weight:600;padding:8px 11px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:background .15s,border-color .15s}
+.ck-more:hover{background:var(--bg4);border-color:var(--border2)}
+.ck-more .ck-more-caret{transition:transform .15s;font-size:12px;opacity:.7}
+.ck-more.open .ck-more-caret{transform:rotate(90deg)}
+.ck-more-body{display:none;flex-direction:column;gap:8px;margin-top:8px}
+.ck-more-body.open{display:flex}
+.ck-more-grp{font-size:12px;font-weight:700;color:var(--text3);margin:4px 0 2px;letter-spacing:.3px}
+/* 右欄：出場 / 持倉分區小標 */
+.ck-subhd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;color:var(--text2);margin:14px 0 8px;padding-top:10px;border-top:1px solid var(--border)}
 
 /* cards */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
@@ -894,14 +927,14 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
           <span class="ck-drill" onclick="showPage('macro')">風控詳情 →</span>
         </div>
 
-        <!-- ② 今日該買 / 今日該賣 -->
+        <!-- ② 今日該買（共識排序）/ 今日該賣 + 持倉 -->
         <div class="ck-cols">
           <div class="ck-col">
             <div class="ck-col-hd">
-              <span>② 今日該買 <span class="ck-hint">前向實盤 picks + AI 建議</span></span>
+              <span>② 今日該買 <span class="ck-hint">共識排序：多來源確認優先</span></span>
               <span class="ck-drill" onclick="showPage('expert')">建議論證 →</span>
             </div>
-            <div class="ck-cards" id="ck-buy-list"><div class="empty-state">載入中…</div></div>
+            <div id="ck-buy-list"><div class="empty-state">載入中…</div></div>
           </div>
           <div class="ck-col">
             <div class="ck-col-hd">
@@ -909,6 +942,9 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
               <span class="ck-drill" onclick="showPage('pos')">持倉 →</span>
             </div>
             <div class="ck-cards" id="ck-sell-list"><div class="empty-state">載入中…</div></div>
+            <div class="ck-subhd"><span>目前持倉 <span class="ck-hint">市值權重（美股已換匯）</span></span>
+              <span class="ck-drill" onclick="showPage('pos')">投資組合 →</span></div>
+            <div class="ck-cards" id="ck-pos-list"><div class="empty-state">載入中…</div></div>
           </div>
         </div>
 
@@ -2780,8 +2816,11 @@ document.addEventListener('keydown', e => {
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
-  document.getElementById('nav-' + name).classList.add('active');
+  const _pg = document.getElementById('page-' + name);
+  if (_pg) _pg.classList.add('active');
+  // 子項 nav-btn 套 active 藍色態（防呆：缺對應鈕也不丟例外，避免清掉所有 active 後又中斷）
+  const _nb = document.getElementById('nav-' + name);
+  if (_nb) _nb.classList.add('active');
   if (name !== 'chart') { stopChartTick(); }
   if (name === 'chart')    { setTimeout(initCharts, 50); if (currentMarket==='TW') loadBidAsk(currentCode); }
   if (name === 'home')     {
@@ -8753,7 +8792,7 @@ const _CK_VIXZH = {VIX_LOW:'低波(自滿)', VIX_MID:'中性', VIX_HIGH:'高波(
 let _ckBusy=false;
 async function cockpitLoad(){
   if(_ckBusy) return; _ckBusy=true;
-  try{ await Promise.all([ckLoadGate(), ckLoadPicks(), ckLoadKpis()]); }
+  try{ await Promise.all([ckLoadGate(), ckLoadPicks(), ckLoadPositions(), ckLoadKpis()]); }
   catch(e){ console.warn('[cockpit] load error', e); }
   finally{ _ckBusy=false; }
 }
@@ -8841,12 +8880,39 @@ function ckAiCard(x){
     '</div></div>';
 }
 
-// ② 今日該買 / 今日該賣
+// ② 今日該買（共識排序）/ 今日該賣
+function ckSrcBadge(s){
+  if(s==='前向') return '<span class="ck-tag src-fwd">前向</span>';
+  if(s==='籌碼') return '<span class="ck-tag src-chip">籌碼</span>';
+  if(s==='AI')   return '<span class="ck-tag src-ai">AI</span>';
+  return '';
+}
+function ckConsCard(c){
+  const tk=_ckEsc(c.tk); const nm=_ckEsc(c.name||'');
+  const m=((c.mkt||'TW')==='US')?'US':'TW';
+  const ref=(c.ref!=null&&c.ref!=='')?Number(c.ref).toLocaleString(undefined,{maximumFractionDigits:2}):null;
+  const badges=c.srcs.map(ckSrcBadge).join('');
+  const meta=[];
+  if(c.fwdN>0) meta.push('<span>前向 '+c.fwdN+' 策略</span>');
+  if(ref) meta.push('<span>參考價 '+ref+'</span>');
+  if(c.aiScore!=null) meta.push('<span>AI '+Math.round(c.aiScore)+'</span>');
+  return '<div class="ck-card cons" onclick="openChart(\''+tk+'\',\''+m+'\')">'+
+    '<div class="ck-card-top"><span class="ck-tk">'+tk+'</span><span class="ck-nm">'+nm+'</span>'+
+      '<span class="ck-tag cons-n">'+c.srcs.length+' 來源</span>'+badges+'</div>'+
+    (meta.length?('<div class="ck-card-meta">'+meta.join('')+'</div>'):'')+'</div>';
+}
+function ckToggleMore(btn){
+  btn.classList.toggle('open');
+  const b=btn.parentElement.querySelector('.ck-more-body');
+  if(b) b.classList.toggle('open');
+}
 async function ckLoadPicks(){
   const buyEl=document.getElementById('ck-buy-list');
   const sellEl=document.getElementById('ck-sell-list');
   if(!buyEl||!sellEl) return;
   const mkt=(typeof currentMarket!=='undefined'?currentMarket:'TW');
+
+  // 來源 1/2：前向實盤 4 策略 picks（依策略名分類：旗艦=A4∧revenue_mom / 籌碼=inst_net_buy / 其他前向）
   let strategies=[];
   try{
     const t=await fetch(API+'/api/forward/track',{headers:authHeaders()}).then(r=>r.json());
@@ -8858,35 +8924,95 @@ async function ckLoadPicks(){
       const lists=await Promise.all(strategies.map(s=>
         fetch(API+'/api/forward/picks?strategy='+s.strategy_id,{headers:authHeaders()})
           .then(r=>r.json()).then(j=>({s,picks:(j&&j.picks)||[]})).catch(()=>({s,picks:[]}))));
-      lists.forEach(o=>o.picks.forEach(p=>{ p._strat=o.s.name; p._horizon=o.s.horizon_days; p._mkt=o.s.market; allPicks.push(p); }));
+      lists.forEach(o=>{
+        const nm=o.s.name||'';
+        const isChip=/inst_net_buy/i.test(nm);
+        const isFlag=/revenue_mom/i.test(nm)&&!isChip&&!/vix/i.test(nm);
+        o.picks.forEach(p=>{ p._strat=nm; p._sid=o.s.strategy_id; p._horizon=o.s.horizon_days;
+          p._mkt=o.s.market; p._isChip=isChip; p._isFlag=isFlag; allPicks.push(p); });
+      });
     }catch(e){}
   }
+  // 來源 3：AI 建議（IC recommendations，BUY）
   let aiBuy=[];
   try{
     const rr=await fetch(API+'/api/ic/recommendations?market='+mkt,{headers:authHeaders()}).then(r=>r.json());
     aiBuy=(((rr&&rr.data)||[]).filter(x=>String(x.direction||'').toUpperCase()==='BUY'));
   }catch(e){}
+  const aiByCode={}; aiBuy.forEach(x=>{ aiByCode[String(x.code)]=x; });
 
-  // ── BUY ──
-  const fwdBuy=allPicks.filter(p=>p.status==='pending'||p.status==='open');
-  const fwdTickers=new Set(fwdBuy.map(p=>String(p.ticker)));
-  const aiCodes=new Set(aiBuy.map(x=>String(x.code)));
-  fwdBuy.sort((a,b)=> ((a.status==='pending')?0:1)-((b.status==='pending')?0:1)
-    || String(b.pick_date||'').localeCompare(String(a.pick_date||'')));
-  const buyCards=[]; const seen=new Set();
-  fwdBuy.forEach(p=>{
-    const tk=String(p.ticker); if(seen.has(tk)) return; seen.add(tk);
-    const dual=aiCodes.has(tk);
-    const exc=(p.status==='closed'?p.realized_excess:p.mark_excess);
-    const tags=dual?'<span class="ck-tag dual">∧ 雙確認</span>':'<span class="ck-tag fwd">前向</span>';
-    const st=p.status==='pending'?'今日新選(待進場)':'持有中';
-    buyCards.push(ckPickCard(p,'buy'+(dual?' dual':''),tags,st,exc));
+  // ── 共識計算（本地 set 運算，零後端、零 LLM token）──
+  const fwdActive=allPicks.filter(p=>p.status==='pending'||p.status==='open');
+  const srcFwd=new Set(), srcChip=new Set();
+  const fwdCount={}, repPick={}, nameByTk={};
+  fwdActive.forEach(p=>{
+    const tk=String(p.ticker);
+    if(p._isChip){ srcChip.add(tk); }
+    else { srcFwd.add(tk); fwdCount[tk]=(fwdCount[tk]||0)+1; }
+    if(!repPick[tk]||p._isFlag) repPick[tk]=p;          // 代表 pick 優先取旗艦
+    if(p.name) nameByTk[tk]=p.name;
   });
-  aiBuy.filter(x=>!fwdTickers.has(String(x.code))).slice(0,6).forEach(x=>buyCards.push(ckAiCard(x)));
-  buyEl.innerHTML=buyCards.length?buyCards.join('')
+  const srcAi=new Set(Object.keys(aiByCode));
+  const allTk=new Set([...srcFwd,...srcChip,...srcAi]);
+  const consensus=[];
+  allTk.forEach(tk=>{
+    const srcs=[];
+    if(srcFwd.has(tk)) srcs.push('前向');
+    if(srcChip.has(tk)) srcs.push('籌碼');
+    if(srcAi.has(tk)) srcs.push('AI');
+    if(srcs.length>=2){                                 // ≥2 獨立來源 → 高共識
+      const rp=repPick[tk], ai=aiByCode[tk];
+      consensus.push({tk, srcs, fwdN:fwdCount[tk]||0,
+        name:nameByTk[tk]||(ai&&ai.name)||'',
+        mkt:(rp&&rp._mkt)||(ai&&ai.market)||mkt,
+        ref:(rp&&rp.ref_price!=null)?rp.ref_price:null,
+        aiScore:(ai&&ai.score!=null)?ai.score:null});
+    }
+  });
+  consensus.sort((a,b)=> b.srcs.length-a.srcs.length || b.fwdN-a.fwdN || a.tk.localeCompare(b.tk));
+  const consSet=new Set(consensus.map(c=>c.tk));
+
+  // ── 渲染左欄三區：高共識 / 旗艦 / 其他策略(收合) ──
+  const zones=[];
+  if(consensus.length){
+    zones.push('<div class="ck-zone consensus"><div class="ck-zone-hd">★ 高共識 '+
+      '<span class="ck-zone-n">('+consensus.length+') 多個獨立來源同時選中 · 今天最該看</span></div>'+
+      '<div class="ck-cards">'+consensus.map(ckConsCard).join('')+'</div></div>');
+  }
+  const flagSeen=new Set(); const flagCards=[];
+  fwdActive.filter(p=>p._isFlag&&!consSet.has(String(p.ticker))).forEach(p=>{
+    const tk=String(p.ticker); if(flagSeen.has(tk))return; flagSeen.add(tk);
+    flagCards.push(ckPickCard(p,'flag','<span class="ck-tag flag">旗艦</span>',
+      p.status==='pending'?'今日新選(待進場)':'持有中', p.status==='closed'?p.realized_excess:p.mark_excess));
+  });
+  if(flagCards.length){
+    zones.push('<div class="ck-zone"><div class="ck-zone-hd">🚩 旗艦 A4∧月營收 '+
+      '<span class="ck-zone-n">DSR 最佳策略</span></div><div class="ck-cards">'+flagCards.join('')+'</div></div>');
+  }
+  // 其他策略：收合，不攤平 → 依策略分組（A4基準 / 籌碼對照 / @VIX 變體）+ AI 建議
+  const otherPicks=fwdActive.filter(p=>!p._isFlag&&!consSet.has(String(p.ticker)));
+  const aiOnly=aiBuy.filter(x=>!consSet.has(String(x.code))&&!srcFwd.has(String(x.code))&&!srcChip.has(String(x.code))).slice(0,8);
+  const byStrat={}, stratOrder=[];
+  otherPicks.forEach(p=>{ const k=p._strat||'其他'; if(!byStrat[k]){byStrat[k]=[];stratOrder.push(k);} byStrat[k].push(p); });
+  let body='', renderedOther=0;
+  stratOrder.forEach(k=>{
+    const seen=new Set(); const cards=[];
+    byStrat[k].forEach(p=>{ const tk=String(p.ticker); if(seen.has(tk))return; seen.add(tk);
+      const tag=p._isChip?'<span class="ck-tag src-chip">籌碼</span>':'<span class="ck-tag fwd">前向</span>';
+      cards.push(ckPickCard(p,'',tag, p.status==='pending'?'今日新選':'持有中',
+        p.status==='closed'?p.realized_excess:p.mark_excess)); });
+    if(cards.length){ body+='<div class="ck-more-grp">'+_ckEsc(k)+' ('+cards.length+')</div>'+cards.join(''); renderedOther+=cards.length; }
+  });
+  if(aiOnly.length){ body+='<div class="ck-more-grp">AI 建議 ('+aiOnly.length+')</div>'+aiOnly.map(ckAiCard).join(''); renderedOther+=aiOnly.length; }
+  if(renderedOther){
+    zones.push('<div class="ck-zone"><button class="ck-more" onclick="ckToggleMore(this)">'+
+      '<span class="ck-more-caret">▸</span>其他策略（'+renderedOther+' 檔）· A4基準 / 籌碼對照 / AI 建議</button>'+
+      '<div class="ck-more-body">'+body+'</div></div>');
+  }
+  buyEl.innerHTML=zones.length?zones.join('')
     :'<div class="empty-state">今日無進場標的（風險閘可能未放行，或前向策略今日無 pick）</div>';
 
-  // ── SELL：open 到期 + closed ──
+  // ── 右欄 SELL：open 到期 + closed ──
   const sellCards=[];
   allPicks.filter(p=>p.status==='open'&&ckIsDue(p)).forEach(p=>{
     sellCards.push(ckPickCard(p,'exitc','<span class="ck-tag exitc">EXIT 到期</span>','持有≥horizon，建議檢視出場',p.mark_excess));
@@ -8896,6 +9022,28 @@ async function ckLoadPicks(){
     .forEach(p=>{ sellCards.push(ckPickCard(p,'closed','<span class="ck-tag">已結算</span>','已出場',p.realized_excess)); });
   sellEl.innerHTML=sellCards.length?sellCards.join('')
     :'<div class="empty-state">✓ 無到期/出場訊號，持倉狀態安全</div>';
+}
+
+// 右欄：目前持倉（讀 concentration；市值權重美股已換匯，左右平衡）
+async function ckLoadPositions(){
+  const el=document.getElementById('ck-pos-list'); if(!el) return;
+  try{
+    const d=await fetch(API+'/api/portfolio/concentration',{headers:authHeaders()}).then(r=>r.json());
+    const items=(d.data||[]);
+    if(!items.length){ el.innerHTML='<div class="empty-state">目前無持倉</div>'; return; }
+    el.innerHTML=items.slice(0,8).map(it=>{
+      const m=(it.market==='US')?'US':'TW';
+      const flag=(it.market==='US')?'🇺🇸':'🇹🇼';
+      const w=(it.weight_pct!=null)?Number(it.weight_pct).toFixed(1)+'%':'--';
+      const over=(it.weight_pct!=null&&it.weight_pct>20);
+      return '<div class="ck-card pos" onclick="openChart(\''+_ckEsc(it.code)+'\',\''+m+'\')">'+
+        '<div class="ck-card-top"><span class="ck-tk">'+_ckEsc(it.code)+'</span>'+
+        '<span class="ck-nm">'+_ckEsc(it.name||'')+'</span>'+
+        '<span class="ck-tag">'+flag+' 持倉</span>'+
+        (over?'<span class="ck-tag exitd">逾20%</span>':'')+'</div>'+
+        '<div class="ck-card-meta"><span>權重 '+w+'</span><span>'+(it.shares||0)+' 股</span></div></div>';
+    }).join('');
+  }catch(e){ el.innerHTML='<div class="empty-state">持倉載入失敗</div>'; }
 }
 
 // ③ 戰績 KPI strip

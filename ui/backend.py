@@ -13450,25 +13450,44 @@ def admin_restart(_: None = Depends(require_token)):
 # Phase 2 + Phase 3 增強 API
 # ══════════════════════════════════════════════════
 
+# ── 跨市場金額換算：美元金額一律換成台幣再加總 ─────────
+#  bug 根因：台股(台幣) 與 美股(美金) market_value 直接相加算 % → 佔比錯。
+#  匯率取 macro 快取的 USDTWD（本地計算、零 LLM、不阻塞：只讀快取，無快取用保守 fallback）。
+_USDTWD_FALLBACK = 31.8
+def _get_usdtwd() -> float:
+    try:
+        c = _IC_MACRO_CACHE or {}
+        v = (c.get("TWD") or {}).get("price")
+        if v is not None and 20 < float(v) < 45:   # sanity bound，擋掉異常值
+            return float(v)
+    except Exception:
+        pass
+    return _USDTWD_FALLBACK
+
 # ── 2.1 持倉集中度 ─────────────────────────────────
 @app.get("/api/portfolio/concentration")
 def portfolio_concentration():
     positions = get_positions()
     if isinstance(positions, dict):
         positions = positions.get("data", positions.get("results", []))
+    fx = _get_usdtwd()  # 美元→台幣；跨市場金額一律換算成台幣再加總（修：原本台幣+美金直接相加）
     total_mv = 0
     items = []
     by_market = {}
     for p in positions:
         cp = p.get("current_price", 0) or 0
         shares = p.get("shares", 0) or 0
-        mv = cp * shares
-        total_mv += mv
         mkt = p.get("market", "TW")
+        mv_native = cp * shares
+        mv = mv_native * fx if str(mkt).upper() == "US" else mv_native  # 統一台幣計價
+        total_mv += mv
         by_market[mkt] = by_market.get(mkt, 0) + mv
-        items.append({"code": p["code"], "name": p.get("name", ""), "market": mkt, "market_value": round(mv, 0), "shares": shares, "current_price": cp})
+        items.append({"code": p["code"], "name": p.get("name", ""), "market": mkt,
+                      "market_value": round(mv, 0), "market_value_native": round(mv_native, 0),
+                      "shares": shares, "current_price": cp})
     if total_mv == 0:
-        return {"total_market_value": 0, "data": [], "by_market": {}, "max_single_stock": None}
+        return {"total_market_value": 0, "data": [], "by_market": {}, "max_single_stock": None,
+                "currency": "TWD", "fx_usdtwd": fx}
     for it in items:
         it["weight_pct"] = round(it["market_value"] / total_mv * 100, 2)
         it["alert"] = f"超過 20% 上限" if it["weight_pct"] > 20 else None
@@ -13476,6 +13495,8 @@ def portfolio_concentration():
     by_market_pct = {k: round(v / total_mv * 100, 1) for k, v in by_market.items()}
     return {
         "total_market_value": round(total_mv, 0),
+        "currency": "TWD",
+        "fx_usdtwd": fx,
         "data": items,
         "by_market": by_market_pct,
         "max_single_stock": {"code": items[0]["code"], "weight_pct": items[0]["weight_pct"]} if items else None,
@@ -13552,18 +13573,19 @@ def portfolio_summary():
     positions = get_positions()
     if isinstance(positions, dict):
         positions = positions.get("data", positions.get("results", []))
+    fx = _get_usdtwd()  # 跨市場金額換算成台幣再加總（修：原本台幣+美金直接相加）
     total_invested = 0
     total_mv = 0
     by_market = {}
     top_winner = None
     top_loser = None
-    daily_pnl = 0
     for p in positions:
         cp = p.get("current_price", 0) or 0
         shares = p.get("shares", 0) or 0
         cost = p.get("cost", 0) or 0
-        mv = cp * shares
-        invested = cost * shares
+        rate = fx if str(p.get("market", "TW")).upper() == "US" else 1.0  # 美股換台幣
+        mv = cp * shares * rate
+        invested = cost * shares * rate
         total_mv += mv
         total_invested += invested
         mkt = p.get("market", "TW")
@@ -13584,6 +13606,8 @@ def portfolio_summary():
         by_market_out[mkt.lower()] = {"value": round(vals["value"], 0), "pnl_pct": pnl_pct_m}
     return {
         "total_equity": round(total_mv, 0),
+        "currency": "TWD",
+        "fx_usdtwd": fx,
         "invested": round(total_invested, 0),
         "total_pnl": round(total_pnl, 0),
         "total_pnl_pct": total_pnl_pct,
