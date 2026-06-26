@@ -293,6 +293,14 @@ def init_db():
             PRIMARY KEY (code, date)
         )
     """)
+    # TW-SBL：借券賣出（SBL, 外資/機構 informed short）3 欄——容錯 ALTER，鏡像 watchlist :308 模式，
+    # 既有列預設 0（零回歸：舊路徑 INSERT/SELECT 皆顯式列名，新欄不影響）。單位＝股（TWT93U hints=單位:股，
+    # 與融資券 MI_MARGN 的「張」不同→ turnover=餘額÷ADV 為橫斷面 rank、單位均勻縮放於排名抵消）。
+    for _sbl_col in ("sbl_short_balance", "sbl_short_sell", "sbl_return"):
+        try:
+            cur.execute(f"ALTER TABLE chip_snapshot ADD COLUMN {_sbl_col} INTEGER DEFAULT 0")
+        except Exception:
+            pass
 
     # 自選股清單
     cur.execute("""
@@ -2664,32 +2672,84 @@ def _fetch_twse_margin(date_str: str, raise_on_error: bool = False) -> list:
             raise
         return []
 
-def _upsert_chip_snapshot(date_key: str, inst_list: list, margin_list: list) -> int:
+def _fetch_twse_sbl(date_str: str, raise_on_error: bool = False) -> list:
+    """從台灣證交所抓借券賣出（SBL）餘額。raise_on_error 語意同 _fetch_twse_margin。
+
+    來源：TWT93U「信用額度總量管制餘額表」——同一張日報表同時揭露融券(欄2-7)與借券(欄8-14)，
+    我們只取借券(SBL)三欄。鏡像 _fetch_twse_margin 的 requests/_twse_urlopen 模式，零 OpenBB 依賴。
+    歷史深度：自 101(2012)-03-19 新公式起結構穩定(15 欄)，可逐日 date= 回補。盤後揭露 → PIT 對齊次一交易日。"""
+    url = f"https://www.twse.com.tw/rwd/zh/marginTrading/TWT93U?date={date_str}&selectType=&response=json"
+    try:
+        data = _twse_urlopen(url, timeout=15)
+        if data.get("stat") != "OK":
+            return []
+        rows = data.get("data", [])
+        results = []
+        for row in rows:
+            # 跳過「合計/彙總」列：個股代號為 ASCII 英數（純數字 2330 或 ETF 如 00400A），
+            # 彙總列代號是中文字會被 int() 炸 → 比對代號 + try 跳列，雙重保險不讓單列毀整天
+            #（鏡像 _fetch_twse_margin :2630/:2657）。
+            try:
+                code = row[0].strip()
+                if not (code and code.isascii() and code.isalnum()):
+                    continue
+                def _int(s): return int(s.replace(",", "").replace(" ", "") or "0")
+                # ── TWT93U 欄位對位（15 欄，2026-06-26 接源以實際 JSON pin 死；單位＝股）──────────
+                #   融券段（已由 MI_MARGN 取，此處不重複）：[2]前日餘額 [3]賣出 [4]買進 [5]現券
+                #                                          [6]今日餘額 [7]次一營業日限額
+                #   借券段（SBL，本函式取）：[8]前日餘額 [9]當日賣出 [10]當日還券 [11]當日調整
+                #                            [12]當日餘額 [13]次一營業日可限額 [14]備註
+                #   驗算：[12]餘額 = [8]前日 + [9]賣出 − [10]還券 + [11]調整（2330 已對帳）。
+                sbl_short_sell    = _int(row[9])    # 當日借券賣出（量）
+                sbl_return        = _int(row[10])   # 當日還券（量）
+                sbl_short_balance = _int(row[12])   # 借券賣出餘額（股）← 主因子來源
+                results.append({
+                    "code": code,
+                    "sbl_short_balance": sbl_short_balance,
+                    "sbl_short_sell": sbl_short_sell,
+                    "sbl_return": sbl_return,
+                })
+            except (ValueError, IndexError, AttributeError):
+                # 個別列格式異常（彙總列/欄位數不符）→ 跳過，零回歸保護
+                continue
+        return results
+    except Exception as e:
+        print(f"[籌碼] 借券賣出(SBL)資料抓取失敗: {e}")
+        if raise_on_error:
+            raise
+        return []
+
+def _upsert_chip_snapshot(date_key: str, inst_list: list, margin_list: list,
+                          sbl_list: list = None) -> int:
     """把單日 T86 法人 + 融資券資料 upsert 進 chip_snapshot。
     以 (code, date) 為主鍵 INSERT OR REPLACE → 同日重跑冪等覆寫、不會長出重複列。
     供 _do_fetch_chip（每日排程）與歷史回補管線共用 —— 單日 upsert 邏輯的單一真實來源。
     date_key 須為 'YYYY-MM-DD'。回傳寫入筆數。"""
     inst_map   = {r["code"]: r for r in inst_list}
     margin_map = {r["code"]: r for r in margin_list}
-    all_codes  = set(inst_map.keys()) | set(margin_map.keys())
+    sbl_map    = {r["code"]: r for r in (sbl_list or [])}   # TW-SBL：借券賣出（可選，None→寫 0）
+    all_codes  = set(inst_map.keys()) | set(margin_map.keys()) | set(sbl_map.keys())
 
     con = db(); cur = con.cursor()
     count = 0
     for code in all_codes:
         inst   = inst_map.get(code, {})
         margin = margin_map.get(code, {})
+        sbl    = sbl_map.get(code, {})
         cur.execute("""
             INSERT OR REPLACE INTO chip_snapshot(
                 code, date, foreign_buy, itrust_buy, dealer_buy,
                 margin_buy, margin_sell, margin_balance,
-                short_buy, short_sell, short_balance, margin_short_ratio
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                short_buy, short_sell, short_balance, margin_short_ratio,
+                sbl_short_balance, sbl_short_sell, sbl_return
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             code, date_key,
             inst.get("foreign_buy", 0), inst.get("itrust_buy", 0), inst.get("dealer_buy", 0),
             margin.get("margin_buy", 0), margin.get("margin_sell", 0), margin.get("margin_balance", 0),
             margin.get("short_buy", 0), margin.get("short_sell", 0), margin.get("short_balance", 0),
             margin.get("margin_short_ratio", 0),
+            sbl.get("sbl_short_balance", 0), sbl.get("sbl_short_sell", 0), sbl.get("sbl_return", 0),
         ))
         count += 1
     con.commit(); con.close()
@@ -2699,12 +2759,13 @@ def _do_fetch_chip(date_str: str) -> dict:
     """核心抓取邏輯（供端點與排程共用）。"""
     inst_list   = _fetch_twse_institutional(date_str)
     margin_list = _fetch_twse_margin(date_str)
+    sbl_list    = _fetch_twse_sbl(date_str)        # TW-SBL：借券賣出餘額（同盤後揭露，與融資券/法人同寫一筆）
 
-    if not inst_list and not margin_list:
+    if not inst_list and not margin_list and not sbl_list:
         return {"ok": False, "message": f"無法取得 {date_str} 資料（可能非交易日或資料未發布）", "count": 0}
 
     date_key = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
-    count = _upsert_chip_snapshot(date_key, inst_list, margin_list)
+    count = _upsert_chip_snapshot(date_key, inst_list, margin_list, sbl_list)
     # 記錄最後自動抓取時間
     try:
         c2 = db()
@@ -2909,10 +2970,11 @@ def _chip_backfill_one_day(date_str: str):
     網路/限流錯誤經護欄重試後仍失敗 → 上拋（由呼叫端記 failed，整批不中斷）。"""
     inst_list   = _twse_fetch_with_guard(_fetch_twse_institutional, date_str)
     margin_list = _twse_fetch_with_guard(_fetch_twse_margin, date_str)
-    if not inst_list and not margin_list:
+    sbl_list    = _twse_fetch_with_guard(_fetch_twse_sbl, date_str)   # TW-SBL：與法人/融資券同寫一筆 snapshot
+    if not inst_list and not margin_list and not sbl_list:
         return ("no_data", 0)
     date_key = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
-    n = _upsert_chip_snapshot(date_key, inst_list, margin_list)
+    n = _upsert_chip_snapshot(date_key, inst_list, margin_list, sbl_list)
     return ("ok", n)
 
 def _chip_backfill_worker(job_id: str, start: str, end: str, market: str,
@@ -14343,9 +14405,11 @@ _CS_SECTOR_TOP_FRAC    = 0.50 # A4 TOPSEC：板塊籃子報酬前此比例 = 「
 # 籌碼僅台股(TW)有資料；他市場回空集（複合自然縮小、誠實標記，與 _chip_streak_dates 同精神）。
 # 【給 Reviewer：PIT】籌碼 d 日收盤(13:30)後才公布 → 因子值對齊「次一交易日」(chip series[k+1])
 # 才可進場，與既有 _chip_streak_dates 的 PIT 修法逐字同精神（進場∩公布日=∅）。
-_CHIP_CS_FACTORS = {"inst_net_buy", "trust_net_buy", "short_squeeze"}
+_CHIP_CS_FACTORS = {"inst_net_buy", "trust_net_buy", "short_squeeze", "sbl_short"}
 _CHIP_N_DEFAULT  = 5     # 三大法人/投信淨買累積窗（agenda N∈{3,5,10,20}，搜尋層暫用 default，param_space 供日後 Bayesian）
 _CHIP_SQ_N       = 5     # short_squeeze：融券餘額變化回看窗
+_CHIP_SBL_N      = 5     # sbl_short：借券賣出餘額 sbl_chg 模式的 N 日變化回看窗（turnover/ratio 模式不需窗）
+_CHIP_SBL_FIELD_DEFAULT = "sbl_turnover"  # 借券賣出 default 排名欄：餘額÷ADV（days-to-cover 類比；÷ADV 控流動性）
 _CHIP_ADV_WIN    = 20    # ADV（日均量）回看窗，供淨買標準化（÷ADV 控流動性/市值，避免因子退化成市值代理）
 
 # 橫斷面因子家族（§2.4 parsimony 軟剪分族用；同族雙 cs = 換湯不換藥，跨族 chip∧price∧fundamental = 補正交維度）
@@ -14353,6 +14417,7 @@ _CS_FACTOR_FAMILY = {
     "raw_mom": "momentum", "rel_str": "momentum", "resid_mom": "momentum",
     "sector_rel": "sector", "sector_rel_topsec": "sector",
     "inst_net_buy": "chip", "trust_net_buy": "chip", "short_squeeze": "chip",
+    "sbl_short": "chip",            # TW-SBL：借券賣出餘額（外資/機構 informed short；與融券 short_squeeze 同族，須驗報酬 corr 判真正交）
     "short_interest": "chip",       # Type 2 US-SI：美股 FINRA 空單餘額（chip 族，與價格族正交）
     "revenue_mom": "fundamental",   # P0-2：月營收動量（基本面族，與價格/籌碼正交）
     # Type 1a：價格族正交積木（純 OHLCV + 免費宏觀序列自算，零新管線）
@@ -14388,6 +14453,15 @@ _CHIP_CS_META = {
                         "dir": {"choices": [1, -1], "default": 1, "type": "int"}},
         "pit_rule": "TWSE 融資券隔日公布 → 進場落次一交易日",
         "mechanism": "高券資比 + 融券 N 日增 → 空頭回補擠壓（軋空）",
+        "family": "chip"},
+    "sbl_short": {
+        # dir 預設 −1（informed-bear，學術主證據）；+1（借券回補擠壓/與融券軋空疊加）留 forward 翻，註冊時不賭方向。
+        "param_space": {"N": {"min": 1, "max": 20, "default": _CHIP_SBL_N, "type": "int"},
+                        "field": {"choices": ["sbl_turnover", "sbl_ratio", "sbl_chg"],
+                                  "default": _CHIP_SBL_FIELD_DEFAULT, "type": "str"},
+                        "dir": {"choices": [1, -1], "default": -1, "type": "int"}},
+        "pit_rule": "TWSE 借券賣出餘額(TWT93U)盤後公布 → 進場落次一交易日（series[k] 值落 series[k+1] date，進場∩公布日=∅）",
+        "mechanism": "外資/機構 informed short：透過借券系統放空者多為法人(資訊優勢)，高借券賣出餘額(÷ADV 標準化)個股後續 underperform(Boehmer 2008 台股對應)；dir=−1=避開/做空高 SBL。caveat：餘額含避險/套利/造市部位→方向性被稀釋，故 dir 不賭死、預設 −1 信學術主證據，+1 留 forward 發現。",
         "family": "chip"},
 }
 
@@ -15088,11 +15162,13 @@ def _compute_sector_factors(smom_by_code: dict, sector_of: dict, factors_needed:
 
 # ── P0-1 R-CHIP-F：籌碼橫斷面因子（pure 計算，無 DB，可隔離測 PIT/算法）────────────
 def _chip_factor_series(chip_series: list, adv_by_date: dict, factors_needed: set,
-                        n: int = _CHIP_N_DEFAULT, sq_n: int = _CHIP_SQ_N) -> dict:
+                        n: int = _CHIP_N_DEFAULT, sq_n: int = _CHIP_SQ_N,
+                        sbl_n: int = _CHIP_SBL_N, sbl_field: str = _CHIP_SBL_FIELD_DEFAULT) -> dict:
     """單一個股的籌碼因子原始值時間序列（橫斷面排名前的 raw value）。純函式、無 DB、無 yfinance。
 
     輸入：
-      chip_series : [(date, foreign, trust, dealer, short_bal, ms_ratio), ...]，依 date 升冪（chip 公布日）。
+      chip_series : [(date, foreign, trust, dealer, short_bal, ms_ratio, sbl_bal), ...]，依 date 升冪（chip 公布日）。
+                    （sbl_bal=借券賣出餘額；舊呼叫只給前 6 格時 want_sbl 分支自動略過，零回歸。）
       adv_by_date : {date: ADV}（該股各「交易日」的日均量，供 ÷ADV 標準化；缺/0 → 該日不算）。
       factors_needed ⊆ _CHIP_CS_FACTORS。
     回 {factor: {entry_date: raw_val}}。
@@ -15106,6 +15182,9 @@ def _chip_factor_series(chip_series: list, adv_by_date: dict, factors_needed: se
       inst_net_buy  = N 日累積(外資+投信+自營)淨買(張) ÷ ADV（橫斷面 rank；smart-money 確認）
       trust_net_buy = N 日累積投信淨買(張) ÷ ADV（投信黏性，台股 edge）
       short_squeeze = 券資比(now) × max(0, 1 + 融券餘額 sq_n 日增幅)（高券資比+融券增=軋空壓力）
+      sbl_short     = 借券賣出餘額 ÷ ADV（default sbl_turnover；informed-bear，dir 預設 −1）；
+                      field=sbl_ratio（餘額÷流通股數，無股數來源→暫退回 turnover，標待補）；
+                      field=sbl_chg（餘額 sbl_n 日變化率，機構新建空 flow）。
     """
     import numpy as np
     out = {fac: {} for fac in factors_needed if fac in _CHIP_CS_FACTORS}
@@ -15120,12 +15199,18 @@ def _chip_factor_series(chip_series: list, adv_by_date: dict, factors_needed: se
     dealer  = np.array([(r[3] if r[3] is not None else 0.0) for r in chip_series], dtype=float)
     short_b = np.array([(r[4] if r[4] is not None else np.nan) for r in chip_series], dtype=float)
     msr     = np.array([(r[5] if r[5] is not None else np.nan) for r in chip_series], dtype=float)
+    # TW-SBL：借券賣出餘額（tuple 第 7 格；舊 6 格呼叫 → 全 NaN → want_sbl 分支自動略過，零回歸）。
+    # 餘額==0 視為 NaN（無借券放空＝該日無方向性訊號，不應壓低排名為「最不看空」；亦規避歷史未回補列的偽 0）。
+    sbl_b   = np.array([((r[6] if (len(r) > 6 and r[6] is not None) else np.nan)) for r in chip_series], dtype=float)
     inst    = foreign + trust + dealer
     want_inst  = "inst_net_buy"  in out
     want_trust = "trust_net_buy" in out
     want_sq    = "short_squeeze" in out
+    want_sbl   = "sbl_short"     in out
     N  = max(int(n), 1)
     sN = max(int(sq_n), 1)
+    sblN = max(int(sbl_n), 1)
+    sbl_fld = str(sbl_field)
     for k in range(m - 1):                 # k=公布日索引；進場 = dates[k+1]（PIT：次一交易日）
         entry = dates[k + 1]
         if want_inst or want_trust:
@@ -15145,12 +15230,33 @@ def _chip_factor_series(chip_series: list, adv_by_date: dict, factors_needed: se
                 else:
                     growth = 0.0
                 out["short_squeeze"][entry] = float(r_now) * max(0.0, 1.0 + growth)
+        if want_sbl:
+            # PIT：用 series[k] 的 SBL 餘額（公布日 k），值落 dates[k+1]（次一交易日）→ 進場∩公布日=∅，
+            # 與 want_sq 逐字同精神。turnover/ratio 用單日餘額；sbl_chg 用 sblN 日變化率。
+            bal_now = sbl_b[k]
+            if sbl_fld == "sbl_chg":
+                if k - sblN >= 0:
+                    base = sbl_b[k - sblN]
+                    if bal_now == bal_now and base == base:       # 皆非 NaN
+                        if base > 0:
+                            out["sbl_short"][entry] = (bal_now - base) / base
+                        elif bal_now > 0:
+                            out["sbl_short"][entry] = 1.0          # 由 0 增為正 → 視為大增
+                        else:
+                            out["sbl_short"][entry] = 0.0
+            else:
+                # sbl_turnover(default) = 餘額÷ADV；sbl_ratio 無流通股數來源 → 暫退回 turnover（標待補）。
+                adv = adv_by_date.get(entry)
+                if adv and adv > 0 and bal_now == bal_now:
+                    out["sbl_short"][entry] = bal_now / adv
     return out
 
 
 def _compute_chip_cs_factors(mkt: str, codes: list, feats: dict, factors_needed: set,
                              n: int = _CHIP_N_DEFAULT, sq_n: int = _CHIP_SQ_N,
-                             adv_win: int = _CHIP_ADV_WIN) -> dict:
+                             adv_win: int = _CHIP_ADV_WIN,
+                             sbl_n: int = _CHIP_SBL_N,
+                             sbl_field: str = _CHIP_SBL_FIELD_DEFAULT) -> dict:
     """籌碼 cs 因子 orchestrator：批次讀 chip_snapshot（I/O）+ 由 feats 量能算 ADV → 呼叫 pure
     _chip_factor_series → 組成 {factor: {date: {code: raw_val}}}（與 _compute_sector_factors 同形狀，
     可直接餵 _cs_rank_pct 的排名迴圈）。籌碼僅 TW；他市場/無資料回空（複合自然縮小、誠實標記）。"""
@@ -15164,7 +15270,8 @@ def _compute_chip_cs_factors(mkt: str, codes: list, feats: dict, factors_needed:
         con = db(); cur = con.cursor()
         qs = ",".join("?" * len(codes))
         rows = cur.execute(
-            f"SELECT code, date, foreign_buy, itrust_buy, dealer_buy, short_balance, margin_short_ratio "
+            f"SELECT code, date, foreign_buy, itrust_buy, dealer_buy, short_balance, margin_short_ratio, "
+            f"sbl_short_balance "
             f"FROM chip_snapshot WHERE code IN ({qs}) ORDER BY code, date", list(codes)
         ).fetchall()
         con.close()
@@ -15172,7 +15279,9 @@ def _compute_chip_cs_factors(mkt: str, codes: list, feats: dict, factors_needed:
         return out
     by_code = {}
     for r in rows:
-        by_code.setdefault(r[0], []).append((r[1], r[2], r[3], r[4], r[5], r[6]))
+        # tuple 第 7 格 = sbl_short_balance（TW-SBL）；0→NaN（純函式內視 0 為無訊號，規避偽 0/未回補列）
+        sbl_v = r[7] if (r[7] is not None and r[7] != 0) else None
+        by_code.setdefault(r[0], []).append((r[1], r[2], r[3], r[4], r[5], r[6], sbl_v))
     aw = max(int(adv_win), 1)
     for code, series in by_code.items():
         f = feats.get(code)
@@ -15186,7 +15295,8 @@ def _compute_chip_cs_factors(mkt: str, codes: list, feats: dict, factors_needed:
             aw, min_periods=max(5, aw // 2)).mean().to_numpy()
         adv_by_date = {dts[i]: float(adv_arr[i]) for i in range(len(dts))
                        if adv_arr[i] == adv_arr[i] and adv_arr[i] > 0}
-        cf = _chip_factor_series(series, adv_by_date, chip_needed, n=n, sq_n=sq_n)
+        cf = _chip_factor_series(series, adv_by_date, chip_needed, n=n, sq_n=sq_n,
+                                 sbl_n=sbl_n, sbl_field=sbl_field)
         for fac, dmap in cf.items():
             fv = out[fac]
             for d, val in dmap.items():
@@ -17084,7 +17194,7 @@ _AUTO_SEARCH_LOCK = threading.Lock()
 
 # 可插拔搜尋空間（確定性、有界）
 _AUTO_FACTOR_POOL = ("sector_rel_topsec", "sector_rel", "resid_mom", "rel_str", "raw_mom")
-_AUTO_CHIP_CS_POOL = ("inst_net_buy", "trust_net_buy", "short_squeeze")  # P0-1：可疊加的籌碼 cs 層（A4∧籌碼）
+_AUTO_CHIP_CS_POOL = ("inst_net_buy", "trust_net_buy", "short_squeeze", "sbl_short")  # P0-1：可疊加的籌碼 cs 層（A4∧籌碼）；TW-SBL 借券賣出納入 daemon 自動列舉 add_cs:sbl_short
 _AUTO_REVENUE_CS_POOL = ("revenue_mom",)  # P0-2：可疊加的月營收 cs 層（A4∧基本面正交複合）
 # Type 2 US-SI：可疊加的美股籌碼 cs 層（daemon mkt="US" run 自動列舉 A4_US∧short_interest）。
 # 本次只 short_interest；inst_13f 為後續階段（留好擴充）。US-gated orchestrator → TW run 此因子自然回空。
@@ -17145,6 +17255,18 @@ def _auto_price_cs_layer(cf: str) -> dict:
     return layer
 
 
+def _auto_chip_cs_layer(cf: str) -> dict:
+    """籌碼族 add_cs 候選層工廠：套 _CHIP_CS_META 的 default dir。
+    既有 inst_net_buy/trust_net_buy/short_squeeze default dir=+1 → dir 省略（_normalize_layers 零回歸）；
+    TW-SBL sbl_short default dir=−1（informed-bear）→ 寫入 dir=−1（forward 仍可翻 +1 試擠空）。
+    鏡像 _auto_price_cs_layer 的 META-default-dir 套用模式。"""
+    d = ((_CHIP_CS_META.get(cf) or {}).get("param_space", {}).get("dir", {}) or {}).get("default", 1)
+    layer = {"factor": cf, "top_k": _CS_DEFAULT_K}
+    if d == -1:
+        layer["dir"] = -1
+    return layer
+
+
 def _auto_search_candidates(current: list,
                             factor_pool=_AUTO_FACTOR_POOL,
                             topk_pool=_AUTO_TOPK_POOL,
@@ -17169,7 +17291,7 @@ def _auto_search_candidates(current: list,
         cands.append(("add:chip", current + [{"type": "chip", "window": 3, "min_net": 0.0}]))
     for cf in chip_pool:                               # ③ 加籌碼 cs 層（k 層 cs∧cs：A4∧籌碼正交複合）
         if cf not in present_factors:
-            cands.append((f"add_cs:{cf}", current + [{"factor": cf, "top_k": _CS_DEFAULT_K}]))
+            cands.append((f"add_cs:{cf}", current + [_auto_chip_cs_layer(cf)]))
     for cf in rev_pool:                                # ③b 加月營收 cs 層（基本面正交：A4∧revenue_mom）
         if cf not in present_factors:
             cands.append((f"add_cs:{cf}", current + [{"factor": cf, "top_k": _CS_DEFAULT_K}]))
