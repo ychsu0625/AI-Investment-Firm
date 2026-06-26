@@ -11811,7 +11811,16 @@ def _revenue_mom_runtime_map(market: str, asof_date: str = "", _window_days: int
                 feats[code] = f
         rev_fv = _compute_revenue_cs_factors(market, codes, feats, {"revenue_mom"})
         dmap = rev_fv.get("revenue_mom", {})               # {date: {code: raw_val}}
-        latest = max(dmap.keys()) if dmap else None         # 最新有月營收 cs 值的交易日
+        # latest-rankable 選日（降冪掃最近交易日，取第一個橫斷面 ≥ _CS_MIN_XSECTION 的日子）。
+        # 🐛 不可盲取 max(date)：月營收經 _revenue_factor_series fill-forward 是「逐股獨立」，只要任一檔
+        # 日K較新鮮（資料新鮮度不齊，個別股多 1~2 個交易日）就在 dmap 生出一個僅含極少數股的最新日，整批
+        # < 暖身門檻 → 不排名 → 回空（此即 8dab675 cockpit 真驗回空之根因；真驗 2026-06-24 僅 3 檔）。
+        # A4 走 _compute_sector_factors 天生需板塊橫斷面，最新日自動收斂到稠密日，故無此症。降冪選第一個
+        # 可排名日 → 與 forward _cs_rank_pct「每個達標日皆排名」逐字一致；PIT 不變（仍 announce_date<d）。
+        ranked_dates = sorted(dmap.keys(), reverse=True)
+        latest = next((d for d in ranked_dates if len(dmap[d]) >= _CS_MIN_XSECTION), None)
+        if latest is None and ranked_dates:                # 暖身期：無任一日達門檻 → 誠實標最新日 raw、rank 留空
+            latest = ranked_dates[0]
         out["date"] = latest
         if latest:
             cvals = dict(dmap[latest])
