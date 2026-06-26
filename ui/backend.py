@@ -17955,7 +17955,13 @@ _FT_DEFAULT_REGIME_GATE = "TREND_UP"
 _FT_WARMUP_DAYS         = 540   # 選股資料載入回看天數（足供 resid_mom reg120+acc60 / sector_rel N60 暖身）
 
 # ── R-FWD-8 auto-roll ROLL 閘 config（單一真實來源；門檻寫死於 code，可由 endpoint body 覆寫）──
-_FT_ROLL_DSR_MIN       = 0.90    # E2：DSR>0.90（低於畢業關 0.95，便宜且正確的多重檢定校正）
+# ★sbl-forward-entry-decision(2026-06-26) category-error 修正：ROLL=「進紙上觀察」低門檻閘，
+#   不該套畢業級的尺。DSR≥0.60（優於拋硬幣 0.50 底線）即可滾入紙上；DSR>0.90 是「畢業真錢」
+#   級檢定（R-FWD-9 GRADUATION 前置，與 live N≥20 + walk-forward + 多 regime 同層），放在 ROLL =
+#   category error（違反 operating model「ROLL 低門檻、GRADUATION 嚴」不對稱）。前瞻鎖定·對所有
+#   未來候選一體適用·非為 sbl 客製。
+_FT_ROLL_DSR_MIN       = 0.60    # E2：DSR≥0.60（ROLL 紙上入場底線；>0.90 已移至 GRADUATION 前置，見 _FT_GRADUATION_DSR_MIN）
+_FT_GRADUATION_DSR_MIN = 0.90    # ★R-FWD-9 畢業關前置（尚未建關，stub）：DSR>0.90 屬「畢業真錢」級，非 ROLL 入場閘
 _FT_DEDUP_CORR_MAX     = 0.70    # ★E4：16 塊 pnl 向量 max Pearson < 0.70 才滾入（老闆 #1 去重；唯一硬約束）
 _FT_ROLL_CRISIS_FLOOR  = -5.0    # E3：CRISIS 超額 < 此 = 「危機翻大負」；Track A rel_str∧rev 危機 −2.9 非大負
 _FT_ROLL_SCAN_LIMIT    = 300     # 每次 auto-roll 掃描 composite_candidates 上限（最新優先）
@@ -18020,9 +18026,12 @@ def _ensure_ft_tables():
     )""")
     # R-FWD-8b 冪等遷移：補 auto-roll 來源欄（16 塊向量 + roll 時的 G1/DSR 指標，作 E4 去重 corr 基質 +
     # 取代支配比較 + 稽核。ADD COLUMN 為 metadata-only，既有 INSERT/UPDATE 不列此欄故零回歸。）
+    # sbl-forward-entry-decision(2026-06-26)：provenance（區隔 PROVISIONAL_BORDERLINE 與一般 active，
+    #   供監控密度區分）+ notes（誠實標 E4 raw-pnl 例外/手動置入緣由）。ADD COLUMN metadata-only → 零回歸。
     for col, typ in (("pnl_blocks_json", "TEXT"), ("roll_cand_id", "TEXT"),
                      ("roll_dsr", "REAL"), ("roll_excess_ci_low", "REAL"),
-                     ("roll_pbo", "REAL"), ("roll_regime", "TEXT")):
+                     ("roll_pbo", "REAL"), ("roll_regime", "TEXT"),
+                     ("provenance", "TEXT"), ("notes", "TEXT")):
         try:
             cur.execute(f"ALTER TABLE ft_strategies ADD COLUMN {col} {typ}")
         except Exception:
@@ -18194,11 +18203,14 @@ def _ft_eval_roll_gates(cand: dict, regime: str, roster: list, cfg: dict) -> dic
     if not e1:
         reasons.append(f"E1: 目標 regime {regime} status={target.get('status') if target else 'NA'}≠ALPHA")
 
-    # E2 robustness：DSR>0.90
+    # E2 robustness：DSR≥0.60（ROLL 紙上入場底線，優於拋硬幣 0.50）。
+    # ★DSR>0.90（_FT_GRADUATION_DSR_MIN）屬 GRADUATION（R-FWD-9）前置檢查，非 ROLL 入場閘——
+    #   在此卡 0.90 是 category error（sbl-forward-entry-decision 2026-06-26 修正）。ROLL = E1 ALPHA
+    #   ∧ E4 去重<0.70 ∧ E2 DSR≥0.60；DSR>0.90 + live N≥20 + walk-forward + 多 regime 留待畢業關。
     dsr = cand.get("dsr")
-    e2 = (dsr is not None and dsr > dsr_min)
+    e2 = (dsr is not None and dsr >= dsr_min)
     if not e2:
-        reasons.append(f"E2: DSR={dsr}≤{dsr_min}")
+        reasons.append(f"E2: DSR={dsr}<{dsr_min}（ROLL 底線；>0.90 為畢業前置非入場閘）")
 
     # E3 regime 不崩：目標 regime 超額≥0；且(4 regime ≥2 正 或 CRISIS 不為大負)
     tgt_exc = (target or {}).get("excess_avg")
@@ -18257,6 +18269,20 @@ def _ft_eval_roll_gates(cand: dict, regime: str, roster: list, cfg: dict) -> dic
             "target_excess": tgt_exc, "n_pos_regimes": n_pos, "crisis_excess": crisis_exc,
             "max_corr": (round(max_corr, 4) if max_corr is not None else None),
             "peer_sid": peer_sid, "dominates_sid": dominates_sid, "reasons": reasons}
+
+
+def _ft_eval_graduation_gates(cand: dict) -> dict:
+    """★R-FWD-9 GRADUATION（紙上→真錢）閘 — STUB（尚未建關）。
+    sbl-forward-entry-decision(2026-06-26)：DSR>0.90 是「畢業真錢」級檢定，從 ROLL E2 移來此層。
+    畢業前置（全部須過，不得在此前轉真錢）：
+      ① DSR > _FT_GRADUATION_DSR_MIN(0.90)（隨資料加深升過）
+      ② live N≥20 closed picks（真 OOS 戰績，非樣本內）
+      ③ walk-forward 穩定（多窗 OOS 一致）
+      ④ regime 廣度：不准只憑單一 TREND_UP 畢業（現 sbl 僅 2.5 年單一 regime）
+      ⑤ 全史 corr 定讞（去重存活、非市場 beta 假象）
+    TODO(R-FWD-9)：實作上述五關 + holdout 優越驗證後才開放 enable_replace / 真錢轉換。"""
+    return {"implemented": False, "graduation_dsr_min": _FT_GRADUATION_DSR_MIN,
+            "todo": "R-FWD-9 未建：DSR>0.90 + live N≥20 + walk-forward + 多 regime + 全史 corr"}
 
 
 def _ft_universe_codes(market: str) -> list:
@@ -18411,19 +18437,31 @@ def forward_register_strategy(config: dict, _: None = Depends(require_token)):
         horizon = _FT_DEFAULT_HORIZON
     benchmark = str(config.get("benchmark", "equal_weight")).lower()
     source = str(config.get("source", "manual"))
+    # sbl-forward-entry-decision(2026-06-26)：可選 provenance/notes/roll_dsr（PROVISIONAL_BORDERLINE 入場用）。
+    #   既有呼叫端不帶這些 key → 預設 None，INSERT/UPDATE 行為與舊版逐字等價（零回歸）。
+    provenance = config.get("provenance") or None
+    notes = config.get("notes") or None
+    try:
+        roll_dsr = float(config["roll_dsr"]) if config.get("roll_dsr") is not None else None
+    except (TypeError, ValueError):
+        roll_dsr = None
     con = db(); cur = con.cursor()
-    cur.execute("""INSERT INTO ft_strategies(name,market,layers_json,regime_gate,vix_gate,horizon_days,benchmark,status,source,created_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?)
+    cur.execute("""INSERT INTO ft_strategies(name,market,layers_json,regime_gate,vix_gate,horizon_days,benchmark,status,source,created_at,provenance,notes,roll_dsr)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(name) DO UPDATE SET layers_json=excluded.layers_json,regime_gate=excluded.regime_gate,
             vix_gate=excluded.vix_gate,horizon_days=excluded.horizon_days,benchmark=excluded.benchmark,
-            market=excluded.market,source=excluded.source,status='active'""",
+            market=excluded.market,source=excluded.source,status='active',
+            provenance=COALESCE(excluded.provenance,ft_strategies.provenance),
+            notes=COALESCE(excluded.notes,ft_strategies.notes),
+            roll_dsr=COALESCE(excluded.roll_dsr,ft_strategies.roll_dsr)""",
         (name, market, json.dumps(layers, ensure_ascii=False), regime_gate, vix_gate, horizon,
-         benchmark, "active", source, datetime.now().isoformat()))
+         benchmark, "active", source, datetime.now().isoformat(), provenance, notes, roll_dsr))
     con.commit()
     sid = cur.execute("SELECT id FROM ft_strategies WHERE name=?", (name,)).fetchone()[0]
     con.close()
     return {"ok": True, "strategy_id": sid, "name": name, "layers": layers,
-            "regime_gate": regime_gate, "vix_gate": vix_gate, "horizon_days": horizon, "market": market}
+            "regime_gate": regime_gate, "vix_gate": vix_gate, "horizon_days": horizon, "market": market,
+            "provenance": provenance, "roll_dsr": roll_dsr}
 
 
 @app.get("/api/forward/strategies")
@@ -18725,6 +18763,44 @@ def forward_update(_: None = Depends(require_token)):
     return {"ok": True, "as_of": today, "entered": entered, "marked": marked, "settled": settled}
 
 
+# ── sbl-forward-entry-decision(2026-06-26) 衰減閘 hook ────────────────────────────────────────
+_FT_DECAY_MIN_CLOSED = 10        # 衰減閘最小觀測：closed picks ≥ 此數才評估 CI（不足 → 點估先頂著）
+
+def _ft_excess_ci_lower(values: list, n_boot: int = 1000):
+    """realized excess 的 95% bootstrap CI 下界（與 _summarize_trades excess_ci95 同源同算法）。
+    純函式無 DB，可單元隔離測。N<5 → None（樣本不足，不下判斷）。"""
+    n = len(values)
+    if n < 5:
+        return None
+    import random
+    boot = []
+    for _ in range(n_boot):
+        idx = [random.randint(0, n - 1) for __ in range(n)]
+        boot.append(sum(values[k] for k in idx) / n)
+    boot.sort()
+    return round(boot[int(n_boot * 0.025)], 2)
+
+
+def _ft_decay_flag(closed_excess: list):
+    """PROVISIONAL_BORDERLINE 衰減閘：closed N≥_FT_DECAY_MIN_CLOSED 且 realized excess bootstrap CI
+    下界<0 → 'KILL_CANDIDATE'（forward edge 消失，AIF 放行條件 2）。
+    回 {decay_flag, ci_lower, n_closed, point_estimate}。只回 flag 給 cockpit 看，不自動 kill。
+    N 不足 CI(<5) → 退回點估比較先頂著（TODO：N 達標前不具統計效力）。"""
+    n = len(closed_excess)
+    point = round(sum(closed_excess) / n, 2) if n else None
+    if n < _FT_DECAY_MIN_CLOSED:
+        return {"decay_flag": None, "ci_lower": None, "n_closed": n, "point_estimate": point,
+                "note": f"closed N={n}<{_FT_DECAY_MIN_CLOSED} → 衰減閘未啟（觀測不足）"}
+    ci_lo = _ft_excess_ci_lower(closed_excess)
+    if ci_lo is None:                                   # N≥10 但 <5 不可能；防呆
+        flag = "KILL_CANDIDATE" if (point is not None and point < 0) else None
+        return {"decay_flag": flag, "ci_lower": None, "n_closed": n, "point_estimate": point,
+                "note": "CI 不可得 → 點估頂著(TODO)"}
+    flag = "KILL_CANDIDATE" if ci_lo < 0 else None
+    return {"decay_flag": flag, "ci_lower": ci_lo, "n_closed": n, "point_estimate": point,
+            "note": ("forward excess CI 下界<0 → edge 消失" if flag else "forward excess CI 下界≥0 → 存活")}
+
+
 @app.get("/api/forward/track")
 def forward_track():
     """戰績：每策略 + 整體 live-forward 記錄（picks 數、open/pending/closed、累積平均超額、勝率、
@@ -18732,7 +18808,7 @@ def forward_track():
     _ensure_ft_tables()
     today = datetime.now().strftime("%Y-%m-%d")
     con = db(); cur = con.cursor()
-    strs = cur.execute("""SELECT id,name,market,regime_gate,vix_gate,horizon_days,status,source
+    strs = cur.execute("""SELECT id,name,market,regime_gate,vix_gate,horizon_days,status,source,provenance,roll_dsr
         FROM ft_strategies ORDER BY id""").fetchall()
     out = []
     ov = {"picks": 0, "open": 0, "pending": 0, "closed": 0, "excess": [], "ret": []}
@@ -18755,9 +18831,13 @@ def forward_track():
         first = cur.execute("SELECT MIN(pick_date) FROM ft_picks WHERE strategy_id=?", (sid,)).fetchone()[0]
         days = ((datetime.strptime(today, "%Y-%m-%d") - datetime.strptime(first, "%Y-%m-%d")).days
                 if first else 0)
+        # sbl-forward-entry-decision(2026-06-26) 衰減閘 hook：僅 PROVISIONAL_BORDERLINE 算 decay_flag。
+        provenance = s[8]
+        decay = (_ft_decay_flag(closed_exc) if provenance == "provisional_borderline" else None)
         out.append({
             "strategy_id": sid, "name": s[1], "market": s[2], "regime_gate": s[3], "vix_gate": s[4],
             "horizon_days": s[5], "status": s[6], "source": s[7],
+            "provenance": provenance, "roll_dsr": s[9], "decay": decay,
             "n_picks": n, "open": n_open, "pending": n_pend, "closed": n_closed,
             "closed_avg_excess": (round(sum(closed_exc) / len(closed_exc), 2) if closed_exc else None),
             "closed_avg_return": (round(sum(closed_ret) / len(closed_ret), 2) if closed_ret else None),
@@ -18785,6 +18865,16 @@ def forward_track():
         o["max_corr_peer"] = (by_sid[peer]["name"] if peer in by_sid else None)
         if mc is not None and mc >= _FT_DEDUP_CORR_MAX:
             n_pairs_over += 1
+        # sbl-forward-entry-decision(2026-06-26) 去重存活 hook：PROVISIONAL_BORDERLINE 多回對 short_squeeze
+        #   的 max_corr（AIF 放行條件 3：forward 內 corr(sbl,squeeze)<0.70 持續；收斂則留較強者 sbl）。
+        #   ⚠ 此為 raw-pnl corr（被市場 beta 主導、finding#1 已知量不出選股正交）→ 僅供觀察，非硬閘。
+        if o.get("provenance") == "provisional_borderline":
+            sq_peers = [p for p in others if "short_squeeze" in _layers_factor_set(p.get("layers"))]
+            sq_mc, sq_peer = _ft_max_corr_to_roster(me.get("blocks") if me else None, sq_peers)
+            o["corr_to_short_squeeze"] = (round(sq_mc, 4) if sq_mc is not None else None)
+            o["short_squeeze_peer"] = (by_sid[sq_peer]["name"] if sq_peer in by_sid else None)
+            o["corr_to_short_squeeze_note"] = ("raw-pnl corr 被市場 beta 主導(finding#1)→僅觀察；"
+                                               "真去重看橫斷面因子 rank corr(-0.315) 非此值")
     con.close()
     overall = {
         "n_picks": ov["picks"], "open": ov["open"], "pending": ov["pending"], "closed": ov["closed"],
@@ -18796,8 +18886,26 @@ def forward_track():
                      "strategies_over_threshold": n_pairs_over,
                      "note": "max_corr_to_roster = 該支 16 塊 pnl 向量對其餘 active roster 的最大 Pearson；"
                              "≥門檻 = 共線雙胞胎（E4 應已擋；既有 manual 可能殘留）"}
+    # sbl-forward-entry-decision(2026-06-26) PROVISIONAL_BORDERLINE 監控總覽：
+    #   ★方向性稀釋切片（AIF 放行條件 4，盯最大紅旗）= DEFER：借券含避險/做市/套利腿，須按
+    #   「純方向放空 spike」vs「借券與避險/套利同升（期貨基差/ETF 申贖 proxy）」分層；edge 只集中
+    #   套利重時段 → crowding proxy 非 informed-bear → kill。需新資料源（期貨基差/ETF 流）→ 無源硬做=造假，
+    #   故本次只註記監控需求、不實作（誠實標 defer）。
+    provisional_monitoring = {
+        "decay_gate": {"min_closed": _FT_DECAY_MIN_CLOSED,
+                       "rule": "closed N≥min 且 realized excess bootstrap CI 下界<0 → KILL_CANDIDATE（僅 flag，不自動 kill）"},
+        "dedup_survival": "PROVISIONAL 策略多回 corr_to_short_squeeze（raw-pnl，僅觀察；真去重看因子 rank corr）",
+        "directional_dilution_slice": {
+            "status": "DEFER", "implemented": False,
+            "needs_data": ["期貨基差 (futures basis)", "ETF 申贖/流向 (ETF creation/redemption flow)",
+                           "做市借券 proxy (market-maker SBL)"],
+            "rule": "edge 只集中套利重時段 → crowding/regime proxy 非 informed-bear → kill",
+            "note": "AIF 放行條件 4 最大紅旗探針；無資料源 → 本次僅監控需求註記，硬做=造假故不實作(TODO)"},
+        "graduation_precheck": _ft_eval_graduation_gates({}),
+    }
     return {"ok": True, "as_of": today, "overall": overall,
-            "roster_orthogonality": orthogonality, "strategies": out}
+            "roster_orthogonality": orthogonality,
+            "provisional_monitoring": provisional_monitoring, "strategies": out}
 
 
 @app.get("/api/forward/picks")
@@ -18854,6 +18962,40 @@ def forward_seed(date: str = "", run: bool = True, _: None = Depends(require_tok
     registered = [forward_register_strategy(dict(spec)) for spec in _FT_SEED_STRATEGIES]
     res = forward_run(date=date or datetime.now().strftime("%Y-%m-%d")) if run else None
     return {"ok": True, "registered": registered, "run": res}
+
+
+# ── sbl-forward-entry-decision(2026-06-26)：A4∧sbl_short PROVISIONAL_BORDERLINE 入場 ─────────────
+#   AIF 判決(B)：live :8766 真驗 excess +2.32%[1.12,3.66] DSR0.84（三 chip 因子最強）→ 放行進 forward
+#   紙上實盤。DSR0.84 卡的是「畢業真錢」尺、不該擋紙上觀察（ROLL 閘已修正，見 _FT_ROLL_DSR_MIN）。
+#   layers = sector_rel_topsec(A4, top_k0.1) ∧ sbl_short(top_k0.2, dir=-1：借券賣出餘額 informed-bear)。
+_FT_PROVISIONAL_SBL = {
+    "name": "A4∧sbl_short",
+    "layers": [{"factor": "sector_rel_topsec", "top_k": 0.10},
+               {"factor": "sbl_short", "top_k": 0.20, "dir": -1}],
+    "market": "TW", "regime_gate": "TREND_UP", "vix_gate": None, "horizon_days": 20,
+    "source": "aif_decision", "provenance": "provisional_borderline", "roll_dsr": 0.84,
+    # ★E4 去重例外（誠實處理 finding #1）：A4∧sbl 與既有 A4-family 的 raw-pnl corr ≥0.70（共用 A4 腿、
+    #   市場 beta 主導——cockpit 實證 A4∧sbl vs A4∧rev pnl≈0.97），但這是 E4 raw-pnl 度量已知缺陷
+    #   （量不出選股正交）非真冗餘（因子 rank corr=-0.315 真不同訊號）。故本入場 = deliberate provisional
+    #   override：直接註冊、不讓壞掉的 raw-pnl E4 擋它。
+    "notes": "PROVISIONAL_BORDERLINE(DSR=0.84)。AIF 判決(B) 2026-06-26 手動置入觀察。"
+             "E4 raw-pnl 去重對共用 A4 腿不可靠(finding#1：市場 beta 主導, A4∧sbl vs A4∧rev pnl≈0.97)，"
+             "故繞過 auto-roll E4 直接註冊；真去重看橫斷面因子 rank corr(=-0.315 vs short_squeeze)。"
+             "監控：衰減閘(closed N≥10 且 excess bootstrap CI 下界<0 → KILL_CANDIDATE)、"
+             "去重存活(vs short_squeeze)。畢業前置見 R-FWD-9 stub。"
+             "方向性稀釋切片(期貨基差/ETF 流)需新資料 → defer(TODO)。",
+}
+
+
+@app.post("/api/forward/register-sbl-provisional")
+def forward_register_sbl_provisional(run: bool = False, date: str = "", _: None = Depends(require_token)):
+    """註冊 A4∧sbl_short 為 PROVISIONAL_BORDERLINE forward 策略（AIF 判決(B) 2026-06-26）。
+    冪等 by name。deliberate override：繞過 auto-roll 的 raw-pnl E4 去重（finding#1 已知缺陷）直接置入。
+    可選 run=True 立即跑今日選股。"""
+    _ensure_ft_tables()
+    registered = forward_register_strategy(dict(_FT_PROVISIONAL_SBL))
+    res = forward_run(date=date or datetime.now().strftime("%Y-%m-%d")) if run else None
+    return {"ok": True, "registered": registered, "provisional": True, "run": res}
 
 
 # ── 啟動 ──────────────────────────────────────────
