@@ -811,6 +811,108 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 .conc-table tbody td:first-child,.conc-table tbody td:nth-child(2){text-align:left}
 .conc-bar-wrap{width:80px;height:6px;background:var(--bg4);border-radius:3px;display:inline-block;vertical-align:middle}
 .conc-bar{height:100%;border-radius:3px;transition:width .3s}
+
+/* ═══ P2 投資組合：頁內 tab + 前向實盤戰績（fwd-*）— 純加法、零回歸 ═══ */
+.pos-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:14px}
+.pos-tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--text2);font-size:14px;font-weight:600;
+  padding:9px 14px;cursor:pointer;transition:color .15s,border-color .15s;margin-bottom:-1px}
+.pos-tab:hover{color:var(--text)}
+.pos-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.pos-tabpane{display:none}
+.pos-tabpane.active{display:block}
+
+/* 頁頂誠實橫幅 */
+.fwd-banner{display:flex;align-items:flex-start;gap:9px;background:var(--blue-bg);border:1px solid var(--blue-d);
+  border-radius:var(--r);padding:11px 14px;margin-bottom:14px;font-size:13px;color:var(--text);line-height:1.55}
+.fwd-banner .fwd-ban-ic{flex-shrink:0;font-size:15px}
+.fwd-banner b{color:var(--blue)}
+
+/* L0 概覽表 */
+.fwd-tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r);background:var(--bg1)}
+.fwd-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;min-width:760px}
+.fwd-table th{background:var(--bg1);color:var(--text3);font-size:12px;font-weight:600;letter-spacing:.3px;
+  padding:9px 12px;text-align:right;border-bottom:2px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:1}
+.fwd-table th:nth-child(1),.fwd-table th:nth-child(2),.fwd-table th:nth-child(3){text-align:left}
+.fwd-table td{padding:9px 12px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid rgba(255,255,255,.04);white-space:nowrap;vertical-align:middle}
+.fwd-table td:nth-child(1),.fwd-table td:nth-child(2),.fwd-table td:nth-child(3){text-align:left}
+.fwd-row{cursor:pointer;transition:background .12s}
+.fwd-row:hover{background:var(--bg3)}
+.fwd-row.flag{background:rgba(210,153,34,.06)}
+.fwd-row.flag:hover{background:rgba(210,153,34,.11)}
+.fwd-row.open td{border-bottom-color:transparent}
+.fwd-flag{font-size:14px}
+.fwd-sname{font-weight:700;color:var(--text);display:inline-flex;align-items:center;gap:6px}
+.fwd-caret{display:inline-block;color:var(--text3);transition:transform .15s;font-size:11px}
+.fwd-row.open .fwd-caret{transform:rotate(90deg)}
+.fwd-src{font-size:11px;color:var(--text3);margin-left:6px}
+.fwd-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.fwd-badge.alpha{background:var(--green-bg);color:var(--green);border:1px solid var(--green-d)}
+.fwd-badge.prov{background:var(--yellow-bg);color:var(--yellow);border:1px solid #5a4a1a}
+.fwd-badge.active{background:var(--bg4);color:var(--text2);border:1px solid var(--border)}
+.fwd-badge.neg{background:var(--red-bg);color:var(--red);border:1px solid var(--red-d)}
+.fwd-regime{font-size:12px;white-space:nowrap}
+.fwd-regime.on{color:var(--green)}
+.fwd-regime.off{color:var(--text3)}
+.fwd-accum{color:var(--text3);font-style:normal}
+.fwd-est{color:var(--text2)}
+.fwd-est .fwd-esttag{font-size:10px;color:var(--text3);margin-left:3px}
+.fwd-grad{display:inline-flex;flex-direction:column;align-items:flex-end;gap:3px;min-width:96px}
+.fwd-grad-t{font-size:11px;color:var(--text2);white-space:nowrap}
+.fwd-prog{width:90px;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden}
+.fwd-prog-fill{height:100%;background:var(--blue);border-radius:3px;transition:width .3s}
+
+/* L1 inline 展開面板 */
+.fwd-l1{background:var(--bg2);border-bottom:1px solid var(--border)}
+.fwd-l1-inner{padding:14px 16px 18px}
+.fwd-l1-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:860px){.fwd-l1-grid{grid-template-columns:1fr}}
+.fwd-zone{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r);padding:12px 13px}
+.fwd-zone.full{grid-column:1 / -1}
+.fwd-zone-h{font-size:12px;font-weight:700;color:var(--text2);letter-spacing:.3px;margin:0 0 9px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.fwd-zone-h .fwd-zone-n{color:var(--text3);font-weight:500}
+.fwd-lay{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.fwd-lay-chip{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:4px 9px;font-size:12px;color:var(--text)}
+.fwd-lay-chip .k{color:var(--text3);font-size:11px}
+.fwd-lay-and{color:var(--text3);font-size:12px}
+.fwd-gates{font-size:12px;color:var(--text3);margin-top:8px;line-height:1.6}
+/* 績效面板三段 */
+.fwd-perf-seg{border:1px solid var(--border);border-radius:5px;padding:9px 11px;margin-bottom:8px}
+.fwd-perf-seg.oos{border-left:3px solid var(--green)}
+.fwd-perf-seg.open{border-left:3px solid var(--text3)}
+.fwd-perf-seg.grad{border-left:3px solid var(--blue)}
+.fwd-perf-h{font-size:12px;font-weight:700;color:var(--text);margin-bottom:7px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.fwd-perf-h .tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px}
+.fwd-perf-h .tag.strong{background:var(--green-bg);color:var(--green)}
+.fwd-perf-h .tag.est{background:var(--bg4);color:var(--text2)}
+.fwd-mini{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media(max-width:520px){.fwd-mini{grid-template-columns:repeat(2,1fr)}}
+.fwd-mini-c{background:var(--bg3);border-radius:4px;padding:7px 9px}
+.fwd-mini-l{font-size:11px;color:var(--text3);margin-bottom:3px}
+.fwd-mini-v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
+.fwd-mini-v.up{color:var(--red)}.fwd-mini-v.dn{color:var(--green)}
+.fwd-mini-v.muted{color:var(--text3);font-size:13px;font-weight:600}
+.fwd-note{font-size:11px;color:var(--text3);margin-top:7px;line-height:1.5}
+/* 今日 picks 列 */
+.fwd-pick{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:5px;padding:7px 10px;margin-bottom:6px;cursor:pointer;transition:border-color .12s,background .12s}
+.fwd-pick:hover{border-color:var(--blue);background:var(--bg4)}
+.fwd-pick-l{display:flex;align-items:center;gap:8px;min-width:0}
+.fwd-pick-tk{font-weight:700;font-size:13px;color:var(--text)}
+.fwd-pick-nm{font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fwd-pick-r{font-size:11px;color:var(--text3);white-space:nowrap}
+.fwd-skip{font-size:12px;color:var(--text3);background:var(--bg3);border:1px dashed var(--border);border-radius:5px;padding:8px 10px}
+/* 信心背書 */
+.fwd-back{font-size:12px;color:var(--text2);line-height:1.6}
+.fwd-back b{color:var(--text)}
+.fwd-back .fwd-back-src{display:inline-block;font-size:10px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1px 7px;margin-left:4px}
+/* 畢業六關 */
+.fwd-k{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.fwd-k:last-child{border-bottom:none}
+.fwd-k-ic{flex-shrink:0;width:18px;text-align:center}
+.fwd-k-ic.ok{color:var(--green)}.fwd-k-ic.wait{color:var(--text3)}.fwd-k-ic.no{color:var(--red)}
+.fwd-k-l{flex:1;color:var(--text2)}
+.fwd-k-v{color:var(--text3);font-variant-numeric:tabular-nums}
+.fwd-empty{color:var(--text3);font-size:13px;padding:24px;text-align:center}
 </style>
 </head>
 <body>
@@ -1295,16 +1397,26 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 
       <!-- ═══ 持倉管理 ═══ -->
       <div class="page" id="page-pos">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-          <button class="add-pos-btn" onclick="openAddPosition()" style="margin-bottom:0;flex:1">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            新增持倉
-          </button>
-          <button id="btn-undo" onclick="undoAction()" disabled title="復原上一步" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:14px">↩ 復原</button>
-          <button id="btn-redo" onclick="redoAction()" disabled title="重做下一步" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:14px">↪ 重做</button>
+        <!-- P2 投資組合：頁內 tab（持倉 / 前向實盤戰績）— 純加法，不動既有持倉組件 -->
+        <div class="pos-tabs">
+          <button class="pos-tab active" id="postab-holdings" onclick="posTab('holdings')">持倉</button>
+          <button class="pos-tab" id="postab-fwd" onclick="posTab('fwd')">🚩 前向實盤戰績</button>
         </div>
-        <div id="conc-panel" style="margin-bottom:12px"></div>
-        <div id="pos-grid" class="pos-grid"><div class="loading">載入持倉資料中…</div></div>
+        <div id="pos-tab-holdings" class="pos-tabpane active">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <button class="add-pos-btn" onclick="openAddPosition()" style="margin-bottom:0;flex:1">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+              新增持倉
+            </button>
+            <button id="btn-undo" onclick="undoAction()" disabled title="復原上一步" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:14px">↩ 復原</button>
+            <button id="btn-redo" onclick="redoAction()" disabled title="重做下一步" style="padding:6px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);cursor:pointer;font-size:14px">↪ 重做</button>
+          </div>
+          <div id="conc-panel" style="margin-bottom:12px"></div>
+          <div id="pos-grid" class="pos-grid"><div class="loading">載入持倉資料中…</div></div>
+        </div>
+        <div id="pos-tab-fwd" class="pos-tabpane">
+          <div id="fwd-root"><div class="loading">載入前向實盤戰績…</div></div>
+        </div>
       </div>
 
       <!-- ═══ 交易紀錄 ═══ -->
@@ -9178,16 +9290,20 @@ async function ckLoadKpis(){
   const maxDays=strategies.reduce((m,s)=>Math.max(m,s.days_since_start||0),0);
   const cards=[];
   cards.push(ckKpi('前向實盤超額',
-    ov.closed_avg_excess!=null?(_ckArrow(ov.closed_avg_excess)+_ckPct(ov.closed_avg_excess)):(ov.n_picks?'追蹤中':'--'),
-    '已結算 '+(ov.closed||0)+' 檔 · 平均', _ckSignCls(ov.closed_avg_excess)));
+    (ov.closed>0&&ov.closed_avg_excess!=null)?(_ckArrow(ov.closed_avg_excess)+_ckPct(ov.closed_avg_excess)):'— 累積中',
+    '已結算 '+(ov.closed||0)+' 檔 · 最早 2026-07-20', (ov.closed>0?_ckSignCls(ov.closed_avg_excess):'')));
   cards.push(ckKpi('勝率',
-    ov.win_rate_pct!=null?(Number(ov.win_rate_pct).toFixed(0)+'%'):'--', 'OOS 已結算樣本', ''));
+    (ov.closed>0&&ov.win_rate_pct!=null)?(Number(ov.win_rate_pct).toFixed(0)+'%'):'— 累積中', 'OOS 已結算樣本', ''));
   cards.push(ckKpi('持倉總損益',
     (port&&port.total_pnl_pct!=null)?(_ckArrow(port.total_pnl_pct)+_ckPct(port.total_pnl_pct)):'--',
     (port&&port.positions_count!=null)?(port.positions_count+' 檔持倉'):'', _ckSignCls(port&&port.total_pnl_pct)));
   cards.push(ckKpi('追蹤 picks', (ov.n_picks||0)+' 檔',
     'open '+(ov.open||0)+' · pend '+(ov.pending||0)+' · closed '+(ov.closed||0), ''));
   cards.push(ckKpi('起跑天數', maxDays+' 天', (strategies.length||0)+' 個策略追蹤', ''));
+  // V1-5：P1 KPI strip → P2「前向實盤戰績」tab 的 L0 總表（漸進揭露主動線）
+  cards.push('<div class="ck-kpi" style="cursor:pointer;border-color:var(--blue)" onclick="showPage(\'pos\');posTab(\'fwd\')" title="看完整前向實盤策略監控 L0/L1/L2">'+
+    '<div class="ck-kpi-l">策略監控</div><div class="ck-kpi-v" style="color:var(--blue);font-size:16px">前向戰績全貌 →</div>'+
+    '<div class="ck-kpi-s">P2 · '+(strategies.length||0)+' 策略三層</div></div>');
   el.innerHTML=cards.join('');
 }
 
@@ -9378,6 +9494,362 @@ function ckOpenStrategies(){
     '<div class="ck-fac-na" style="margin-bottom:12px">「今日該買」由下列前向實盤策略各自選股後做<b style="color:var(--text2)">共識排序</b>（多來源確認優先）。點任一策略，看其堆疊條件、閘門與實盤戰績。</div>'+
     rows+'</div>';
   _ckSheet('<span>策略論證總覽</span>', '建議從何而來 · '+sids.length+' 個策略', body);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  P2 投資組合 →「前向實盤戰績」tab（fwd-*）— 策略監控 v1：L0 概覽表 → L1 詳情 → L2 個股
+//  資料源（全現成 GET）：/api/forward/track · /api/forward/strategies · /api/forward/picks
+//                       · /api/ic/recommendations · /api/regime · /api/sentiment/regime?source=vix
+//  鐵律：0 closed 一律「— 累積中」+ 倒數，禁止顯示 0/空白；mark 預估與 OOS 實績視覺分流。
+//  獨立 namespace（_fwd*），不動 cockpit _ck* 狀態；純前端、零後端業務邏輯。
+// ══════════════════════════════════════════════════════════════════════════
+const FWD_FLAG_NAME = 'A4∧revenue_mom';     // 旗艦：A4∧月營收（量產主力）
+const FWD_OOS_EARLIEST = '2026-07-20';       // 全 roster 最早首批 OOS 結算（設計 §2.4）
+let _fwdLoaded=false, _fwdBusy=false;
+let _fwdTrack={};      // sid -> track 戰績列
+let _fwdStrat={};      // sid -> strategies 定義（layers/gate/horizon）
+let _fwdPicksBySid={}; // sid -> [pick]
+let _fwdPicksByTk={};  // ticker -> [pick(+_sid,_strat)]
+let _fwdBackBySid={};  // sid -> 量產 confidence_backing（從 ic recs 該 bucket 聚出）
+let _fwdAi={};         // code -> ic rec（L2 用）
+let _fwdRegime=null, _fwdVixBucket=null;
+let _fwdOpenSid=null;  // 目前展開的 L1 sid
+
+function posTab(name){
+  document.querySelectorAll('#page-pos .pos-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#page-pos .pos-tabpane').forEach(p=>p.classList.remove('active'));
+  const tb=document.getElementById('postab-'+name); if(tb) tb.classList.add('active');
+  const pn=document.getElementById('pos-tab-'+name); if(pn) pn.classList.add('active');
+  if(name==='fwd' && !_fwdLoaded) fwdLoad();
+}
+
+// ── 誠實格式化 helpers（重用 cockpit 的 _ckEsc/_ckPct/_ckArrow/_ckSignCls）──
+function _fwdAccum(){ return '<span class="fwd-accum">— 累積中</span>'; }
+// 兩態超額：closed(實績) 優先；無 closed 時 open mark(預估,灰)；皆無 → 累積中
+function _fwdExcessCell(tr){
+  if(tr && tr.closed>0 && tr.closed_avg_excess!=null){
+    const v=tr.closed_avg_excess;
+    return '<span class="'+_ckSignCls(v)+'">'+_ckArrow(v)+_ckPct(v)+' <span class="fwd-esttag">OOS</span></span>';
+  }
+  if(tr && tr.open>0 && tr.live_avg_excess!=null){
+    const v=tr.live_avg_excess;
+    return '<span class="fwd-est">'+_ckArrow(v)+_ckPct(v)+'<span class="fwd-esttag">預估</span></span>';
+  }
+  return _fwdAccum();
+}
+function _fwdWinCell(tr){
+  if(tr && tr.closed>0 && tr.win_rate_pct!=null) return Number(tr.win_rate_pct).toFixed(0)+'%';
+  return _fwdAccum();
+}
+function _fwdDsrCell(tr,sid){
+  let dsr=(tr&&tr.roll_dsr!=null)?tr.roll_dsr:null;
+  const bk=_fwdBackBySid[sid];
+  if(dsr==null && bk && bk.dsr!=null) dsr=bk.dsr;   // 旗艦：track 未回 DSR → 用量產背書 dsr
+  return dsr!=null ? Number(dsr).toFixed(2) : '<span class="fwd-accum">—</span>';
+}
+// 距畢業徽章：OOS closed/20 + 進度條(days_since_start/horizon) + 最早結算日
+function _fwdGradCell(tr){
+  const closed=(tr&&tr.closed)||0;
+  const dss=(tr&&tr.days_since_start)||0;
+  const hz=(tr&&tr.horizon_days)||20;
+  const pct=Math.max(0,Math.min(100, hz?Math.round(dss/hz*100):0));
+  const earliest=_fwdEarliestDate(tr);
+  return '<div class="fwd-grad"><span class="fwd-grad-t">OOS '+closed+'/20 · 最早 '+earliest+'</span>'+
+    '<div class="fwd-prog" title="起跑 '+dss+' 天 / 首批 '+hz+'日 horizon"><div class="fwd-prog-fill" style="width:'+pct+'%"></div></div></div>';
+}
+// 由 start_date + horizon 交易日推算最早結算日（略過週末；無假日表→標「最早」近似）
+function _fwdEarliestDate(tr){
+  try{
+    if(!tr||!tr.start_date) return FWD_OOS_EARLIEST.slice(5);
+    let d=new Date(tr.start_date+'T00:00:00'); let n=(tr.horizon_days||20); let added=0;
+    while(added<n){ d.setDate(d.getDate()+1); const wd=d.getDay(); if(wd!==0&&wd!==6) added++; }
+    return (d.getMonth()+1)+'/'+d.getDate();
+  }catch(e){ return FWD_OOS_EARLIEST.slice(5); }
+}
+function _fwdStatusBadge(tr,sid){
+  const bk=_fwdBackBySid[sid];
+  const st=(bk&&bk.status)||(tr&&tr.status)||'active';
+  if(st==='ALPHA_CANDIDATE') return '<span class="fwd-badge alpha">ALPHA 候選</span>';
+  if(st==='PROVISIONAL'||st==='PROVISIONAL_BORDERLINE') return '<span class="fwd-badge prov">PROVISIONAL</span>';
+  if(st==='honest-negative'||st==='HONEST_NEGATIVE') return '<span class="fwd-badge neg">honest-neg</span>';
+  return '<span class="fwd-badge active">'+_ckEsc(st)+'</span>';
+}
+
+async function fwdLoad(){
+  if(_fwdBusy) return; _fwdBusy=true;
+  const root=document.getElementById('fwd-root');
+  try{
+    const H={headers:authHeaders()};
+    const [trk, sd, pk, recs, reg, vix] = await Promise.all([
+      fetch(API+'/api/forward/track',H).then(r=>r.json()).catch(()=>null),
+      fetch(API+'/api/forward/strategies',H).then(r=>r.json()).catch(()=>null),
+      fetch(API+'/api/forward/picks',H).then(r=>r.json()).catch(()=>null),
+      fetch(API+'/api/ic/recommendations',H).then(r=>r.json()).catch(()=>null),
+      fetch(API+'/api/regime',H).then(r=>r.json()).catch(()=>null),
+      fetch(API+'/api/sentiment/regime?source=vix',H).then(r=>r.json()).catch(()=>null)
+    ]);
+    _fwdTrack={}; _fwdStrat={}; _fwdPicksBySid={}; _fwdPicksByTk={}; _fwdBackBySid={}; _fwdAi={};
+    const strategies=((trk&&trk.strategies)||[]);
+    strategies.forEach(s=>{ _fwdTrack[String(s.strategy_id)]=s; });
+    ((sd&&sd.strategies)||[]).forEach(s=>{ _fwdStrat[String(s.id)]={
+      name:s.name, layers:s.layers||[], regime_gate:s.regime_gate, vix_gate:s.vix_gate,
+      horizon_days:s.horizon_days, market:s.market, benchmark:s.benchmark, source:s.source, status:s.status }; });
+    ((pk&&pk.picks)||[]).forEach(p=>{
+      const sid=String(p.strategy_id); const sdef=_fwdStrat[sid]||{};
+      p._sid=sid; p._strat=(sdef.name)||('策略#'+sid); p._mkt=sdef.market||'TW'; p._horizon=sdef.horizon_days;
+      (_fwdPicksBySid[sid]=_fwdPicksBySid[sid]||[]).push(p);
+      (_fwdPicksByTk[String(p.ticker)]=_fwdPicksByTk[String(p.ticker)]||[]).push(p);
+    });
+    // 量產 confidence_backing：依 bucket 聚合（同 bucket 共用一份背書）→ 對應到策略
+    const backByBucket={};
+    ((recs&&recs.data)||[]).forEach(r=>{
+      const mvp=r.mvp||{}; _fwdAi[String(r.code)]=r;
+      const bk=mvp.confidence_backing;
+      if(bk && bk.bucket && !backByBucket[bk.bucket]){
+        backByBucket[bk.bucket]={ excess:bk.excess_avg, ci_low:bk.ci_low, ci_high:bk.ci_high, n:bk.n,
+          status:bk.status, win_rate:bk.win_rate, benchmark:bk.benchmark, note:bk.note,
+          dsr:(/dsr=([0-9.]+)/.exec(bk.note||'')||[])[1], bucket:bk.bucket,
+          grad_badge:mvp.grad_badge, bucket_desc:mvp.bucket_desc };
+      }
+    });
+    // 旗艦策略（A4∧revenue_mom）對應量產 A4_revenue bucket 背書
+    strategies.forEach(s=>{
+      const nm=s.name||'';
+      if(nm===FWD_FLAG_NAME && backByBucket['A4_revenue']){ const b=backByBucket['A4_revenue']; b.dsr=b.dsr!=null?Number(b.dsr):null; _fwdBackBySid[String(s.strategy_id)]=b; }
+    });
+    _fwdRegime=(reg&&reg.regime)||null;
+    try{ const rs=(vix&&vix.recent_sample)||{}; const ks=Object.keys(rs).sort(); if(ks.length) _fwdVixBucket=rs[ks[ks.length-1]]; }catch(e){}
+    _fwdLoaded=true;
+    fwdRender(trk);
+  }catch(e){
+    console.warn('[fwd] load error', e);
+    if(root) root.innerHTML='<div class="fwd-empty">前向實盤戰績載入失敗，請稍後重試（'+_ckEsc(e&&e.message||e)+'）</div>';
+  }finally{ _fwdBusy=false; }
+}
+
+function _fwdRegimeCell(sid){
+  const sdef=_fwdStrat[sid]||{}; const tr=_fwdTrack[sid]||{};
+  const gate=sdef.regime_gate||tr.regime_gate;
+  const vgate=sdef.vix_gate;
+  const regOk = (gate==null) || (_fwdRegime!=null && gate===_fwdRegime);
+  const vixOk = (vgate==null) || (_fwdVixBucket!=null && vgate===_fwdVixBucket);
+  const on = regOk && vixOk;
+  let txt = on ? '🟢 對上' : '⚪ 未對上';
+  let title = '策略閘 regime='+(gate||'—')+(vgate?(' · VIX='+vgate):'')+'｜今日 regime='+(_fwdRegime||'—')+(_fwdVixBucket?(' · VIX='+_fwdVixBucket):'');
+  return '<span class="fwd-regime '+(on?'on':'off')+'" title="'+_ckEsc(title)+'">'+txt+'</span>';
+}
+
+function fwdRender(trk){
+  const root=document.getElementById('fwd-root'); if(!root) return;
+  const ov=(trk&&trk.overall)||{};
+  const strategies=((trk&&trk.strategies)||[]).slice();
+  if(!strategies.length){ root.innerHTML='<div class="fwd-empty">目前無前向實盤策略在追蹤（/api/forward/track 回空）。</div>'; return; }
+  // 排序：旗艦置頂 → status 階梯 → DSR 降序 → n_picks 降序
+  const stRank={'ALPHA_CANDIDATE':0,'PROVISIONAL_BORDERLINE':1,'PROVISIONAL':1,'active':2,'honest-negative':3,'HONEST_NEGATIVE':3};
+  function dsrOf(s){ const sid=String(s.strategy_id); const bk=_fwdBackBySid[sid]; return (s.roll_dsr!=null?s.roll_dsr:(bk&&bk.dsr!=null?bk.dsr:-1)); }
+  function effStatus(s){ const bk=_fwdBackBySid[String(s.strategy_id)]; return (bk&&bk.status)||s.status||'active'; }
+  strategies.sort((a,b)=>{
+    const af=(a.name===FWD_FLAG_NAME)?0:1, bf=(b.name===FWD_FLAG_NAME)?0:1;
+    if(af!==bf) return af-bf;
+    const ar=stRank[effStatus(a)]!=null?stRank[effStatus(a)]:2, br=stRank[effStatus(b)]!=null?stRank[effStatus(b)]:2;
+    if(ar!==br) return ar-br;
+    const ad=dsrOf(a), bd=dsrOf(b); if(ad!==bd) return bd-ad;
+    return (b.n_picks||0)-(a.n_picks||0);
+  });
+  // 頁頂橫幅（誠實累積中）
+  const nStrat=strategies.length, nClosed=ov.closed||0, nPicks=ov.n_picks||0, nOpen=ov.open||0, nPend=ov.pending||0;
+  const banner='<div class="fwd-banner"><span class="fwd-ban-ic">ⓘ</span><div>'+
+    '模擬倉 forward 起跑、目前 <b>'+nPicks+'</b> 檔追蹤（open '+nOpen+' · pending '+nPend+'）、<b>'+nClosed+' 已結算</b>。'+
+    '勝率與 realized 超額的 <b>OOS 實績最早 '+FWD_OOS_EARLIEST+'</b> 才出現；在此之前一律顯示「<b>— 累積中</b>」。'+
+    '持倉中顯示的超額均為未結算 <b>mark（預估，會變動）</b>，與 OOS 實績視覺分流。'+
+    '</div></div>';
+  // L0 表
+  let rows='';
+  strategies.forEach(s=>{
+    const sid=String(s.strategy_id);
+    const isFlag=(s.name===FWD_FLAG_NAME);
+    const nToday=(s.n_picks||0);
+    const nTxt = nToday>0 ? (nToday+' 檔') : '<span class="fwd-accum">0（未出手）</span>';
+    rows+='<tr class="fwd-row'+(isFlag?' flag':'')+'" id="fwd-row-'+sid+'" onclick="fwdToggle(\''+sid+'\')">'+
+      '<td>'+(isFlag?'<span class="fwd-flag">🚩</span>':'')+'</td>'+
+      '<td><span class="fwd-sname"><span class="fwd-caret">▸</span>'+_ckEsc(s.name)+'</span>'+
+        '<span class="fwd-src">'+_ckEsc(s.source||'')+'</span></td>'+
+      '<td>'+_fwdStatusBadge(s,sid)+'</td>'+
+      '<td>'+_fwdRegimeCell(sid)+'</td>'+
+      '<td>'+nTxt+'</td>'+
+      '<td>'+_fwdExcessCell(s)+'</td>'+
+      '<td>'+_fwdWinCell(s)+'</td>'+
+      '<td>'+_fwdDsrCell(s,sid)+'</td>'+
+      '<td>'+_fwdGradCell(s)+'</td></tr>'+
+      '<tr class="fwd-l1" id="fwd-l1-'+sid+'" style="display:none"><td colspan="9"><div class="fwd-l1-inner" id="fwd-l1-body-'+sid+'"></div></td></tr>';
+  });
+  const table='<div class="fwd-tablewrap"><table class="fwd-table"><thead><tr>'+
+    '<th></th><th>策略</th><th>狀態</th><th>Regime</th><th>今日</th><th>模擬超額</th><th>勝率</th><th>DSR</th><th>距畢業</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<div class="fwd-note" style="margin-top:8px">「OOS」＝已結算前向實盤實績（最強證據）；「預估」＝持倉中 mark-to-market（未結算、會變動）；DSR＝backtest robustness（pre-OOS 可信度，非 OOS 戰績）。點任一列看完整詳情。</div>';
+  root.innerHTML=banner+table;
+  if(_fwdOpenSid && _fwdTrack[_fwdOpenSid]) fwdToggle(_fwdOpenSid, true);
+}
+
+function fwdToggle(sid, force){
+  sid=String(sid);
+  const l1=document.getElementById('fwd-l1-'+sid);
+  const row=document.getElementById('fwd-row-'+sid);
+  if(!l1||!row) return;
+  const isOpen=(l1.style.display!=='none');
+  if(isOpen && !force){ l1.style.display='none'; row.classList.remove('open'); _fwdOpenSid=null; return; }
+  // 單開：收其他
+  document.querySelectorAll('#fwd-root .fwd-l1').forEach(e=>e.style.display='none');
+  document.querySelectorAll('#fwd-root .fwd-row').forEach(e=>e.classList.remove('open'));
+  document.getElementById('fwd-l1-body-'+sid).innerHTML=fwdL1Html(sid);
+  l1.style.display=''; row.classList.add('open'); _fwdOpenSid=sid;
+}
+
+function fwdL1Html(sid){
+  const sdef=_fwdStrat[sid]||{}; const tr=_fwdTrack[sid]||{}; const bk=_fwdBackBySid[sid];
+  // L1-a 組成 layers
+  const layHtml=(sdef.layers||[]).map(L=>{
+    if(L&&L.type==='pead') return '<span class="fwd-lay-chip">財報事件 PEAD</span>';
+    if(L&&L.type==='chip') return '<span class="fwd-lay-chip">籌碼連買 <span class="k">'+(L.window||3)+'日</span></span>';
+    const dir=(L&&L.dir!=null&&Number(L.dir)<0)?-1:1;
+    const band=(dir>=0?'前':'後')+Math.round((L&&L.top_k!=null?L.top_k:0.2)*100)+'%';
+    return '<span class="fwd-lay-chip">'+_ckEsc(_ckFacName(L&&L.factor))+' <span class="k">'+band+'</span></span>';
+  }).join('<span class="fwd-lay-and">∧</span>') || '<span class="fwd-accum">無 layers 資料</span>';
+  const gates=[];
+  gates.push('regime 閘 '+(sdef.regime_gate||tr.regime_gate||'—'));
+  if(sdef.vix_gate) gates.push('VIX 閘 '+sdef.vix_gate);
+  gates.push('持有 '+(sdef.horizon_days||tr.horizon_days||'—')+' 交易日');
+  gates.push('基準 '+_ckEsc(sdef.benchmark||'equal_weight'));
+  gates.push('來源 '+_ckEsc(sdef.source||tr.source||'—'));
+  const zoneA='<div class="fwd-zone"><div class="fwd-zone-h">① 策略組成 <span class="fwd-zone-n">AND-stack 各層 · top_k 門檻</span></div>'+
+    '<div class="fwd-lay">'+layHtml+'</div><div class="fwd-gates">閘門：'+gates.join(' · ')+'</div></div>';
+
+  // L1-b 今日 picks（含 pending；無 pick 顯示原因，不留空白）
+  const ps=(_fwdPicksBySid[sid]||[]); const seen=new Set(); const list=[];
+  ps.forEach(p=>{ const tk=String(p.ticker); if(seen.has(tk))return; seen.add(tk); list.push(p); });
+  let picksHtml;
+  if(list.length){
+    picksHtml=list.map(p=>{
+      const tk=_ckEsc(p.ticker); const m=(p._mkt==='US')?'US':'TW';
+      const stZh=p.status==='pending'?'待進場（次日開盤）':(p.status==='open'?'持倉中':(p.status==='closed'?'已結算':p.status));
+      const ref=p.ref_price!=null?('參考價 '+Number(p.ref_price).toLocaleString(undefined,{maximumFractionDigits:2})):'';
+      return '<div class="fwd-pick" onclick="fwdOpenPick(\''+tk+'\',\''+m+'\')">'+
+        '<span class="fwd-pick-l"><span class="fwd-pick-tk">'+tk+'</span><span class="fwd-pick-nm">'+_ckEsc(p.name||'')+'</span></span>'+
+        '<span class="fwd-pick-r">'+_ckEsc(ref)+' · '+stZh+' ›</span></div>';
+    }).join('');
+  } else {
+    const gate=sdef.regime_gate||tr.regime_gate;
+    const regOk=(gate==null)||(gate===_fwdRegime);
+    const vixOk=(sdef.vix_gate==null)||(sdef.vix_gate===_fwdVixBucket);
+    let why='今日無 pick';
+    if(!regOk) why='今日無 pick · regime '+(_fwdRegime||'?')+'≠'+gate+'（閘擋）';
+    else if(!vixOk) why='今日無 pick · VIX '+(_fwdVixBucket||'?')+'≠'+sdef.vix_gate+'（閘擋）';
+    else why='今日無 pick（策略今日未產生標的）';
+    picksHtml='<div class="fwd-skip">'+_ckEsc(why)+'</div>';
+  }
+  const zoneB='<div class="fwd-zone"><div class="fwd-zone-h">② 今日 picks <span class="fwd-zone-n">'+list.length+' 檔 · 點看個股</span></div>'+picksHtml+'</div>';
+
+  // L1-c 模擬績效面板（三段：已結算 OOS / 持倉中 open mark / 距畢業）
+  const closed=tr.closed||0, open=tr.open||0;
+  const segOos='<div class="fwd-perf-seg oos"><div class="fwd-perf-h">已結算 OOS <span class="tag strong">最強證據</span></div>'+
+    '<div class="fwd-mini">'+
+    '<div class="fwd-mini-c"><div class="fwd-mini-l">結算筆數</div><div class="fwd-mini-v muted">'+(closed>0?closed:'0 / 累積中')+'</div></div>'+
+    '<div class="fwd-mini-c"><div class="fwd-mini-l">超額(realized)</div><div class="fwd-mini-v '+(closed>0?_ckSignCls(tr.closed_avg_excess):'muted')+'">'+(closed>0&&tr.closed_avg_excess!=null?(_ckArrow(tr.closed_avg_excess)+_ckPct(tr.closed_avg_excess)):'— 累積中')+'</div></div>'+
+    '<div class="fwd-mini-c"><div class="fwd-mini-l">勝率</div><div class="fwd-mini-v muted">'+(closed>0&&tr.win_rate_pct!=null?(Number(tr.win_rate_pct).toFixed(0)+'%'):'— 累積中')+'</div></div>'+
+    '<div class="fwd-mini-c"><div class="fwd-mini-l">DSR <span style="font-weight:400;color:var(--text3)">(backtest)</span></div><div class="fwd-mini-v">'+(_fwdDsrCell(tr,sid))+'</div></div>'+
+    '</div><div class="fwd-note">ⓘ 最早 '+_fwdEarliestDate(tr)+' 首批結算後開始填；DSR 為 backtest robustness（pre-OOS 可信度，非 OOS 戰績）。</div></div>';
+  const bestworst=[];
+  if(tr.best) bestworst.push('最佳 '+_ckEsc(tr.best.ticker)+' '+_ckArrow(tr.best.excess)+_ckPct(tr.best.excess));
+  if(tr.worst) bestworst.push('最差 '+_ckEsc(tr.worst.ticker)+' '+_ckArrow(tr.worst.excess)+_ckPct(tr.worst.excess));
+  const segOpen='<div class="fwd-perf-seg open"><div class="fwd-perf-h">持倉中 open（mark-to-market）<span class="tag est">預估·會變動</span></div>'+
+    '<div class="fwd-mini">'+
+    '<div class="fwd-mini-c"><div class="fwd-mini-l">持倉檔數</div><div class="fwd-mini-v muted">'+(open||((tr.pending||0)>0?('0 · '+(tr.pending||0)+' 待進場'):0))+'</div></div>'+
+    '<div class="fwd-mini-c"><div class="fwd-mini-l">平均 mark 超額</div><div class="fwd-mini-v '+(open>0&&tr.live_avg_excess!=null?_ckSignCls(tr.live_avg_excess):'muted')+'">'+(open>0&&tr.live_avg_excess!=null?(_ckArrow(tr.live_avg_excess)+_ckPct(tr.live_avg_excess)+' (預估)'):'— 待進場')+'</div></div>'+
+    '<div class="fwd-mini-c" style="grid-column:span 2"><div class="fwd-mini-l">最佳/最差檔</div><div class="fwd-mini-v muted">'+(bestworst.length?bestworst.join(' · '):'— 累積中')+'</div></div>'+
+    '</div></div>';
+  const dss=tr.days_since_start||0, hz=tr.horizon_days||20;
+  const pct=Math.max(0,Math.min(100,hz?Math.round(dss/hz*100):0));
+  const segGrad='<div class="fwd-perf-seg grad"><div class="fwd-perf-h">距畢業</div>'+
+    '<div class="fwd-note" style="margin-top:0">起跑 '+dss+' 天 / 首批 '+hz+'日 horizon（'+pct+'%）</div>'+
+    '<div class="fwd-prog" style="width:100%;max-width:280px;margin-top:6px"><div class="fwd-prog-fill" style="width:'+pct+'%"></div></div></div>';
+  const zoneC='<div class="fwd-zone full"><div class="fwd-zone-h">③ 模擬績效追蹤 <span class="fwd-zone-n">預估 mark 與 OOS 實績分流 · 0 closed 走累積中</span></div>'+segOos+segOpen+segGrad+'</div>';
+
+  // L1-d 信心背書（接量產 confidence_backing）
+  let backHtml;
+  if(bk){
+    const ci=(bk.ci_low!=null&&bk.ci_high!=null)?('95%CI ['+Number(bk.ci_low).toFixed(2)+', '+Number(bk.ci_high).toFixed(2)+']'):'';
+    backHtml='<div class="fwd-back">量產對此策略 bucket（<b>'+_ckEsc(bk.bucket)+'</b>）的信心背書 <span class="fwd-back-src">回測 / OOS-holdout · 非前向 OOS</span><br>'+
+      '平均超額 <b>'+_ckPct(bk.excess)+'</b> '+_ckEsc(ci)+' · 樣本 n=<b>'+(bk.n!=null?bk.n:'—')+'</b> · DSR <b>'+(bk.dsr!=null?Number(bk.dsr).toFixed(3):'—')+'</b> · 狀態 <b>'+_ckEsc(bk.status||'—')+'</b>'+
+      (bk.grad_badge?' · '+_ckEsc(bk.grad_badge):'')+'<br>'+
+      '<span style="color:var(--text3);font-size:11px">'+_ckEsc(bk.note||'')+'</span><br>'+
+      '<span style="color:var(--text3);font-size:11px">⚠️ win_rate 待補（AIF 待定義）→ 信心暫以 DSR+超額點估背書，勝率待首批前向 OOS。此處超額為回測證據，非前向實盤戰績（見 ③）。</span></div>';
+  } else {
+    backHtml='<div class="fwd-back fwd-accum">此策略目前無量產 confidence_backing 對應（非旗艦 bucket）。信心暫以 track DSR 背書，前向 OOS 累積中。</div>';
+  }
+  const zoneD='<div class="fwd-zone"><div class="fwd-zone-h">④ 信心背書 <span class="fwd-zone-n">接量產 · 信心度的證據來源</span></div>'+backHtml+'</div>';
+
+  // L1-e 距畢業六關
+  const dsrVal=(tr.roll_dsr!=null)?tr.roll_dsr:(bk&&bk.dsr!=null?bk.dsr:null);
+  const k4ok=(dsrVal!=null&&dsrVal>0.95);
+  const Ks=[
+    ['K1 live N≥20', closed>=20?'ok':'wait', closed+'/20'],
+    ['K2 超額 bootstrap CI 下界>0', 'wait', '待 OOS'],
+    ['K3 walk-forward holdout 不崩', 'wait', '待 OOS'],
+    ['K4 DSR>0.95', k4ok?'ok':(dsrVal!=null?'no':'wait'), dsrVal!=null?Number(dsrVal).toFixed(2):'—'],
+    ['K5 per-regime 全天候', 'wait', '待 OOS'],
+    ['K6 仍正交 corr<0.70', (tr.max_corr_to_roster!=null && tr.max_corr_to_roster<0.70)?'ok':(tr.max_corr_to_roster!=null?'no':'wait'), tr.max_corr_to_roster!=null?('corr '+Number(tr.max_corr_to_roster).toFixed(2)):'—']
+  ];
+  const kHtml=Ks.map(k=>{ const ic=k[1]==='ok'?'✓':(k[1]==='no'?'✕':'⏳');
+    return '<div class="fwd-k"><span class="fwd-k-ic '+k[1]+'">'+ic+'</span><span class="fwd-k-l">'+_ckEsc(k[0])+'</span><span class="fwd-k-v">'+_ckEsc(k[2])+'</span></div>'; }).join('');
+  const zoneE='<div class="fwd-zone full"><div class="fwd-zone-h">⑤ 距畢業六關 <span class="fwd-zone-n">能不能上真錢 · K1 卡 0/20 → 多數待首批 OOS</span></div>'+kHtml+
+    '<div class="fwd-note">現況 K1（live N）卡 0/20 → K2/K3/K5 全待首批 OOS（最早 '+_fwdEarliestDate(tr)+'）才開始評。'+
+    '（K2 bootstrap CI / K3·K5 walk-forward 視覺需新後端＝v2）</div></div>';
+
+  return '<div class="fwd-l1-grid">'+zoneA+zoneB+zoneC+zoneD+zoneE+'</div>';
+}
+
+// L2 per-pick：重用 cockpit 的 slide-over chrome（_ckSheet），但用 fwd 自有資料
+function fwdOpenPick(tk, mkt){
+  tk=String(tk); const m=(mkt==='US')?'US':'TW';
+  const picks=_fwdPicksByTk[tk]||[]; const ai=_fwdAi[tk];
+  const nm=(picks[0]&&picks[0].name)||(ai&&ai.name)||'';
+  const flag=(m==='US')?'🇺🇸':'🇹🇼';
+  const bySid={}; picks.forEach(p=>{ (bySid[String(p._sid)]=bySid[String(p._sid)]||[]).push(p); });
+  const sids=Object.keys(bySid);
+  // ① 被哪些策略選（可雙確認）
+  let secStrat;
+  if(sids.length){
+    const dual=sids.length>=2?'<span class="fwd-back-src" style="color:var(--green)">✓ '+sids.length+' 策略雙確認</span>':'';
+    secStrat=sids.map(sid=>{ const sdef=_fwdStrat[sid]||{}; const sn=sdef.name||('策略#'+sid);
+      const st=bySid[sid][0].status; const stZh=st==='pending'?'待進場':(st==='open'?'持倉中':(st==='closed'?'已結算':st));
+      return '<span class="fwd-pick" style="display:inline-flex;width:auto;margin:0 6px 6px 0;cursor:pointer" onclick="ckCloseSheet();showPage(\'pos\');posTab(\'fwd\');setTimeout(()=>fwdToggle(\''+sid+'\',true),60)">'+
+        '<span class="fwd-pick-tk" style="font-size:12px">'+_ckEsc(sn)+'</span><span class="fwd-pick-r">'+stZh+' ›</span></span>';
+    }).join('')+(dual?('<div style="margin-top:4px">'+dual+'</div>'):'');
+  } else { secStrat='<div class="fwd-skip">目前無前向策略選中此檔（可能為 AI 建議或既有持倉）</div>'; }
+  // ② 各層因子百分位（跨策略聚合，重用 _ckFacBar）
+  const facAgg={}, facOrder=[];
+  sids.forEach(sid=>{ const sdef=_fwdStrat[sid]; if(!sdef||!sdef.layers)return; const rank=(bySid[sid][0].rank)||{};
+    sdef.layers.forEach(L=>{ const f=L&&L.factor; if(!f)return; const pct=(rank[f]!=null?rank[f]:null);
+      if(!facAgg[f]){ facAgg[f]={pct:pct,top_k:L.top_k,dir:(L.dir||1)}; facOrder.push(f); }
+      else { if(facAgg[f].pct==null&&pct!=null)facAgg[f].pct=pct; if(L.top_k!=null&&(facAgg[f].top_k==null||L.top_k<facAgg[f].top_k))facAgg[f].top_k=L.top_k; } });
+  });
+  let secFac = facOrder.length ? facOrder.map(f=>_ckFacBar(f,facAgg[f].pct,facAgg[f].top_k,facAgg[f].dir)).join('') : '<div class="fwd-skip">此檔非因子策略選中，無因子百分位</div>';
+  // ③ 信心度（量產）
+  let secConf='<div class="fwd-skip">此檔無量產信心度資料</div>';
+  if(ai){ const conf=ai.confidence!=null?Math.round(Number(ai.confidence)*100)+'%':'--';
+    const mvp=ai.mvp||{}; const badge=mvp.grad_badge?(' · '+_ckEsc(mvp.grad_badge)):'';
+    secConf='<div class="fwd-back">信心度 <b>'+conf+'</b>'+badge+(mvp.bucket?(' · bucket '+_ckEsc(mvp.bucket)):'')+'</div>'; }
+  // ④ 進場狀態
+  const st0=(picks[0]&&picks[0].status)||'—';
+  const stZh0=st0==='pending'?'待進場（次日開盤進）':(st0==='open'?'持倉中（含至今 mark）':(st0==='closed'?'已結算':st0));
+  const secStatus='<div class="fwd-back">進場狀態：<b>'+_ckEsc(stZh0)+'</b></div>';
+  const body=
+    '<div class="ck-sec"><div class="ck-sec-h">① 被哪些策略選 <span class="ck-sec-n">點策略看完整詳情</span></div>'+secStrat+'</div>'+
+    '<div class="ck-sec"><div class="ck-sec-h">② 各層因子百分位 <span class="ck-sec-n">為什麼被選 · 藍線＝門檻</span></div>'+secFac+'</div>'+
+    '<div class="ck-sec"><div class="ck-sec-h">③ 信心度 <span class="ck-sec-n">量產背書</span></div>'+secConf+'</div>'+
+    '<div class="ck-sec"><div class="ck-sec-h">④ 進場狀態</div>'+secStatus+'</div>'+
+    '<button class="ck-sheet-btn" onclick="ckCloseSheet();openChart(\''+_ckEsc(tk)+'\',\''+m+'\')">完整分析 → 研究台</button>';
+  _ckSheet('<span>'+flag+' '+_ckEsc(tk)+'</span>'+(nm?'<span class="ck-nm">'+_ckEsc(nm)+'</span>':''), '個股論證 · 策略視角', body);
 }
 
 // 首屏即決策台 → 直接載入；每 60s 在決策台可見時刷新（含 header 切換 TW/US 後自動跟上）
