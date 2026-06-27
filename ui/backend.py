@@ -19418,6 +19418,111 @@ def forward_track():
             "provisional_monitoring": provisional_monitoring, "strategies": out}
 
 
+# ── equity-curve(2026-06-27) 老闆「100萬→報酬%曲線」唯讀重建 ─────────────────────────────
+def _ft_load_bars_readonly(codes: list, mkt: str, start: str, end: str) -> tuple:
+    """純讀 daily_kbar 收盤（不觸發下載/寫入），回 (all_dates, bar_data)。equity-curve 唯讀用——
+    cron 已每日 top-up daily_kbar(現到 06-26)，UI GET 不應觸網或寫表（與 _load_backtest_data 的
+    差別＝省去 _ensure_daily_data 下載步驟；同一張 daily_kbar → bench 口徑與 track 一致）。"""
+    if not codes:
+        return [], {}
+    con = market_db(); cur = con.cursor()
+    ph = ",".join("?" * len(codes))
+    cur.execute(f"""SELECT DISTINCT date FROM daily_kbar
+        WHERE code IN ({ph}) AND market=? AND date BETWEEN ? AND ? ORDER BY date""",
+        codes + [mkt, start, end])
+    all_dates = [r[0] for r in cur.fetchall()]
+    bar_data = {}
+    cur.execute(f"""SELECT code,date,close FROM daily_kbar
+        WHERE code IN ({ph}) AND market=? AND date BETWEEN ? AND ?""",
+        codes + [mkt, start, end])
+    for code, d, close in cur.fetchall():
+        if close is None or (isinstance(close, float) and close != close) or close <= 0:
+            continue
+        bar_data[(code, d)] = {"close": float(close)}
+    con.close()
+    return all_dates, bar_data
+
+
+@app.get("/api/forward/equity-curve")
+def forward_equity_curve(strategy: int = 0):
+    """唯讀：每 active 策略從 ft_picks(entry_date/entry_price) + daily_kbar(close) 重建每日權益序列，
+    供 P2「報酬%(100萬)」欄 + 迷你 sparkline + L1 大曲線用。
+      • raw_pct(d)  = 等權平均 net 報酬%（與 track mark_return 同口徑 _net_return_pct，含台股手續費+稅；
+                      非 gross close/entry−1 → 才能與 forward/track 的 mark 數對得上，且誠實扣成本）。
+      • excess_pct(d)= 逐 pick (raw_i − 同期等權大盤報酬) 的等權平均（複用 _equal_weight_bench_map，
+                      與 forward/track live_avg_excess 同基準；逐 pick 算可容忍交錯進場日）。
+    純讀不寫任何表、不觸網（daily_kbar 由 cron top-up）；PIT 用該日實際收盤、不用未來 bar。
+    0 picks（如 sbl_short 尚未出手）→ 回空 points，前端顯示「未出手」。"""
+    _ensure_ft_tables()
+    today = datetime.now().strftime("%Y-%m-%d")
+    con = db(); cur = con.cursor()
+    q = "SELECT id,name,market,horizon_days,status FROM ft_strategies WHERE status='active'"
+    p = []
+    if strategy:
+        q += " AND id=?"; p.append(strategy)
+    q += " ORDER BY id"
+    strs = cur.execute(q, p).fetchall()
+    pmap = {}
+    for sid, name, mkt, horizon, status in strs:
+        pmap[sid] = cur.execute("""SELECT ticker,entry_date,entry_price,horizon_days,status,exit_date
+            FROM ft_picks WHERE strategy_id=? AND status IN ('open','closed')""", (sid,)).fetchall()
+    con.close()
+
+    # 按 market 分組一次預載 universe bars + 等權大盤 nav（同 forward_update：同市場共用，省重載）
+    mkts = {}
+    for sid, name, mkt, horizon, status in strs:
+        ents = [r[1] for r in pmap.get(sid, []) if r[1] and r[2]]
+        if ents:
+            mkts.setdefault(mkt, set()).add(min(ents))
+    preload = {}
+    for mkt, ents in mkts.items():
+        codes = _ft_universe_codes(mkt)
+        start = (datetime.strptime(min(ents), "%Y-%m-%d") - timedelta(days=12)).strftime("%Y-%m-%d")
+        all_dates, bar_data = _ft_load_bars_readonly(codes, mkt, start, today)
+        bench = _equal_weight_bench_map(codes, all_dates, bar_data)
+        preload[mkt] = (all_dates, bar_data, bench)
+
+    out = []
+    for sid, name, mkt, horizon, status in strs:
+        picks = [r for r in pmap.get(sid, []) if r[1] and r[2] is not None]  # 需 entry_date+entry_price
+        if not picks or mkt not in preload:
+            out.append({"strategy_id": sid, "name": name, "market": mkt, "points": [],
+                        "current_raw_pct": None, "current_excess_pct": None,
+                        "n_open": 0, "entry_date": None})
+            continue
+        all_dates, bar_data, bench = preload[mkt]
+        min_entry = min(r[1] for r in picks)
+        n_open = sum(1 for r in picks if r[4] == "open")
+        points = []
+        for d in all_dates:
+            if d < min_entry or d > today:
+                continue
+            raws = []; excs = []
+            for ticker, entry_date, entry_price, hd, st, exit_date in picks:
+                if d < entry_date:                              # 尚未進場
+                    continue
+                if st == "closed" and exit_date and d > exit_date:   # 已出場 → 不再 mark
+                    continue
+                bar = bar_data.get((ticker, d))
+                if not bar:                                     # 該股當日無收盤（停牌/缺資料）
+                    continue
+                rret = _net_return_pct(entry_price, bar["close"], mkt, TW_DISCOUNT)
+                raws.append(rret)
+                be, bx = bench.get(entry_date), bench.get(d)
+                if be and bx and be > 0:
+                    excs.append(rret - (bx / be - 1) * 100)
+            if not raws:                                        # 非交易日 → 不落點
+                continue
+            points.append({"date": d,
+                           "raw_pct": round(sum(raws) / len(raws), 2),
+                           "excess_pct": (round(sum(excs) / len(excs), 2) if excs else None)})
+        out.append({"strategy_id": sid, "name": name, "market": mkt, "points": points,
+                    "current_raw_pct": (points[-1]["raw_pct"] if points else None),
+                    "current_excess_pct": (points[-1]["excess_pct"] if points else None),
+                    "n_open": n_open, "entry_date": min_entry})
+    return {"ok": True, "as_of": today, "capital": 1000000, "strategies": out}
+
+
 @app.get("/api/forward/cron/status")
 def forward_cron_status(limit: int = 30):
     """半自動 forward cron run-log 唯讀查詢（cockpit 查 cron 落地用）。純讀 forward_cron_runs，

@@ -829,7 +829,7 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 
 /* L0 概覽表 */
 .fwd-tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r);background:var(--bg1)}
-.fwd-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;min-width:760px}
+.fwd-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;min-width:880px}
 .fwd-table th{background:var(--bg1);color:var(--text3);font-size:12px;font-weight:600;letter-spacing:.3px;
   padding:9px 12px;text-align:right;border-bottom:2px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:1}
 .fwd-table th:nth-child(1),.fwd-table th:nth-child(2),.fwd-table th:nth-child(3){text-align:left}
@@ -860,6 +860,23 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 .fwd-grad-t{font-size:11px;color:var(--text2);white-space:nowrap}
 .fwd-prog{width:90px;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden}
 .fwd-prog-fill{height:100%;background:var(--blue);border-radius:3px;transition:width .3s}
+/* 報酬%(100萬) 欄 + 迷你 sparkline（raw 絕對賺賠，預估·未實現） */
+.fwd-ret-cell{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px}
+.fwd-ret{display:inline-flex;flex-direction:column;align-items:flex-end;line-height:1.25}
+.fwd-ret.up{color:var(--red)}.fwd-ret.dn{color:var(--green)}
+.fwd-ret{font-weight:700;font-variant-numeric:tabular-nums}
+.fwd-ret-sub{font-size:10px;font-weight:500;color:var(--text3);white-space:nowrap}
+.fwd-ret-sub .fwd-esttag{margin-left:3px}
+.fwd-spark{display:inline-block;vertical-align:middle;flex-shrink:0}
+.fwd-spark-na{color:var(--text3);font-size:11px}
+/* L1 較大曲線（raw 報酬% + 超額% 兩條疊） */
+.fwd-curve-wrap{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:9px 11px;margin-bottom:8px}
+.fwd-curve-svg{width:100%;height:auto;display:block}
+.fwd-curve-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin-top:6px}
+.fwd-curve-legend .lg{display:inline-flex;align-items:center;gap:5px}
+.fwd-curve-legend .sw{width:14px;height:0;border-top:2px solid var(--text3)}
+.fwd-curve-legend .sw.raw{border-top-color:var(--text)}
+.fwd-curve-legend .sw.exc{border-top-style:dashed;border-top-color:var(--blue)}
 
 /* L1 inline 展開面板 */
 .fwd-l1{background:var(--bg2);border-bottom:1px solid var(--border)}
@@ -9511,6 +9528,7 @@ let _fwdStrat={};      // sid -> strategies 定義（layers/gate/horizon）
 let _fwdPicksBySid={}; // sid -> [pick]
 let _fwdPicksByTk={};  // ticker -> [pick(+_sid,_strat)]
 let _fwdBackBySid={};  // sid -> 量產 confidence_backing（從 ic recs 該 bucket 聚出）
+let _fwdCurve={};      // sid -> equity-curve（points[{date,raw_pct,excess_pct}]+current_raw/excess_pct）
 let _fwdAi={};         // code -> ic rec（L2 用）
 let _fwdRegime=null, _fwdVixBucket=null;
 let _fwdOpenSid=null;  // 目前展開的 L1 sid
@@ -9566,6 +9584,76 @@ function _fwdEarliestDate(tr){
     return (d.getMonth()+1)+'/'+d.getDate();
   }catch(e){ return FWD_OOS_EARLIEST.slice(5); }
 }
+// ── equity-curve(2026-06-27)：報酬%(100萬) 欄 + 迷你 sparkline + L1 大曲線 ──
+// 迷你 sparkline（inline SVG，含 0 基線；TW 紅漲綠跌依末值號色）
+function _fwdSpark(points, key, w, h){
+  const vals=(points||[]).map(p=>p&&p[key]).filter(v=>v!=null && !isNaN(v));
+  w=w||60; h=h||18;
+  if(vals.length<2) return '<span class="fwd-spark-na" title="點數不足，每日會長">'+(vals.length?'·':'–')+'</span>';
+  const mn=Math.min.apply(null,vals.concat([0])), mx=Math.max.apply(null,vals.concat([0]));
+  const rng=(mx-mn)||1, n=vals.length;
+  const xy=vals.map((v,i)=>{ const x=(n===1?w/2:(i/(n-1))*(w-2)+1); const y=h-1-((v-mn)/rng)*(h-2); return [x,y]; });
+  const pts=xy.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const last=vals[vals.length-1], lx=xy[xy.length-1];
+  const col=last>0?'var(--red)':(last<0?'var(--green)':'var(--text3)');
+  const zy=(h-1-((0-mn)/rng)*(h-2)).toFixed(1);
+  return '<svg class="fwd-spark" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" aria-hidden="true">'+
+    '<line x1="0" y1="'+zy+'" x2="'+w+'" y2="'+zy+'" stroke="var(--border)" stroke-width="1" stroke-dasharray="2 2"/>'+
+    '<polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>'+
+    '<circle cx="'+lx[0].toFixed(1)+'" cy="'+lx[1].toFixed(1)+'" r="1.7" fill="'+col+'"/></svg>';
+}
+// L0「報酬%(100萬)」cell：+Y.Y%（100萬→X.X萬）預估灰標紅綠 + 迷你 sparkline。raw=絕對(未實現)賺賠
+function _fwdReturnCell(sid){
+  const c=_fwdCurve[String(sid)];
+  if(!c || c.current_raw_pct==null || !(c.points&&c.points.length))
+    return '<span class="fwd-accum">— 未出手</span>';
+  const v=Number(c.current_raw_pct), wan=(1000000*(1+v/100))/10000;
+  return '<span class="fwd-ret-cell">'+
+    '<span class="fwd-ret '+_ckSignCls(v)+'">'+_ckArrow(v)+_ckPct(v)+
+      '<span class="fwd-ret-sub">100萬→'+wan.toFixed(1)+'萬<span class="fwd-esttag">預估</span></span></span>'+
+    _fwdSpark(c.points,'raw_pct',58,20)+'</span>';
+}
+// L1 較大曲線：raw 報酬%(實線) + 超額%(藍虛線) 共軸疊放，含 0 基線、首末日期軸標
+function _fwdCurveSvg(sid){
+  const c=_fwdCurve[String(sid)];
+  if(!c || !(c.points&&c.points.length))
+    return '<div class="fwd-skip">尚無權益曲線（策略未出手或資料累積中；每日 mark 後會長）。</div>';
+  const pts=c.points, n=pts.length;
+  const raw=pts.map(p=>p.raw_pct), exc=pts.map(p=>(p.excess_pct==null?null:p.excess_pct));
+  const fin=raw.filter(v=>v!=null).concat(exc.filter(v=>v!=null)).concat([0]);
+  const mn=Math.min.apply(null,fin), mx=Math.max.apply(null,fin), rng=(mx-mn)||1;
+  const W=460,H=148,PL=34,PR=10,PT=10,PB=20, iw=W-PL-PR, ih=H-PT-PB;
+  const xOf=i=>(n===1?PL+iw/2:PL+(i/(n-1))*iw);
+  const yOf=v=>PT+ih-((v-mn)/rng)*ih;
+  const seglines=(arr,col,dash)=>{
+    const segs=[]; let cur=[];
+    arr.forEach((v,i)=>{ if(v==null){ if(cur.length){segs.push(cur);cur=[];} } else cur.push(xOf(i).toFixed(1)+','+yOf(v).toFixed(1)); });
+    if(cur.length)segs.push(cur);
+    return segs.map(s=>'<polyline points="'+s.join(' ')+'" fill="none" stroke="'+col+'" stroke-width="1.8" '+(dash?'stroke-dasharray="4 3" ':'')+'stroke-linejoin="round" stroke-linecap="round"/>').join('');
+  };
+  const cr=Number(c.current_raw_pct);
+  const rawCol=cr>0?'var(--red)':(cr<0?'var(--green)':'var(--text2)');
+  const zy=yOf(0).toFixed(1);
+  const lblTop=mx.toFixed(1)+'%', lblBot=mn.toFixed(1)+'%';
+  const d0=(pts[0].date||'').slice(5), d1=(pts[n-1].date||'').slice(5);
+  const ce=(c.current_excess_pct!=null)?Number(c.current_excess_pct):null;
+  const svg='<svg class="fwd-curve-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" role="img" aria-label="權益曲線">'+
+    '<line x1="'+PL+'" y1="'+zy+'" x2="'+(W-PR)+'" y2="'+zy+'" stroke="var(--border2)" stroke-width="1" stroke-dasharray="3 3"/>'+
+    '<text x="'+(PL-4)+'" y="'+(PT+8)+'" text-anchor="end" font-size="9" fill="var(--text3)">'+lblTop+'</text>'+
+    '<text x="'+(PL-4)+'" y="'+(PT+ih)+'" text-anchor="end" font-size="9" fill="var(--text3)">'+lblBot+'</text>'+
+    '<text x="'+(PL-4)+'" y="'+(Number(zy)+3)+'" text-anchor="end" font-size="9" fill="var(--text3)">0</text>'+
+    seglines(exc,'var(--blue)',true)+seglines(raw,rawCol,false)+
+    '<circle cx="'+xOf(n-1).toFixed(1)+'" cy="'+yOf(raw[n-1]).toFixed(1)+'" r="2.4" fill="'+rawCol+'"/>'+
+    '<text x="'+PL+'" y="'+(H-6)+'" text-anchor="start" font-size="9" fill="var(--text3)">'+d0+'（進場）</text>'+
+    '<text x="'+(W-PR)+'" y="'+(H-6)+'" text-anchor="end" font-size="9" fill="var(--text3)">'+d1+'</text>'+
+    '</svg>';
+  return '<div class="fwd-curve-wrap">'+svg+
+    '<div class="fwd-curve-legend">'+
+      '<span class="lg"><span class="sw raw" style="border-top-color:'+rawCol+'"></span>報酬%（絕對·未實現）末值 <b style="color:'+rawCol+'">'+_ckPct(cr)+'</b></span>'+
+      '<span class="lg"><span class="sw exc"></span>超額%（vs 等權大盤）末值 <b>'+(ce!=null?_ckPct(ce):'—')+'</b></span>'+
+      '<span class="lg">預估·未實現·每日會變動</span>'+
+    '</div></div>';
+}
 function _fwdStatusBadge(tr,sid){
   const bk=_fwdBackBySid[sid];
   const st=(bk&&bk.status)||(tr&&tr.status)||'active';
@@ -9580,15 +9668,17 @@ async function fwdLoad(){
   const root=document.getElementById('fwd-root');
   try{
     const H={headers:authHeaders()};
-    const [trk, sd, pk, recs, reg, vix] = await Promise.all([
+    const [trk, sd, pk, recs, reg, vix, eq] = await Promise.all([
       fetch(API+'/api/forward/track',H).then(r=>r.json()).catch(()=>null),
       fetch(API+'/api/forward/strategies',H).then(r=>r.json()).catch(()=>null),
       fetch(API+'/api/forward/picks',H).then(r=>r.json()).catch(()=>null),
       fetch(API+'/api/ic/recommendations',H).then(r=>r.json()).catch(()=>null),
       fetch(API+'/api/regime',H).then(r=>r.json()).catch(()=>null),
-      fetch(API+'/api/sentiment/regime?source=vix',H).then(r=>r.json()).catch(()=>null)
+      fetch(API+'/api/sentiment/regime?source=vix',H).then(r=>r.json()).catch(()=>null),
+      fetch(API+'/api/forward/equity-curve',H).then(r=>r.json()).catch(()=>null)
     ]);
-    _fwdTrack={}; _fwdStrat={}; _fwdPicksBySid={}; _fwdPicksByTk={}; _fwdBackBySid={}; _fwdAi={};
+    _fwdTrack={}; _fwdStrat={}; _fwdPicksBySid={}; _fwdPicksByTk={}; _fwdBackBySid={}; _fwdCurve={}; _fwdAi={};
+    ((eq&&eq.strategies)||[]).forEach(c=>{ _fwdCurve[String(c.strategy_id)]=c; });
     const strategies=((trk&&trk.strategies)||[]);
     strategies.forEach(s=>{ _fwdTrack[String(s.strategy_id)]=s; });
     ((sd&&sd.strategies)||[]).forEach(s=>{ _fwdStrat[String(s.id)]={
@@ -9662,6 +9752,8 @@ function fwdRender(trk){
     '模擬倉 forward 起跑、目前 <b>'+nPicks+'</b> 檔追蹤（open '+nOpen+' · pending '+nPend+'）、<b>'+nClosed+' 已結算</b>。'+
     '勝率與 realized 超額的 <b>OOS 實績最早 '+FWD_OOS_EARLIEST+'</b> 才出現；在此之前一律顯示「<b>— 累積中</b>」。'+
     '持倉中顯示的超額均為未結算 <b>mark（預估，會變動）</b>，與 OOS 實績視覺分流。'+
+    '<br><b>報酬%</b>＝假設每隻 100萬跟單的<b>絕對賺賠</b>（未實現 mark，扣手續費+稅）；'+
+    '<b>超額%</b>＝vs <b>等權大盤</b>——兩件不同的事，並排顯示。曲線自進場日(06-23)起、目前短、每日會長。'+
     '</div></div>';
   // L0 表
   let rows='';
@@ -9677,14 +9769,15 @@ function fwdRender(trk){
       '<td>'+_fwdStatusBadge(s,sid)+'</td>'+
       '<td>'+_fwdRegimeCell(sid)+'</td>'+
       '<td>'+nTxt+'</td>'+
+      '<td>'+_fwdReturnCell(sid)+'</td>'+
       '<td>'+_fwdExcessCell(s)+'</td>'+
       '<td>'+_fwdWinCell(s)+'</td>'+
       '<td>'+_fwdDsrCell(s,sid)+'</td>'+
       '<td>'+_fwdGradCell(s)+'</td></tr>'+
-      '<tr class="fwd-l1" id="fwd-l1-'+sid+'" style="display:none"><td colspan="9"><div class="fwd-l1-inner" id="fwd-l1-body-'+sid+'"></div></td></tr>';
+      '<tr class="fwd-l1" id="fwd-l1-'+sid+'" style="display:none"><td colspan="10"><div class="fwd-l1-inner" id="fwd-l1-body-'+sid+'"></div></td></tr>';
   });
   const table='<div class="fwd-tablewrap"><table class="fwd-table"><thead><tr>'+
-    '<th></th><th>策略</th><th>狀態</th><th>Regime</th><th>今日</th><th>模擬超額</th><th>勝率</th><th>DSR</th><th>距畢業</th>'+
+    '<th></th><th>策略</th><th>狀態</th><th>Regime</th><th>今日</th><th>報酬%(100萬)</th><th>模擬超額</th><th>勝率</th><th>DSR</th><th>距畢業</th>'+
     '</tr></thead><tbody>'+rows+'</tbody></table></div>'+
     '<div class="fwd-note" style="margin-top:8px">「OOS」＝已結算前向實盤實績（最強證據）；「預估」＝持倉中 mark-to-market（未結算、會變動）；DSR＝backtest robustness（pre-OOS 可信度，非 OOS 戰績）。點任一列看完整詳情。</div>';
   root.innerHTML=banner+table;
@@ -9772,7 +9865,15 @@ function fwdL1Html(sid){
   const segGrad='<div class="fwd-perf-seg grad"><div class="fwd-perf-h">距畢業</div>'+
     '<div class="fwd-note" style="margin-top:0">起跑 '+dss+' 天 / 首批 '+hz+'日 horizon（'+pct+'%）</div>'+
     '<div class="fwd-prog" style="width:100%;max-width:280px;margin-top:6px"><div class="fwd-prog-fill" style="width:'+pct+'%"></div></div></div>';
-  const zoneC='<div class="fwd-zone full"><div class="fwd-zone-h">③ 模擬績效追蹤 <span class="fwd-zone-n">預估 mark 與 OOS 實績分流 · 0 closed 走累積中</span></div>'+segOos+segOpen+segGrad+'</div>';
+  // L1-c0 權益曲線（報酬% raw + 超額% 兩條疊，預估·未實現）
+  const cur=_fwdCurve[sid]||{};
+  const curveHead=(cur.current_raw_pct!=null)
+    ? ('報酬% <b class="'+_ckSignCls(cur.current_raw_pct)+'" style="color:'+(Number(cur.current_raw_pct)>0?'var(--red)':(Number(cur.current_raw_pct)<0?'var(--green)':'var(--text2)'))+'">'+_ckArrow(cur.current_raw_pct)+_ckPct(cur.current_raw_pct)+'</b>'
+       +'（100萬→'+((1000000*(1+Number(cur.current_raw_pct)/100))/10000).toFixed(1)+'萬，預估·未實現）')
+    : '尚未出手';
+  const segCurve='<div class="fwd-perf-seg open"><div class="fwd-perf-h">100萬→報酬%曲線 <span class="tag est">預估·未實現·每日會變動</span></div>'+
+    '<div class="fwd-note" style="margin-top:0;margin-bottom:7px">'+curveHead+'</div>'+_fwdCurveSvg(sid)+'</div>';
+  const zoneC='<div class="fwd-zone full"><div class="fwd-zone-h">③ 模擬績效追蹤 <span class="fwd-zone-n">報酬%(絕對) 與 超額%(vs大盤) 分流 · 0 closed 走累積中</span></div>'+segCurve+segOos+segOpen+segGrad+'</div>';
 
   // L1-d 信心背書（接量產 confidence_backing）
   let backHtml;
