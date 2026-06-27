@@ -336,6 +336,26 @@ def run_cron(opts):
         return {"status": "error", "run_date": run_date, "steps": steps,
                 "summary_path": str(md), "record": rec}
 
+    # ── STEP 0：補今日日線（daily_kbar 增量 top-up）──────────────────────────
+    #   無新鮮日線 → as-of 退回舊日、pending 部位無次日 bar 可進場/mark（曲線變死）。
+    #   先補齊 forward 同源 universe 的 daily_kbar，再做後續選股/結算。
+    if dry_run:
+        add_step("0_refresh_kbar", "skipped", "dry-run：跳過日線補抓")
+    elif over_budget_time():
+        add_step("0_refresh_kbar", "timeout", "總 timeout 已到，跳過日線補抓")
+        errors.append("total_timeout_before_kbar")
+    else:
+        try:
+            r = _request("POST",
+                         base.rstrip("/") + "/api/market-data/refresh-daily?" + urllib.parse.urlencode({"market": market}),
+                         token, body=None, timeout=max(step_timeout, 600))
+            add_step("0_refresh_kbar", "done",
+                     f"universe={r.get('universe')} latest={r.get('latest_date')} "
+                     f"(was {r.get('latest_before')}) failed={r.get('failed')}")
+        except HttpError as e:
+            add_step("0_refresh_kbar", "error", str(e))
+            errors.append(f"refresh_kbar:{e}")
+
     # ── STEP 1：daemon 搜新組合 ────────────────────────────────────────────
     if dry_run:
         add_step("1_search", "skipped", "dry-run：跳過搜尋（避免寫 composite_candidates）")

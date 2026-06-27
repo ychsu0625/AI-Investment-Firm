@@ -6820,8 +6820,21 @@ def _ensure_index_data(code: str, start_date: str, end_date: str) -> int:
         threading.Thread(target=_bg_fetch_index, args=(code, start_date, end_date), daemon=True).start()
     return cnt
 
+_daily_topup_tried: dict = {}   # {(code, market, today): True} 進程內節流：同日同碼只增量補抓一次（避免每次 _load_backtest_data 重打網路）
+
+def _last_expected_trading_day(end_date: str) -> str:
+    """end_date 起回退到最近一個工作日（週末跳過）。粗略：不含台股國定假日表 →
+    假日當天最多多嘗試一次（由 _daily_topup_tried 節流，抓回空 INSERT OR IGNORE 無害），不影響正確性。"""
+    d = datetime.strptime(end_date, "%Y-%m-%d")
+    while d.weekday() >= 5:          # 5=Sat 6=Sun
+        d -= timedelta(days=1)
+    return d.strftime("%Y-%m-%d")
+
 def _ensure_daily_data(code: str, market: str, start_date: str, end_date: str) -> int:
-    """確保 market.db 有指定區間的日K資料，缺失則自動抓取"""
+    """確保 market.db 有指定區間的日K資料；缺失則抓全段，落後最近交易日則增量補尾。
+    純加法（INSERT OR IGNORE，不覆寫既有；PIT 安全：只補 ≤ end_date 的歷史/當日 bar）。
+    修前 bug：『existing_count>0 即 return』＝抓一次後永不增量 → daily_kbar 凍結在各碼首載日，
+    forward/回測讀不到新日線 → 部位無法進場/mark。"""
     con = market_db()
     cur = con.cursor()
     cur.execute("""
@@ -6830,27 +6843,40 @@ def _ensure_daily_data(code: str, market: str, start_date: str, end_date: str) -
     """, (code, market, start_date, end_date))
     row = cur.fetchone()
     existing_count = row[2] if row else 0
+    max_date = row[1] if row else None
 
+    # 抓取區間決策：無資料→抓全段；有資料但落後最近交易日→只抓缺的尾段
+    fetch_start = start_date
     if existing_count > 0:
-        con.close()
-        return existing_count
+        if max_date and max_date >= _last_expected_trading_day(end_date):
+            con.close()
+            return existing_count                       # 已到最近交易日 → 不抓
+        today = datetime.now().strftime("%Y-%m-%d")
+        if _daily_topup_tried.get((code, market, today)):
+            con.close()
+            return existing_count                       # 今日已嘗試 → 進程內節流，免每次重打網路
+        _daily_topup_tried[(code, market, today)] = True
+        if max_date:
+            fetch_start = (datetime.strptime(max_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # 自動抓取
+    # 自動抓取（增量或全段）
     if market == "US":
-        bars = _fetch_us_daily(code, start_date, end_date)
+        bars = _fetch_us_daily(code, fetch_start, end_date)
     else:
-        bars = _fetch_tw_daily(code, start_date, end_date)
+        bars = _fetch_tw_daily(code, fetch_start, end_date)
 
+    added = 0
     for b in bars:
-        con.execute("""
+        cur.execute("""
             INSERT OR IGNORE INTO daily_kbar(code, market, date, open, high, low, close, volume)
             VALUES(?,?,?,?,?,?,?,?)
         """, (code, market, b["date"], b["open"], b["high"], b["low"], b["close"], b["volume"]))
+        added += cur.rowcount
     con.commit()
-    count = len(bars)
     con.close()
-    print(f"[market.db] {market}/{code}: 新增 {count} 筆日K ({start_date}~{end_date})")
-    return count
+    if added:
+        print(f"[market.db] {market}/{code}: {'增量補' if existing_count > 0 else '新增'} {added} 筆日K ({fetch_start}~{end_date})")
+    return existing_count + added
 
 def _fetch_tw_daily(code: str, start_date: str, end_date: str) -> list:
     """用 Shioaji kbars 或 yfinance 抓台股日K"""
@@ -6936,6 +6962,33 @@ def market_data_status():
     rows = cur.fetchall()
     con.close()
     return [{"market": r[0], "stocks": r[1], "bars": r[2], "from": r[3], "to": r[4]} for r in rows]
+
+
+@app.post("/api/market-data/refresh-daily")
+def market_data_refresh_daily(market: str = "TW", _: None = Depends(require_token)):
+    """每交易日增量補 daily_kbar：對 forward/回測同源 universe 逐碼 top-up 至最近交易日。
+    純加法（_ensure_daily_data INSERT OR IGNORE）。供 forward daily cron STEP 0 與 cockpit 手動觸發。
+    根因：daily_kbar 無每日增量路徑（rec-scheduler 只餵 kbar_cache，forward 讀的是 daily_kbar）。"""
+    market = (market or "TW").upper()
+    codes = _ft_universe_codes(market)
+    if not codes:
+        return JSONResponse({"ok": False, "error": f"universe 空: {market}"}, status_code=400)
+    end = datetime.now().strftime("%Y-%m-%d")
+    start = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")
+    con = market_db(); cur = con.cursor()
+    cur.execute("SELECT MAX(date) FROM daily_kbar WHERE market=?", (market,))
+    before = cur.fetchone()[0]; con.close()
+    failed = 0
+    for code in codes:
+        try:
+            _ensure_daily_data(code, market, start, end)
+        except Exception:
+            failed += 1
+    con = market_db(); cur = con.cursor()
+    cur.execute("SELECT MAX(date) FROM daily_kbar WHERE market=?", (market,))
+    after = cur.fetchone()[0]; con.close()
+    return {"ok": True, "market": market, "universe": len(codes), "failed": failed,
+            "latest_before": before, "latest_date": after}
 
 
 # ── 回測引擎 ──────────────────────────────────────
