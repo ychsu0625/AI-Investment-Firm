@@ -19523,6 +19523,176 @@ def forward_equity_curve(strategy: int = 0):
     return {"ok": True, "as_of": today, "capital": 1000000, "strategies": out}
 
 
+# ── real-curve(2026-06-27) 老闆「研究→🏭量產AI建議→👰老婆實際」閉環同頁戰績 ─────────────
+#  與 forward/equity-curve 同模式（報酬%/超額/曲線），純讀不寫業務表、不觸網（daily_kbar 由 cron
+#  top-up）。兩個追蹤組合：🤖 AI建議（每檔首次 BUY 為等權進場，每日 mark net 報酬%）、👰 老婆實際
+#  （positions 成本基，報酬%/市值美股換匯 _get_usdtwd 與首頁同口徑）。誠實鐵律：資料不足就 from-today、
+#  不偽造歷史曲線；mark = 未實現預估。
+def _real_curve_ai_buy(today: str) -> dict:
+    """🤖 AI建議組合：ic_rec_history 每檔『首次出現 BUY（含 entry_price>0）』為等權進場，
+    每日從 daily_kbar 收盤 mark net 報酬%（_net_return_pct，與 forward equity-curve 同口徑·扣成本），
+    excess 逐 pick 減同市場等權大盤（_equal_weight_bench_map）。自首個 BUY 日起追蹤（誠實標 start_date）。
+    台美跨市場：各 pick 用自己市場的 daily_kbar / bench；美股 daily_kbar 較舊時其 mark 會略凍結（已標）。"""
+    name = "🤖 AI建議組合"
+    note_base = "跟著每日『今日該買』BUY 清單買的戰績（等權·每日 mark·扣手續費/稅 net）"
+    con = db(); cur = con.cursor()
+    try:
+        rows = cur.execute("""
+            SELECT code, MIN(created_at) AS first_seen
+            FROM ic_rec_history
+            WHERE direction='BUY' AND entry_price IS NOT NULL AND entry_price > 0
+            GROUP BY code
+        """).fetchall()
+        picks = []
+        for code, first_seen in rows:
+            ep = cur.execute("""
+                SELECT entry_price, market FROM ic_rec_history
+                WHERE code=? AND direction='BUY' AND entry_price IS NOT NULL AND entry_price > 0
+                ORDER BY created_at LIMIT 1
+            """, (code,)).fetchone()
+            if not ep or not ep[0] or ep[0] <= 0:
+                continue
+            mkt = (ep[1] or ("TW" if _is_tw_code(code) else "US")).upper()
+            picks.append({"code": code, "market": mkt,
+                          "entry_date": (first_seen or "")[:10], "entry_price": float(ep[0])})
+    finally:
+        con.close()
+    picks = [p for p in picks if p["entry_date"]]
+    if not picks:
+        return {"key": "ai_buy", "name": name, "points": [], "current_raw_pct": None,
+                "current_excess_pct": None, "n_holdings": 0, "start_date": None,
+                "note": note_base + "；目前無 BUY 紀錄（誠實：待量產出建議後累積）",
+                "from_today": True, "holdings": []}
+    start_date = min(p["entry_date"] for p in picks)
+    # 按市場預載 universe + pick bars（唯讀），各市場一份等權大盤 nav
+    by_mkt = {}
+    for p in picks:
+        by_mkt.setdefault(p["market"], []).append(p)
+    preload = {}
+    for mkt, ps in by_mkt.items():
+        uni = _ft_universe_codes(mkt)
+        load_codes = list(set(uni) | {p["code"] for p in ps})
+        mn = min(p["entry_date"] for p in ps)
+        start = (datetime.strptime(mn, "%Y-%m-%d") - timedelta(days=12)).strftime("%Y-%m-%d")
+        all_dates, bar_data = _ft_load_bars_readonly(load_codes, mkt, start, today)
+        bench = _equal_weight_bench_map(uni, all_dates, bar_data)
+        preload[mkt] = (all_dates, bar_data, bench)
+    all_d = sorted({d for (ad, _bd, _bh) in preload.values() for d in ad})
+    points = []
+    for d in all_d:
+        if d < start_date or d > today:
+            continue
+        raws = []; excs = []
+        for p in picks:
+            if d < p["entry_date"]:
+                continue
+            _ad, bar_data, bench = preload[p["market"]]
+            bar = bar_data.get((p["code"], d))
+            if not bar:
+                continue
+            rret = _net_return_pct(p["entry_price"], bar["close"], p["market"], TW_DISCOUNT)
+            raws.append(rret)
+            be, bx = bench.get(p["entry_date"]), bench.get(d)
+            if be and bx and be > 0:
+                excs.append(rret - (bx / be - 1) * 100)
+        if not raws:
+            continue
+        points.append({"date": d,
+                       "raw_pct": round(sum(raws) / len(raws), 2),
+                       "excess_pct": (round(sum(excs) / len(excs), 2) if excs else None)})
+    # 每 pick 最新 mark（最後一個有 bar 的交易日）→ L1 明細
+    holdings = []
+    for p in picks:
+        _ad, bar_data, _bh = preload[p["market"]]
+        mark_pct = None; mark_date = None
+        for d in reversed(_ad):
+            if d > today or d < p["entry_date"]:
+                continue
+            bar = bar_data.get((p["code"], d))
+            if bar:
+                mark_pct = round(_net_return_pct(p["entry_price"], bar["close"], p["market"], TW_DISCOUNT), 2)
+                mark_date = d
+                break
+        holdings.append({"code": p["code"], "market": p["market"], "entry_date": p["entry_date"],
+                         "entry_price": round(p["entry_price"], 2), "mark_pct": mark_pct,
+                         "mark_date": mark_date})
+    holdings.sort(key=lambda h: (h["mark_pct"] is None, -(h["mark_pct"] or 0)))
+    n_us = sum(1 for p in picks if p["market"] == "US")
+    note = note_base + "；自 %s 起追蹤（%d 檔，含美股 %d 檔·美股日線較舊時其 mark 會略凍結）" % (
+        start_date, len(picks), n_us)
+    return {"key": "ai_buy", "name": name, "points": points,
+            "current_raw_pct": (points[-1]["raw_pct"] if points else None),
+            "current_excess_pct": (points[-1]["excess_pct"] if points else None),
+            "n_holdings": len(picks), "start_date": start_date, "note": note,
+            "from_today": False, "holdings": holdings}
+
+
+def _real_curve_wife(today: str) -> dict:
+    """👰 老婆實際持倉組合：positions(open) 為持倉、成本為基。報酬%/市值『美股換匯』(_get_usdtwd)
+    與首頁 portfolio_summary 同口徑（current_raw_pct 對得上首頁 total_pnl_pct）。
+    誠實降級：positions 多數無建立日(entry_date 空)、美股 daily_kbar 零碎(部分僅到 04-30) → 不偽造歷史
+    曲線，from-today 單錨點，每日累積。報酬%含換匯、為未實現預估。"""
+    name = "👰 老婆實際持倉"
+    positions = get_positions()
+    if isinstance(positions, dict):
+        positions = positions.get("data", positions.get("results", []))
+    fx = _get_usdtwd()
+    total_cost = 0.0; total_mv = 0.0
+    holdings = []
+    for p in positions:
+        shares = p.get("shares", 0) or 0
+        cost = p.get("cost", 0) or 0
+        cp = p.get("current_price", 0) or 0
+        if shares <= 0 or cost <= 0:
+            continue
+        mkt = str(p.get("market", "TW")).upper()
+        rate = fx if mkt == "US" else 1.0
+        cost_twd = cost * shares * rate
+        mv_twd = cp * shares * rate
+        total_cost += cost_twd
+        total_mv += mv_twd
+        holdings.append({"code": p.get("code", ""), "market": mkt, "shares": shares,
+                         "cost": round(cost, 2), "current_price": round(cp, 2),
+                         "pnl_pct": (round((cp / cost - 1) * 100, 2) if cost else None),
+                         "mkt_value_twd": round(mv_twd, 0)})
+    if total_cost <= 0:
+        return {"key": "wife", "name": name, "points": [], "current_raw_pct": None,
+                "current_excess_pct": None, "n_holdings": 0, "start_date": None,
+                "note": "無持倉或成本資料", "from_today": True, "holdings": [],
+                "fx_usdtwd": fx, "total_cost_twd": 0, "total_mv_twd": 0}
+    cur_pct = round((total_mv / total_cost - 1) * 100, 2)
+    holdings.sort(key=lambda h: -(h["mkt_value_twd"] or 0))
+    n_us = sum(1 for h in holdings if h["market"] == "US")
+    note = (f"實際持倉未實現報酬%（含美股換匯 USDTWD={fx:.2f}·與首頁持倉同口徑）；"
+            f"持倉 {len(holdings)} 檔含美股 {n_us} 檔。多數無建立日、美股日線資料不齊 → "
+            f"不偽造歷史曲線，自今日起每日累積（預估）")
+    return {"key": "wife", "name": name,
+            "points": [{"date": today, "raw_pct": cur_pct, "excess_pct": None}],
+            "current_raw_pct": cur_pct, "current_excess_pct": None,
+            "n_holdings": len(holdings), "start_date": today, "note": note,
+            "from_today": True, "holdings": holdings,
+            "fx_usdtwd": fx, "total_cost_twd": round(total_cost, 0),
+            "total_mv_twd": round(total_mv, 0)}
+
+
+@app.get("/api/portfolio/real-curve")
+def portfolio_real_curve():
+    """唯讀：把『🏭量產AI建議』與『👰老婆實際持倉』接進前向戰績頁，與 forward/equity-curve 同模式
+    （報酬%/超額/曲線）。閉環最後一塊：研究策略 → AI建議（產品賺不賺）→ 老婆實際 並排同頁。
+    純讀、不寫業務表；美股一律換匯成台幣再加總（_get_usdtwd）。資料不足誠實 from-today。"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    combos = []
+    for fn in (_real_curve_ai_buy, _real_curve_wife):
+        try:
+            combos.append(fn(today))
+        except Exception as e:
+            combos.append({"key": getattr(fn, "__name__", "?"), "name": "（載入失敗）",
+                           "points": [], "current_raw_pct": None, "current_excess_pct": None,
+                           "n_holdings": 0, "start_date": None, "from_today": True,
+                           "holdings": [], "note": "計算失敗：%s" % e})
+    return {"ok": True, "as_of": today, "capital": 1000000, "combos": combos}
+
+
 @app.get("/api/forward/cron/status")
 def forward_cron_status(limit: int = 30):
     """半自動 forward cron run-log 唯讀查詢（cockpit 查 cron 落地用）。純讀 forward_cron_runs，

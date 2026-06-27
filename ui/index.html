@@ -877,6 +877,16 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 .fwd-curve-legend .sw{width:14px;height:0;border-top:2px solid var(--text3)}
 .fwd-curve-legend .sw.raw{border-top-color:var(--text)}
 .fwd-curve-legend .sw.exc{border-top-style:dashed;border-top-color:var(--blue)}
+/* real-curve(2026-06-27)：7 策略下方「真實組合」區（🤖AI建議 / 👰老婆實際） */
+.real-wrap{margin-top:16px;padding-top:14px;border-top:2px dashed var(--border2)}
+.real-head{font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:8px}
+.real-head b{color:var(--text)}
+.real-table th{font-size:11px}
+.real-row{cursor:pointer}
+.real-row .fwd-caret{display:inline-block;transition:transform .15s;color:var(--text3)}
+.real-row.open .fwd-caret{transform:rotate(90deg)}
+.real-sd{font-size:11px;color:var(--text3);white-space:nowrap}
+.real-fromtoday{display:inline-block;font-size:10px;color:var(--text3);background:var(--bg4);border-radius:3px;padding:0 4px;margin-left:3px}
 
 /* L1 inline 展開面板 */
 .fwd-l1{background:var(--bg2);border-bottom:1px solid var(--border)}
@@ -9529,6 +9539,8 @@ let _fwdPicksBySid={}; // sid -> [pick]
 let _fwdPicksByTk={};  // ticker -> [pick(+_sid,_strat)]
 let _fwdBackBySid={};  // sid -> 量產 confidence_backing（從 ic recs 該 bucket 聚出）
 let _fwdCurve={};      // sid -> equity-curve（points[{date,raw_pct,excess_pct}]+current_raw/excess_pct）
+let _fwdReal=[];       // real-curve 追蹤組合（🤖AI建議 / 👰老婆實際）[{key,name,points,...,holdings}]
+let _fwdRealOpen=null; // 真實組合 L1 展開中的 key
 let _fwdAi={};         // code -> ic rec（L2 用）
 let _fwdRegime=null, _fwdVixBucket=null;
 let _fwdOpenSid=null;  // 目前展開的 L1 sid
@@ -9668,17 +9680,19 @@ async function fwdLoad(){
   const root=document.getElementById('fwd-root');
   try{
     const H={headers:authHeaders()};
-    const [trk, sd, pk, recs, reg, vix, eq] = await Promise.all([
+    const [trk, sd, pk, recs, reg, vix, eq, real] = await Promise.all([
       fetch(API+'/api/forward/track',H).then(r=>r.json()).catch(()=>null),
       fetch(API+'/api/forward/strategies',H).then(r=>r.json()).catch(()=>null),
       fetch(API+'/api/forward/picks',H).then(r=>r.json()).catch(()=>null),
       fetch(API+'/api/ic/recommendations',H).then(r=>r.json()).catch(()=>null),
       fetch(API+'/api/regime',H).then(r=>r.json()).catch(()=>null),
       fetch(API+'/api/sentiment/regime?source=vix',H).then(r=>r.json()).catch(()=>null),
-      fetch(API+'/api/forward/equity-curve',H).then(r=>r.json()).catch(()=>null)
+      fetch(API+'/api/forward/equity-curve',H).then(r=>r.json()).catch(()=>null),
+      fetch(API+'/api/portfolio/real-curve',H).then(r=>r.json()).catch(()=>null)
     ]);
     _fwdTrack={}; _fwdStrat={}; _fwdPicksBySid={}; _fwdPicksByTk={}; _fwdBackBySid={}; _fwdCurve={}; _fwdAi={};
     ((eq&&eq.strategies)||[]).forEach(c=>{ _fwdCurve[String(c.strategy_id)]=c; });
+    _fwdReal=((real&&real.combos)||[]);
     const strategies=((trk&&trk.strategies)||[]);
     strategies.forEach(s=>{ _fwdTrack[String(s.strategy_id)]=s; });
     ((sd&&sd.strategies)||[]).forEach(s=>{ _fwdStrat[String(s.id)]={
@@ -9780,8 +9794,125 @@ function fwdRender(trk){
     '<th></th><th>策略</th><th>狀態</th><th>Regime</th><th>今日</th><th>報酬%(100萬)</th><th>模擬超額</th><th>勝率</th><th>DSR</th><th>距畢業</th>'+
     '</tr></thead><tbody>'+rows+'</tbody></table></div>'+
     '<div class="fwd-note" style="margin-top:8px">「OOS」＝已結算前向實盤實績（最強證據）；「預估」＝持倉中 mark-to-market（未結算、會變動）；DSR＝backtest robustness（pre-OOS 可信度，非 OOS 戰績）。點任一列看完整詳情。</div>';
-  root.innerHTML=banner+table;
+  root.innerHTML=banner+table+_fwdRealSection();
   if(_fwdOpenSid && _fwdTrack[_fwdOpenSid]) fwdToggle(_fwdOpenSid, true);
+  if(_fwdRealOpen) fwdRealToggle(_fwdRealOpen, true);
+}
+
+// ── real-curve(2026-06-27)：研究→🏭量產AI建議→👰老婆實際 閉環同頁。7 策略下方加「真實組合」區 ──
+// raw=絕對(未實現)賺賠紅綠 + 迷你 sparkline + 起算日；L1 展開看曲線 + 持倉/建議明細。複用 _fwdSpark。
+function _realRetCell(c){
+  if(!c || c.current_raw_pct==null) return '<span class="fwd-accum">— 累積中</span>';
+  const v=Number(c.current_raw_pct);
+  return '<span class="fwd-ret-cell">'+
+    '<span class="fwd-ret '+_ckSignCls(v)+'">'+_ckArrow(v)+_ckPct(v)+
+      '<span class="fwd-ret-sub"><span class="fwd-esttag">未實現·預估</span></span></span>'+
+    _fwdSpark((c.points||[]),'raw_pct',58,20)+'</span>';
+}
+function _realExcCell(c){
+  if(!c || c.current_excess_pct==null) return '<span class="fwd-accum">—</span>';
+  const v=Number(c.current_excess_pct);
+  return '<span class="fwd-ret '+_ckSignCls(v)+'" style="font-size:13px">'+_ckArrow(v)+_ckPct(v)+'</span>';
+}
+// L1 曲線（複用 _fwdCurveSvg 結構，但吃 combo 物件）；單點(from-today)→誠實提示
+function _realCurveSvg(c){
+  if(!c || !(c.points&&c.points.length))
+    return '<div class="fwd-skip">尚無曲線（資料累積中）。</div>';
+  if(c.points.length<2)
+    return '<div class="fwd-skip">📍 自 '+_ckEsc((c.points[0].date||'').slice(5))+' 起追蹤（單點）——'+
+      (c.from_today?'資料不足以重建歷史，誠實從今天開始，每日 mark 後會長出曲線。':'每日會長。')+'</div>';
+  const pts=c.points, n=pts.length;
+  const raw=pts.map(p=>p.raw_pct), exc=pts.map(p=>(p.excess_pct==null?null:p.excess_pct));
+  const fin=raw.filter(v=>v!=null).concat(exc.filter(v=>v!=null)).concat([0]);
+  const mn=Math.min.apply(null,fin), mx=Math.max.apply(null,fin), rng=(mx-mn)||1;
+  const W=460,H=148,PL=34,PR=10,PT=10,PB=20, iw=W-PL-PR, ih=H-PT-PB;
+  const xOf=i=>(n===1?PL+iw/2:PL+(i/(n-1))*iw), yOf=v=>PT+ih-((v-mn)/rng)*ih;
+  const seglines=(arr,col,dash)=>{ const segs=[]; let cur=[];
+    arr.forEach((v,i)=>{ if(v==null){ if(cur.length){segs.push(cur);cur=[];} } else cur.push(xOf(i).toFixed(1)+','+yOf(v).toFixed(1)); });
+    if(cur.length)segs.push(cur);
+    return segs.map(s=>'<polyline points="'+s.join(' ')+'" fill="none" stroke="'+col+'" stroke-width="1.8" '+(dash?'stroke-dasharray="4 3" ':'')+'stroke-linejoin="round" stroke-linecap="round"/>').join(''); };
+  const cr=Number(c.current_raw_pct);
+  const rawCol=cr>0?'var(--red)':(cr<0?'var(--green)':'var(--text2)');
+  const zy=yOf(0).toFixed(1), lblTop=mx.toFixed(1)+'%', lblBot=mn.toFixed(1)+'%';
+  const d0=(pts[0].date||'').slice(5), d1=(pts[n-1].date||'').slice(5);
+  const ce=(c.current_excess_pct!=null)?Number(c.current_excess_pct):null;
+  const svg='<svg class="fwd-curve-svg" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" role="img" aria-label="組合報酬曲線">'+
+    '<line x1="'+PL+'" y1="'+zy+'" x2="'+(W-PR)+'" y2="'+zy+'" stroke="var(--border2)" stroke-width="1" stroke-dasharray="3 3"/>'+
+    '<text x="'+(PL-4)+'" y="'+(PT+8)+'" text-anchor="end" font-size="9" fill="var(--text3)">'+lblTop+'</text>'+
+    '<text x="'+(PL-4)+'" y="'+(PT+ih)+'" text-anchor="end" font-size="9" fill="var(--text3)">'+lblBot+'</text>'+
+    '<text x="'+(PL-4)+'" y="'+(Number(zy)+3)+'" text-anchor="end" font-size="9" fill="var(--text3)">0</text>'+
+    seglines(exc,'var(--blue)',true)+seglines(raw,rawCol,false)+
+    '<circle cx="'+xOf(n-1).toFixed(1)+'" cy="'+yOf(raw[n-1]).toFixed(1)+'" r="2.4" fill="'+rawCol+'"/>'+
+    '<text x="'+PL+'" y="'+(H-6)+'" text-anchor="start" font-size="9" fill="var(--text3)">'+d0+'（起算）</text>'+
+    '<text x="'+(W-PR)+'" y="'+(H-6)+'" text-anchor="end" font-size="9" fill="var(--text3)">'+d1+'</text></svg>';
+  return '<div class="fwd-curve-wrap">'+svg+
+    '<div class="fwd-curve-legend">'+
+      '<span class="lg"><span class="sw raw" style="border-top-color:'+rawCol+'"></span>報酬%（絕對·未實現）末值 <b style="color:'+rawCol+'">'+_ckPct(cr)+'</b></span>'+
+      '<span class="lg"><span class="sw exc"></span>超額%（vs 等權大盤）末值 <b>'+(ce!=null?_ckPct(ce):'—')+'</b></span>'+
+      '<span class="lg">預估·未實現·每日會變動</span>'+
+    '</div></div>';
+}
+// L1 持倉/建議明細
+function _realHoldingsHtml(c){
+  const hs=(c.holdings||[]);
+  if(!hs.length) return '<div class="fwd-skip">無明細</div>';
+  if(c.key==='ai_buy'){
+    const rows=hs.map(h=>{ const v=(h.mark_pct==null?null:Number(h.mark_pct));
+      return '<div class="fwd-pick"><span class="fwd-pick-l"><span class="fwd-pick-tk">'+_ckEsc(h.code)+'</span>'+
+        '<span class="fwd-pick-nm">'+(h.market==='US'?'US':'TW')+' · 進場 '+_ckEsc((h.entry_date||'').slice(5))+' @ '+_ckEsc(String(h.entry_price))+'</span></span>'+
+        '<span class="fwd-pick-r '+(v==null?'':_ckSignCls(v))+'">'+(v==null?'—':(_ckArrow(v)+_ckPct(v)))+'</span></div>'; }).join('');
+    return rows;
+  }
+  // wife：成本/現價/未實現% + 台幣市值
+  const rows=hs.map(h=>{ const v=(h.pnl_pct==null?null:Number(h.pnl_pct));
+    const mvWan=(h.mkt_value_twd!=null)?(h.mkt_value_twd/10000).toFixed(0)+'萬':'';
+    return '<div class="fwd-pick"><span class="fwd-pick-l"><span class="fwd-pick-tk">'+_ckEsc(h.code)+'</span>'+
+      '<span class="fwd-pick-nm">'+(h.market==='US'?'US':'TW')+' · '+_ckEsc(String(h.shares))+'股 · 成本 '+_ckEsc(String(h.cost))+' → '+_ckEsc(String(h.current_price))+(mvWan?(' · '+mvWan+'(台幣)'):'')+'</span></span>'+
+      '<span class="fwd-pick-r '+(v==null?'':_ckSignCls(v))+'">'+(v==null?'—':(_ckArrow(v)+_ckPct(v)))+'</span></div>'; }).join('');
+  return rows;
+}
+function _fwdRealSection(){
+  const combos=(_fwdReal||[]);
+  if(!combos.length) return '';
+  const icon={ai_buy:'🤖', wife:'👰'};
+  let rows='';
+  combos.forEach(c=>{
+    const key=_ckEsc(c.key||'');
+    const sd=c.start_date?('起算 '+_ckEsc((c.start_date||'').slice(5))):'—';
+    const ntag=(c.n_holdings!=null?c.n_holdings+' 檔':'');
+    const from=c.from_today?'<span class="real-fromtoday">從今天起</span>':'';
+    rows+='<tr class="fwd-row real-row" id="real-row-'+key+'" onclick="fwdRealToggle(\''+key+'\')">'+
+      '<td><span class="fwd-caret">▸</span> '+(icon[c.key]||'•')+'</td>'+
+      '<td><span class="fwd-sname">'+_ckEsc(c.name||'')+'</span> <span class="fwd-src">'+ntag+' '+from+'</span></td>'+
+      '<td>'+_realRetCell(c)+'</td>'+
+      '<td>'+_realExcCell(c)+'</td>'+
+      '<td class="real-sd">'+sd+'</td></tr>'+
+      '<tr class="fwd-l1 real-l1" id="real-l1-'+key+'" style="display:none"><td colspan="5"><div class="fwd-l1-inner" id="real-l1-body-'+key+'"></div></td></tr>';
+  });
+  return '<div class="real-wrap">'+
+    '<div class="real-head"><b>真實組合</b>　研究策略 → 🏭量產 AI 建議 → 👰 老婆實際買，整條閉環戰績並排同頁。'+
+    '報酬%＝<b>未實現預估</b>（已扣成本；老婆持倉<b>含美股換匯</b>，與首頁市值同口徑）；點列看曲線/明細。</div>'+
+    '<div class="fwd-tablewrap"><table class="fwd-table real-table"><thead><tr>'+
+    '<th></th><th>追蹤組合</th><th>報酬%（未實現）</th><th>超額（vs大盤）</th><th>起算日</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+function fwdRealToggle(key, force){
+  key=String(key);
+  const l1=document.getElementById('real-l1-'+key), row=document.getElementById('real-row-'+key);
+  if(!l1||!row) return;
+  const isOpen=(l1.style.display!=='none');
+  if(isOpen && !force){ l1.style.display='none'; row.classList.remove('open'); _fwdRealOpen=null; return; }
+  document.querySelectorAll('#fwd-root .real-l1').forEach(e=>e.style.display='none');
+  document.querySelectorAll('#fwd-root .real-row').forEach(e=>e.classList.remove('open'));
+  const c=(_fwdReal||[]).find(x=>String(x.key)===key);
+  if(c){
+    document.getElementById('real-l1-body-'+key).innerHTML=
+      _realCurveSvg(c)+
+      '<div class="fwd-zone"><div class="fwd-zone-h">'+(c.key==='ai_buy'?'AI 建議持有明細':'老婆持倉明細')+
+        ' <span class="fwd-zone-n">'+(c.n_holdings||0)+' 檔</span></div>'+_realHoldingsHtml(c)+'</div>'+
+      '<div class="fwd-note" style="margin-top:6px">'+_ckEsc(c.note||'')+'</div>';
+  }
+  l1.style.display=''; row.classList.add('open'); _fwdRealOpen=key;
 }
 
 function fwdToggle(sid, force){
