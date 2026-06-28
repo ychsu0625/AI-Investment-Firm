@@ -16878,6 +16878,45 @@ def _deflated_sharpe_ratio(returns, trial_sharpes, T):
             "n": n, "T": int(T), "var_sr": round(var_sr, 6)}
 
 
+# ── B.2 S5 誠實 T：多重檢定校正的試驗數 ──────────────────────────────────────
+# 研究輪次的保守地板：人工/稀薄 cohort 也至少當作掃過 ~30 變體（18 因子詞彙 × top_k 網格），
+# 避免「單筆評估 → T 小 → DSR 被高估、偏好看」。data-grounded，非憑空。
+_HONEST_T_ORPHAN_FLOOR = 30
+# 有效試驗門檻：n<此值的切片（空切片 sharpe=0.0、或 2~7 筆的退化回測）其 Sharpe 非可比的
+# 「試驗結果」，既不該計入 T（無法被選為 best），更不該定義 null 的離散度（var_sr）。
+# 實證：單一 n=2 garbage 試驗(Sharpe -2.93)會讓 var_sr 暴漲 50×(0.0012→0.062)、sr0 0.094→0.68、
+# 把整批 DSR 壓成 0——那是退化雜訊不是嚴格，B&LdP 假設試驗 Sharpe 來自可比回測。門檻在 [20,100]
+# 對 var_sr 穩定(皆 ≈0.0012)，取 30（Sharpe 至少 30 筆才有意義）。
+_MIN_TRIAL_N = 30
+
+def _honest_trial_T(cur, market, start, end, benchmark):
+    """誠實 T（B.2 S5）：T = 該候選『所屬那次搜尋』累計試過的**有效**試驗數。
+
+    定義＝共享同一 (market, start, end, benchmark) 配置、且 n≥_MIN_TRIAL_N 的候選數——即「同一
+    回測目標下試過、且產出可比 Sharpe 的所有切片/變體」（含失敗但有效的切片、含同訊號歷次實驗，
+    正是 S5 要的廣度）。**不**把無關全宇宙（其他市場/期間/基準）算進去 → 避免過度懲罰（task 點1）；
+    亦不再只算單筆/小批 → 避免過鬆高估（task 病灶）；**亦排除退化切片**（空切片/2~7 筆 garbage，
+    其 Sharpe 非可比試驗結果）。比舊制（whole-table running COUNT(*)）更誠實：
+      ·舊制把不同市場/期間/基準的搜尋混成一個 T（過度懲罰）；
+      ·舊制 trial_sharpes 取 insert 當下 whole-table → 同策略因「插入時表內有哪些退化試驗」而 DSR
+        天差地別（實證：同 A4∧rate 一筆 0.9755、一筆 0.5068，純因 -2.93 退化試驗插入早晚）。非決定性。
+    回 (T, trial_sharpes, source)：
+      ·source='search-cohort'：有效 cohort≥地板 → T=有效試驗數（含本筆，若本筆 n≥門檻）。
+      ·source='orphan-floor' ：有效 cohort<地板（人工單評估/稀薄）→ T=地板，誠實標記、不假裝硬化。
+    trial_sharpes 與 T 同集（皆有效試驗），var_sr 描述同一次搜尋的真實試驗離散度。
+    _deflated_sharpe_ratio 數學本身不動，只改餵進去的 T 與 trial 集。純讀本地、零 token。"""
+    where = ("market=? AND start=? AND end=? "
+             "AND IFNULL(benchmark,'')=IFNULL(?,'') "
+             "AND sharpe IS NOT NULL AND IFNULL(n,0) >= ?")
+    args = (market, start, end, benchmark, _MIN_TRIAL_N)
+    sharpes = [r[0] for r in cur.execute(
+        f"SELECT sharpe FROM composite_candidates WHERE {where}", args).fetchall()]
+    valid = len(sharpes)
+    if valid >= _HONEST_T_ORPHAN_FLOOR:
+        return valid, sharpes, "search-cohort"
+    return _HONEST_T_ORPHAN_FLOOR, sharpes, "orphan-floor"
+
+
 # ── §三 防過擬合：時間分塊 P&L（PBO 矩陣的列）────────────────────────────────
 def _bin_returns_to_blocks(trades, start, end, n_blocks=16):
     """逐筆 trade 依「出場日」均分到 n_blocks 個等寬時間塊，回每塊平均報酬%（空塊=None）。
@@ -17725,10 +17764,9 @@ def _composite_search_worker(job_id, market, codes, start, end, layers, benchmar
             f"layers={res['layer_kinds']} stocks={res['n_stocks']}"))
         con.commit()
 
-        # ── §3.1 DSR：trial_sharpes = 全持久化試驗 Sharpe；T = 累計試驗數 ──
-        all_sharpes = [r[0] for r in cur.execute(
-            "SELECT sharpe FROM composite_candidates WHERE sharpe IS NOT NULL").fetchall()]
-        T = cur.execute("SELECT COUNT(*) FROM composite_candidates").fetchone()[0]
+        # ── §3.1 DSR（B.2 S5 誠實 T）：T = 該候選所屬搜尋(同 market/start/end/benchmark)累計試驗數，
+        #    trial_sharpes 同步 scope 到該 cohort（不再混入無關全宇宙）。_deflated_sharpe_ratio 數學不變。 ──
+        T, all_sharpes, _honest_src = _honest_trial_T(cur, market, start, end, benchmark)
         dsr_res = _deflated_sharpe_ratio(returns, all_sharpes, T)
 
         # ── §3.2 PBO：本批（同 market/start/end/n_blocks）所有試驗的 pnl_blocks 建矩陣 ──
@@ -17771,6 +17809,7 @@ def _composite_search_worker(job_id, market, codes, start, end, layers, benchmar
         job["result"] = {
             "cand_id": cand_id, "market": market, "start": start, "end": end,
             "benchmark": benchmark, "layers": layers, "trial_T": T,
+            "honest_t_source": _honest_src,
             "g1_status": g1, "gate_grade": grade,
             "g1_row": row, "dsr": dsr_res, "pbo": pbo_res,
             "per_regime": res["per_regime"], "n_stocks": res["n_stocks"],
@@ -17935,7 +17974,7 @@ def run_overfit_check(config: dict, _: None = Depends(require_token)):
             return JSONResponse({"ok": False, "error": "cand_ids 須為陣列且≤1000"}, status_code=400)
         qs = ",".join("?" * len(cand_ids))
         rows = cur.execute(
-            f"SELECT cand_id,layers_json,sharpe,returns_json,pnl_blocks_json FROM composite_candidates "
+            f"SELECT cand_id,layers_json,sharpe,returns_json,pnl_blocks_json,n FROM composite_candidates "
             f"WHERE cand_id IN ({qs})", list(cand_ids)).fetchall()
     else:
         market = str(config.get("market", "TW")).upper()
@@ -17947,18 +17986,19 @@ def run_overfit_check(config: dict, _: None = Depends(require_token)):
             con.close()
             return JSONResponse({"ok": False, "error": "start/end 須為 YYYY-MM-DD 格式"}, status_code=400)
         rows = cur.execute(
-            "SELECT cand_id,layers_json,sharpe,returns_json,pnl_blocks_json FROM composite_candidates "
+            "SELECT cand_id,layers_json,sharpe,returns_json,pnl_blocks_json,n FROM composite_candidates "
             "WHERE market=? AND start=? AND end=?", (market, start, end)).fetchall()
-    T = cur.execute("SELECT COUNT(*) FROM composite_candidates").fetchone()[0]
-    all_sharpes = [r[0] for r in cur.execute(
-        "SELECT sharpe FROM composite_candidates WHERE sharpe IS NOT NULL").fetchall()]
+    # B.2 S5 誠實 T：本批送進來的候選＝這次要一起檢定的試驗集；T = 該批**有效**試驗數（n≥門檻、
+    #   地板保護），trial_sharpes 同集（排除退化切片，不混入無關全宇宙）。決定性、不依 insert 順序。math 不變。
+    all_sharpes = [r[2] for r in rows if r[2] is not None and (r[5] or 0) >= _MIN_TRIAL_N]
+    T = max(len(all_sharpes), _HONEST_T_ORPHAN_FLOOR)
     con.close()
     if not rows:
         return {"ok": False, "error": "no candidates matched", "trial_T": T}
 
     cols = []
     per_cand = []
-    for cid, lj, sharpe, rj, pj in rows:
+    for cid, lj, sharpe, rj, pj, _n in rows:
         try:
             rets = json.loads(rj) if rj else []
         except Exception:
@@ -18360,9 +18400,9 @@ def _persist_composite_eval(res, market, start, end, benchmark, layers, parent_i
         f"auto-search layers={res.get('layer_kinds')} stocks={res.get('n_stocks')}"))
     con.commit()
 
-    all_sharpes = [r[0] for r in cur.execute(
-        "SELECT sharpe FROM composite_candidates WHERE sharpe IS NOT NULL").fetchall()]
-    T = cur.execute("SELECT COUNT(*) FROM composite_candidates").fetchone()[0]
+    # B.2 S5 誠實 T：同 _composite_search_worker——T = 該候選所屬搜尋(同配置)累計試驗數，
+    #   trial_sharpes 同步 scope（不混入無關全宇宙）。_deflated_sharpe_ratio 數學不變。
+    T, all_sharpes, _honest_src = _honest_trial_T(cur, market, start, end, benchmark)
     dsr_res = _deflated_sharpe_ratio(returns, all_sharpes, T)
 
     pbo_res = {"pbo": None, "reason": "need >=2 candidates"}
@@ -18387,6 +18427,7 @@ def _persist_composite_eval(res, market, start, end, benchmark, layers, parent_i
 
     return {"cand_id": cand_id, "g1_status": row.get("status"),
             "dsr": dsr_res.get("dsr"), "pbo": pbo_res.get("pbo"), "trial_T": T,
+            "honest_t_source": _honest_src,
             "sharpe": sharpe, "excess_ci_low": excess_ci[0]}
 
 
