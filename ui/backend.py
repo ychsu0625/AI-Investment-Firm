@@ -355,29 +355,38 @@ def init_db():
         )
     """)
 
-    # 交易紀錄表
+    # 交易紀錄表（對齊老婆 Excel A-M 欄位；值慣例：market=上市/上櫃/美股, action=買入/賣出,
+    #  shares 帶正負(買+/賣-), total_cost=J 總金額帶正負(買=付出+/賣=收回-)）
     cur.execute("""
         CREATE TABLE IF NOT EXISTS trade_records (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            code         TEXT NOT NULL,
-            name         TEXT,
-            market       TEXT DEFAULT 'TW',
-            action       TEXT NOT NULL,       -- BUY / SELL
-            shares       INTEGER NOT NULL,
-            price        REAL NOT NULL,
-            trade_date   TEXT NOT NULL,
+            code         TEXT NOT NULL,       -- B Symbol
+            name         TEXT,                -- C 股票名稱
+            market       TEXT DEFAULT '上市',  -- D 市場：上市 / 上櫃 / 美股
+            action       TEXT NOT NULL,       -- E 買/賣：買入 / 賣出
+            shares       INTEGER NOT NULL,    -- F 股數（買=正 / 賣=負）
+            price        REAL NOT NULL,       -- G 成交單價
+            trade_date   TEXT NOT NULL,       -- A 日期
             commission_rate REAL DEFAULT 0.001425,
             commission_discount REAL DEFAULT 0.6,
             tax_rate     REAL DEFAULT 0.003,
-            commission   REAL DEFAULT 0,
-            tax          REAL DEFAULT 0,
-            total_cost   REAL DEFAULT 0,
-            net_amount   REAL DEFAULT 0,      -- 實收/實付金額
-            position_id  INTEGER,             -- 關聯持倉
-            note         TEXT,
+            commission   REAL DEFAULT 0,      -- H 手續費
+            tax          REAL DEFAULT 0,      -- I 證交稅
+            total_cost   REAL DEFAULT 0,      -- J 總金額（買=正付出 / 賣=負收回；允許負值）
+            net_amount   REAL DEFAULT 0,      -- 實收/實付金額（內部計算保留）
+            position_id  INTEGER,             -- 關聯持倉（保留，新流程不再使用）
+            note         TEXT,                -- L 策略
+            avg_price    REAL,                -- K 平均成交價
+            review_note  TEXT,                -- M 檢討（回測檢討 / lesson）
             created_at   TEXT DEFAULT (datetime('now','localtime'))
         )
     """)
+    # 既有 DB 遷移（冪等 ALTER）：K 平均成交價、M 檢討。舊 DB 無此欄→ADD；已有→OperationalError 略過。
+    for _tr_col, _tr_def in (("avg_price", "REAL"), ("review_note", "TEXT")):
+        try:
+            cur.execute(f"ALTER TABLE trade_records ADD COLUMN {_tr_col} {_tr_def}")
+        except sqlite3.OperationalError:
+            pass
 
     # 預設自選股
     defaults_wl = [("2330","台積電"),("2317","鴻海"),("2454","聯發科"),("2382","廣達")]
@@ -1445,30 +1454,46 @@ def check_exit_conditions(pid: int):
 class TradeRecordIn(BaseModel):
     code: str
     name: Optional[str] = ""
-    market: Optional[str] = "TW"
-    action: str  # BUY / SELL
+    market: Optional[str] = ""       # 上市 / 上櫃 / 美股（相容舊值 TW/US）
+    action: str                      # 買入 / 賣出（相容舊值 BUY/SELL）
     shares: int
     price: float
     trade_date: Optional[str] = ""
     commission_rate: Optional[float] = 0.001425
     commission_discount: Optional[float] = 0.6
     tax_rate: Optional[float] = 0.003
-    note: Optional[str] = ""
+    note: Optional[str] = ""          # L 策略
+    avg_price: Optional[float] = None  # K 平均成交價
+    review_note: Optional[str] = ""    # M 檢討
     position_id: Optional[int] = None
+
+# 值慣例正規化（同時相容新值「買入/賣出·上市/上櫃/美股」與舊值「BUY/SELL·TW/US」，零回歸）
+def _is_buy(action) -> bool:
+    a = str(action or "").upper()
+    return a == "BUY" or "買" in str(action or "")
+
+def _is_tw_market(market) -> bool:
+    m = str(market or "")
+    return m in ("上市", "上櫃") or m.upper() == "TW"
 
 def _calc_trade_costs(action: str, price: float, shares: int, market: str,
                       commission_rate: float, commission_discount: float, tax_rate: float):
-    trade_value = price * shares
-    if market == "TW":
+    """回傳 (commission 手續費, tax 證交稅, total_amount 總金額J帶正負, net_amount 內部淨額)。
+    shares 以絕對值計算金額，正負號由 action 決定（買=付出正/賣=收回負）。"""
+    qty = abs(shares)
+    trade_value = price * qty
+    if _is_tw_market(market):
         trade_value *= 1000  # 台股 1張=1000股
     commission = trade_value * commission_rate * (1 - commission_discount / 100.0 if commission_discount > 1 else 1 - commission_discount)
-    tax = trade_value * tax_rate if action == "SELL" else 0
-    total_cost = commission + tax
-    if action == "BUY":
-        net_amount = -(trade_value + total_cost)
+    is_buy = _is_buy(action)
+    tax = 0 if is_buy else trade_value * tax_rate
+    fees = commission + tax
+    if is_buy:
+        net_amount = -(trade_value + fees)   # 內部：付出為負
     else:
-        net_amount = trade_value - total_cost
-    return round(commission, 2), round(tax, 2), round(total_cost, 2), round(net_amount, 2)
+        net_amount = trade_value - fees      # 內部：收回為正
+    total_amount = -net_amount               # J 總金額慣例：買=付出正 / 賣=收回負
+    return round(commission, 2), round(tax, 2), round(total_amount, 2), round(net_amount, 2)
 
 @app.get("/api/trade-records")
 def get_trade_records(code: str = "", market: str = ""):
@@ -1480,8 +1505,15 @@ def get_trade_records(code: str = "", market: str = ""):
         wheres.append("code=?")
         params.append(code)
     if market:
-        wheres.append("market=?")
-        params.append(market)
+        # 前端市場切換傳 TW/US；對應新值慣例 上市/上櫃→台股、美股→US；同時相容舊值精確匹配。
+        mu = str(market).upper()
+        if mu == "TW":
+            wheres.append("(market IN ('上市','上櫃') OR market='TW')")
+        elif mu == "US":
+            wheres.append("(market='美股' OR market='US')")
+        else:
+            wheres.append("market=?")
+            params.append(market)
     if wheres:
         sql += " WHERE " + " AND ".join(wheres)
     sql += " ORDER BY trade_date DESC, id DESC"
@@ -1494,25 +1526,30 @@ def get_trade_records(code: str = "", market: str = ""):
 @app.post("/api/trade-records")
 def add_trade_record(t: TradeRecordIn, _: None = Depends(require_token)):
     trade_date = t.trade_date or datetime.now().strftime("%Y-%m-%d")
-    market = t.market or ("US" if t.code.isalpha() else "TW")
+    market = t.market or ("美股" if t.code.isalpha() else "上市")
     commission, tax, total_cost, net_amount = _calc_trade_costs(
         t.action, t.price, t.shares, market,
         t.commission_rate, t.commission_discount, t.tax_rate)
+    # F 股數帶正負（買=正/賣=負）；K 平均成交價未填則以成交單價代入
+    signed_shares = abs(t.shares) if _is_buy(t.action) else -abs(t.shares)
+    avg_price = t.avg_price if t.avg_price is not None else t.price
     con = db()
     cur = con.cursor()
     cur.execute("""
         INSERT INTO trade_records(code, name, market, action, shares, price, trade_date,
             commission_rate, commission_discount, tax_rate, commission, tax, total_cost,
-            net_amount, position_id, note)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    """, (t.code, t.name, market, t.action, t.shares, t.price, trade_date,
+            net_amount, position_id, note, avg_price, review_note)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    """, (t.code, t.name, market, t.action, signed_shares, t.price, trade_date,
           t.commission_rate, t.commission_discount, t.tax_rate,
-          commission, tax, total_cost, net_amount, t.position_id, t.note))
+          commission, tax, total_cost, net_amount, t.position_id, t.note,
+          avg_price, t.review_note))
     rec_id = cur.lastrowid
     con.commit()
     con.close()
-    _trade_sync_position(t.code, t.name, market, t.action, t.shares, t.price, trade_date, rec_id)
-    _ensure_watchlist(t.code, t.name or t.code, market)
+    _trade_sync_position(t.code, t.name, market, t.action, abs(t.shares), t.price, trade_date, rec_id)
+    # watchlist.market 沿用 TW/US 慣例 → 正規化避免污染自選股市場篩選
+    _ensure_watchlist(t.code, t.name or t.code, "TW" if _is_tw_market(market) else "US")
     return {"ok": True, "id": rec_id, "commission": commission, "tax": tax,
             "total_cost": total_cost, "net_amount": net_amount}
 
@@ -1524,7 +1561,8 @@ def _trade_sync_position(code, name, market, action, shares, price, trade_date, 
     existing = cur.execute(
         "SELECT id, shares, cost FROM positions WHERE code=? AND status='open' ORDER BY id DESC LIMIT 1",
         (code,)).fetchone()
-    if action == "BUY":
+    shares = abs(shares)  # 容錯：若呼叫端傳入帶號股數，持倉計算一律用絕對量
+    if _is_buy(action):
         if existing:
             pid, old_shares, old_cost = existing
             new_shares = old_shares + shares
@@ -1536,7 +1574,7 @@ def _trade_sync_position(code, name, market, action, shares, price, trade_date, 
                 INSERT INTO positions(code, name, trade_type, shares, cost, entry_date, signal_type, note, updated_at, market)
                 VALUES(?,?,?,?,?,?,?,?,?,?)
             """, (code, name, "波段", shares, price, trade_date, "手動買入", f"交易紀錄#{rec_id}", now, _detect_market(code)))
-    elif action == "SELL":
+    else:
         if existing:
             pid, old_shares, old_cost = existing
             remain = old_shares - shares
@@ -1550,18 +1588,20 @@ def _trade_sync_position(code, name, market, action, shares, price, trade_date, 
 @app.put("/api/trade-records/{rid}")
 def update_trade_record(rid: int, t: TradeRecordIn, _: None = Depends(require_token)):
     trade_date = t.trade_date or datetime.now().strftime("%Y-%m-%d")
-    market = t.market or ("US" if t.code.isalpha() else "TW")
+    market = t.market or ("美股" if t.code.isalpha() else "上市")
     commission, tax, total_cost, net_amount = _calc_trade_costs(
         t.action, t.price, t.shares, market,
         t.commission_rate, t.commission_discount, t.tax_rate)
+    signed_shares = abs(t.shares) if _is_buy(t.action) else -abs(t.shares)
+    avg_price = t.avg_price if t.avg_price is not None else t.price
     con = db()
     con.execute("""
         UPDATE trade_records SET code=?, name=?, market=?, action=?, shares=?, price=?, trade_date=?,
             commission_rate=?, commission_discount=?, tax_rate=?, commission=?, tax=?, total_cost=?,
-            net_amount=?, note=? WHERE id=?
-    """, (t.code, t.name, market, t.action, t.shares, t.price, trade_date,
+            net_amount=?, note=?, avg_price=?, review_note=? WHERE id=?
+    """, (t.code, t.name, market, t.action, signed_shares, t.price, trade_date,
           t.commission_rate, t.commission_discount, t.tax_rate,
-          commission, tax, total_cost, net_amount, t.note, rid))
+          commission, tax, total_cost, net_amount, t.note, avg_price, t.review_note, rid))
     con.commit()
     con.close()
     return {"ok": True, "commission": commission, "tax": tax, "total_cost": total_cost, "net_amount": net_amount}
@@ -1596,22 +1636,24 @@ def trade_analytics(code: str = ""):
         for t in trades:
             analytics["total_commission"] += t.get("commission", 0)
             analytics["total_tax"] += t.get("tax", 0)
-            if t["action"] == "BUY":
+            if _is_buy(t["action"]):
                 buys.append(t)
             else:
                 sells.append(t)
-        total_buy_val = sum(b["price"] * b["shares"] for b in buys)
-        total_buy_shares = sum(b["shares"] for b in buys)
+        # shares 帶正負 → 一律取絕對量計算
+        total_buy_val = sum(b["price"] * abs(b["shares"]) for b in buys)
+        total_buy_shares = sum(abs(b["shares"]) for b in buys)
         avg_cost = total_buy_val / total_buy_shares if total_buy_shares else 0
-        total_sell_val = sum(s["price"] * s["shares"] for s in sells)
-        total_sell_shares = sum(s["shares"] for s in sells)
+        total_sell_val = sum(s["price"] * abs(s["shares"]) for s in sells)
+        total_sell_shares = sum(abs(s["shares"]) for s in sells)
         realized = total_sell_val - avg_cost * total_sell_shares if total_sell_shares else 0
         analytics["realized_pnl"] += realized
         analytics["stocks"][c] = {
             "name": trades[0].get("name", c), "buy_count": len(buys), "sell_count": len(sells),
             "avg_cost": round(avg_cost, 2), "total_buy_shares": total_buy_shares,
             "total_sell_shares": total_sell_shares, "realized_pnl": round(realized, 2),
-            "total_cost": round(sum(t.get("total_cost", 0) for t in trades), 2)
+            # total_cost 欄已改存 J 總金額 → 此處「總費用」改由 手續費+稅 計算，維持原語意
+            "total_cost": round(sum(t.get("commission", 0) + t.get("tax", 0) for t in trades), 2)
         }
     analytics["total_commission"] = round(analytics["total_commission"], 2)
     analytics["total_tax"] = round(analytics["total_tax"], 2)
@@ -1631,38 +1673,10 @@ def trade_analytics(code: str = ""):
 
 @app.post("/api/trade-records/migrate-positions")
 def migrate_positions_to_trades(_: None = Depends(require_token)):
-    """將現有持倉轉為交易紀錄（回溯至專案開始日）"""
-    PROJECT_START = "2026-06-01"
-    con = db()
-    positions = con.execute(
-        "SELECT id, code, name, shares, cost, entry_date, market FROM positions WHERE status='open'"
-    ).fetchall()
-    existing = con.execute("SELECT DISTINCT position_id FROM trade_records WHERE position_id IS NOT NULL").fetchall()
-    existing_pids = {r[0] for r in existing}
-    created = 0
-    for pid, code, name, shares, cost, entry_date, pos_market in positions:
-        if pid in existing_pids:
-            continue
-        market = pos_market or ("US" if code.isalpha() else "TW")
-        date = entry_date if entry_date else PROJECT_START
-        # positions.shares 可能是「股」(舊資料) 或「張」(新交易同步)，migrate 不重新計算費用
-        trade_shares = shares
-        if market == "TW" and shares >= 1000:
-            trade_shares = shares // 1000
-        commission, tax, total_cost, net_amount = _calc_trade_costs(
-            "BUY", cost, trade_shares, market, 0.001425, 0.6, 0.003)
-        con.execute("""
-            INSERT INTO trade_records(code, name, market, action, shares, price, trade_date,
-                commission_rate, commission_discount, tax_rate, commission, tax, total_cost,
-                net_amount, position_id, note)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (code, name, market, "BUY", shares, cost, date,
-              0.001425, 0.6, 0.003, commission, tax, total_cost, net_amount, pid,
-              "從既有持倉匯入"))
-        created += 1
-    con.commit()
-    con.close()
-    return {"ok": True, "migrated": created}
+    """[已停用] 老闆定錨：以後一切從交易紀錄反應，不再從持倉自動生成交易。
+    保留路徑以相容舊前端呼叫，但不再產生任何資料（回 migrated=0）。"""
+    return {"ok": True, "migrated": 0, "disabled": True,
+            "message": "已停用：交易紀錄不再從持倉匯入，請直接新增/匯入交易"}
 
 # ── 風控設定 ──────────────────────────────────────
 
@@ -4880,11 +4894,11 @@ def us_positions():
     for r in rows:
         if not r.get("cost") or r["cost"] == 0:
             con2 = db()
-            buys = con2.execute("SELECT price, shares FROM trade_records WHERE code=? AND action='BUY'", (r["code"],)).fetchall()
+            buys = con2.execute("SELECT price, shares FROM trade_records WHERE code=? AND action IN ('BUY','買入')", (r["code"],)).fetchall()
             con2.close()
             if buys:
-                total_val = sum(b[0] * b[1] for b in buys)
-                total_sh = sum(b[1] for b in buys)
+                total_val = sum(b[0] * abs(b[1]) for b in buys)
+                total_sh = sum(abs(b[1]) for b in buys)
                 r["cost"] = round(total_val / total_sh, 2) if total_sh else 0
         snap = _yf_snapshot(r["code"])
         if snap:
