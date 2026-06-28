@@ -8,12 +8,20 @@
 把已閉環的「daemon 搜 → auto-roll 過閘滾入 → run/update 推進計分」接成每天自動跑一次的
 **半自動**迴圈，讓借券 sbl_short 與所有 active 策略每日自動累積紙上 OOS 戰績。
 
-每日序列（spec §2，按序、每步 timeout + 結果落地）：
-  1. daemon 搜新組合     POST /api/search/auto/start  → poll GET /api/search/auto/status
-  2. 過閘滾入 forward     POST /api/forward/auto-roll  (enable_replace=false 寫死)
-  3. 今日選股            POST /api/forward/run?date=<today>
-  4. 結算/計分推進        POST /api/forward/update
-  5. 畢業閘＝只報不動      GET  /api/forward/track  （唯讀彙整「接近畢業」清單）
+每日序列（每步 timeout + 結果落地）：
+  spec §2 的 5 步全保留，但**執行順序改為「每日產品先、機器探索後」**（2026-06-27 修逾時，
+  見下方根因註）。實際執行序：
+    0. 補今日日線          POST /api/market-data/refresh-daily
+    3. 今日選股(產品)       POST /api/forward/run?date=<today>     ← critical timeout
+    4. 結算/計分推進(產品)   POST /api/forward/update                ← critical timeout
+    5. 畢業閘＝只報不動      GET  /api/forward/track（唯讀彙整「接近畢業」清單）
+    1. daemon 搜新組合(探索) POST /api/search/auto/start → poll status（剩餘 budget 時間盒；結束 stop daemon）
+    2. 過閘滾入 forward(探索) POST /api/forward/auto-roll（enable_replace=false 寫死）
+
+逾時根因（2026-06-27 partial → 修）：原序 search 在前、吃滿 search_timeout(1500s)，且 poll 逾時
+只 break 未停 daemon → daemon 續燒 CPU → run_picks 撞 300s → 當日 0 選股/0 結算。修法＝產品步驟
+先跑且給足 critical_step_timeout(900s)、無 daemon 競爭；search 後跑用剩餘 budget 時間盒、結束一律
+stop daemon；status 判定只看「每日必成」步驟，search 時間盒不再把整輪打成失敗。
 
 硬不變式（spec §1/§5，違反=退件）：
   * **半自動**：cron 只做搜/滾/選股/結算/彙整 5 步。**畢業、真錢一律人工。**
@@ -52,6 +60,10 @@ DEFAULT_SEARCH_TIMEOUT = 1800                      # 搜尋步上限 30 min（sp
 DEFAULT_STEP_TIMEOUT = 300                         # 其餘步驟單次 HTTP 上限 5 min
 DEFAULT_SEARCH_POLL = 10                           # 搜尋 status poll 間隔（秒）
 DEFAULT_TOTAL_TIMEOUT = 3600                       # 總 run 硬上限 60 min
+DEFAULT_CRITICAL_STEP_TIMEOUT = 900                # 每日必成重活(run/update/kbar)單次 HTTP 上限 15 min（防 300s 撞牆）
+SEARCH_TAIL_RESERVE = 180                          # search 時間盒尾段保留：留給 stop daemon + auto-roll + track
+DAEMON_STOP_WAIT = 90                              # 請求停 daemon 後最多等它在檢查點收手的秒數（協作式）
+DAEMON_STOP_POLL = 5                               # 等 daemon 收手的 poll 間隔（秒）
 
 ENABLE_REPLACE = False                             # ★寫死（鐵律#1，取代依賴 holdout=R-FWD-9 未做）
 
@@ -240,7 +252,7 @@ def _write_summary_md(state_dir, run_date, rec, steps, near_grad, dry_run):
         L.append("")
         L.append(f"> 🟥 **ERROR**: {rec.get('error')}")
     L.append("")
-    L.append("## 五步結果")
+    L.append("## 步驟結果（執行序：每日產品先 kbar→run→update→track，機器探索後 search→roll）")
     for st in steps:
         icon = {"done": "✅", "skipped": "⏭️", "error": "❌", "partial": "⚠️", "timeout": "⏱️"}.get(st["status"], "•")
         L.append(f"- {icon} **{st['step']}** [{st['status']}] {st.get('detail', '')}")
@@ -280,6 +292,7 @@ def run_cron(opts):
     dry_run = opts["dry_run"]
     search_timeout = opts["search_timeout"]
     step_timeout = opts["step_timeout"]
+    critical_step_timeout = opts["critical_step_timeout"]
     total_timeout = opts["total_timeout"]
     poll_interval = opts["search_poll"]
     state_dir = opts["state_dir"]
@@ -336,33 +349,112 @@ def run_cron(opts):
         return {"status": "error", "run_date": run_date, "steps": steps,
                 "summary_path": str(md), "record": rec}
 
-    # ── STEP 0：補今日日線（daily_kbar 增量 top-up）──────────────────────────
-    #   無新鮮日線 → as-of 退回舊日、pending 部位無次日 bar 可進場/mark（曲線變死）。
-    #   先補齊 forward 同源 universe 的 daily_kbar，再做後續選股/結算。
-    if dry_run:
-        add_step("0_refresh_kbar", "skipped", "dry-run：跳過日線補抓")
-    elif over_budget_time():
-        add_step("0_refresh_kbar", "timeout", "總 timeout 已到，跳過日線補抓")
-        errors.append("total_timeout_before_kbar")
-    else:
+    # ── 逾時修補（2026-06-27 partial 根因）──────────────────────────────────
+    #   原序 search→roll→run：search 吃滿 search_timeout(1500s) 且 poll 逾時只 break、
+    #   未停 daemon → daemon 續燒 CPU → run_picks 撞 300s step_timeout → 當日 0 選股/0 結算。
+    #   修法：①每日必成的「產品」(kbar→run→update→track) 先跑、給足 critical_step_timeout、
+    #   零 daemon 競爭；②機器探索(search) 後跑＝用『剩餘 budget』時間盒、結束一律 stop daemon
+    #   等它收手；③search 時間盒到屬設計內、不再把整輪打成失敗（只 critical 步驟壞才降級）。
+    near_grad = []
+
+    def step_refresh_kbar():
+        """STEP 0：補今日日線（daily_kbar 增量 top-up）。無新鮮日線 → as-of 退回舊日、
+        pending 部位無次日 bar 可進場/mark（曲線變死）。屬每日必成重活，給足 critical timeout。"""
+        if dry_run:
+            add_step("0_refresh_kbar", "skipped", "dry-run：跳過日線補抓"); return
+        if over_budget_time():
+            add_step("0_refresh_kbar", "timeout", "總 timeout 已到，跳過日線補抓")
+            errors.append("total_timeout_before_kbar"); return
         try:
             r = _request("POST",
                          base.rstrip("/") + "/api/market-data/refresh-daily?" + urllib.parse.urlencode({"market": market}),
-                         token, body=None, timeout=max(step_timeout, 600))
+                         token, body=None, timeout=max(critical_step_timeout, 600))
             add_step("0_refresh_kbar", "done",
                      f"universe={r.get('universe')} latest={r.get('latest_date')} "
                      f"(was {r.get('latest_before')}) failed={r.get('failed')}")
         except HttpError as e:
-            add_step("0_refresh_kbar", "error", str(e))
-            errors.append(f"refresh_kbar:{e}")
+            add_step("0_refresh_kbar", "error", str(e)); errors.append(f"refresh_kbar:{e}")
 
-    # ── STEP 1：daemon 搜新組合 ────────────────────────────────────────────
-    if dry_run:
-        add_step("1_search", "skipped", "dry-run：跳過搜尋（避免寫 composite_candidates）")
-    elif over_budget_time():
-        add_step("1_search", "timeout", "總 timeout 已到，跳過搜尋")
-        errors.append("total_timeout_before_search")
-    else:
+    def step_run_picks():
+        """STEP 3：今日選股（產品）。先跑→無 daemon 競爭；給足 critical_step_timeout（原 300s 撞牆）。"""
+        if dry_run:
+            add_step("3_run_picks", "skipped", "dry-run：跳過選股（forward/run 無 dry 模式、會寫 ft_picks）"); return
+        if over_budget_time():
+            add_step("3_run_picks", "timeout", "總 timeout 已到，跳過選股")
+            errors.append("total_timeout_before_run"); return
+        try:
+            r = _request("POST",
+                         base.rstrip("/") + "/api/forward/run?" + urllib.parse.urlencode({"date": run_date}),
+                         token, body=None, timeout=critical_step_timeout)
+            results = r.get("results") or []
+            picks_total = sum((x.get("n_picks") or 0) for x in results)
+            rec["picks_total"] = picks_total
+            n_skip = sum(1 for x in results if x.get("skipped"))
+            add_step("3_run_picks", "done",
+                     f"strategies={len(results)} picks_total={picks_total} skipped={n_skip}")
+        except HttpError as e:
+            add_step("3_run_picks", "error", str(e)); errors.append(f"run:{e}")
+
+    def step_update():
+        """STEP 4：結算/計分推進（產品）。給足 critical_step_timeout（載入 universe 行情可能慢）。"""
+        if dry_run:
+            add_step("4_update", "skipped", "dry-run：跳過結算（forward/update 無 dry 模式、會寫 ft_picks）"); return
+        if over_budget_time():
+            add_step("4_update", "timeout", "總 timeout 已到，跳過結算")
+            errors.append("total_timeout_before_update"); return
+        try:
+            r = _post(base, "/api/forward/update", token, body=None, timeout=critical_step_timeout)
+            rec["settled"] = r.get("settled", 0)
+            add_step("4_update", "done",
+                     f"entered={r.get('entered')} marked={r.get('marked')} settled={r.get('settled')}")
+        except HttpError as e:
+            add_step("4_update", "error", str(e)); errors.append(f"update:{e}")
+
+    def step_track():
+        """STEP 5：畢業閘＝只報不動（唯讀彙整）。在 update 後跑，反映剛結算後的最新狀態。"""
+        nonlocal near_grad
+        try:
+            track = _get(base, "/api/forward/track", token, timeout=step_timeout)
+            near_grad = _summarize_near_graduation(track)
+            rec["near_graduation_json"] = json.dumps(near_grad, ensure_ascii=False)
+            add_step("5_graduation_report", "done",
+                     f"near_graduation={len(near_grad)}（只報不動，人工審）")
+        except HttpError as e:
+            add_step("5_graduation_report", "error", str(e)); errors.append(f"track:{e}")
+
+    def _stop_search_daemon(run_id):
+        """協作式停 daemon：請求 stop 後 poll 等它在下個檢查點收手，避免它在背景續燒 CPU
+        餓死後續/收尾步驟（根因#2：原本 poll 逾時只 break、daemon 仍在跑）。"""
+        if not run_id:
+            return
+        try:
+            _post(base, "/api/search/auto/stop", token, body={"run_id": run_id},
+                  timeout=min(step_timeout, 30))
+        except HttpError as e:
+            errors.append(f"search_stop:{e}"); return
+        wait_deadline = time.monotonic() + DAEMON_STOP_WAIT
+        while time.monotonic() < wait_deadline:
+            try:
+                st = _get(base, "/api/search/auto/status", token,
+                          params={"run_id": run_id}, timeout=min(step_timeout, 30))
+                rv = st.get("run") or st
+                if (rv or {}).get("status") in ("stopped", "done", "error"):
+                    return
+            except HttpError:
+                return
+            time.sleep(DAEMON_STOP_POLL)
+
+    def step_search():
+        """STEP 1：daemon 搜新組合（機器探索）。後跑＝用『剩餘總 budget』給一個時間盒，
+        並保留尾段(SEARCH_TAIL_RESERVE)給 stop daemon + auto-roll + track。時間盒到 → 停 daemon。"""
+        if dry_run:
+            add_step("1_search", "skipped", "dry-run：跳過搜尋（避免寫 composite_candidates）"); return
+        remaining = total_timeout - (time.monotonic() - t0)
+        search_box = min(search_timeout, remaining - SEARCH_TAIL_RESERVE)
+        if search_box <= 0:
+            add_step("1_search", "skipped",
+                     "剩餘 budget 不足 → 跳過搜尋（每日選股/結算已先完成，不被探索拖累）")
+            errors.append("search_skipped_no_budget"); return
         try:
             body = {"market": market, "regime": regime,
                     "start": "2020-01-01", "end": run_date,
@@ -374,40 +466,41 @@ def run_cron(opts):
             rec["search_run_id"] = run_id
             if not run_id:
                 add_step("1_search", "error", f"start 未回 run_id：{str(r)[:200]}")
-                errors.append("search_no_run_id")
+                errors.append("search_no_run_id"); return
+            # poll 到終態 / 時間盒到 / 總 budget 到
+            deadline = time.monotonic() + search_box
+            final = None
+            while True:
+                st = _get(base, "/api/search/auto/status", token,
+                          params={"run_id": run_id}, timeout=min(step_timeout, 60))
+                run_view = st.get("run") or st
+                sstatus = (run_view or {}).get("status")
+                if sstatus in ("done", "error", "stopped"):
+                    final = sstatus; break
+                if time.monotonic() > deadline or over_budget_time():
+                    final = "timeout"; break
+                time.sleep(poll_interval)
+            if final == "done":
+                add_step("1_search", "done", f"run_id={run_id} status=done")
+            elif final == "timeout":
+                # ★時間盒到＝設計內：停 daemon 收手（不再放它續燒 CPU），candidates 已落地可滾
+                _stop_search_daemon(run_id)
+                add_step("1_search", "partial",
+                         f"run_id={run_id} 時間盒到 → 已請求停 daemon（candidates 已寫可滾）")
+                errors.append("search_timeboxed")
             else:
-                # poll 到終態或 step timeout
-                deadline = time.monotonic() + search_timeout
-                final = None
-                while True:
-                    st = _get(base, "/api/search/auto/status", token,
-                              params={"run_id": run_id}, timeout=min(step_timeout, 60))
-                    run_view = st.get("run") or st
-                    sstatus = (run_view or {}).get("status")
-                    if sstatus in ("done", "error", "stopped"):
-                        final = sstatus; break
-                    if time.monotonic() > deadline or over_budget_time():
-                        final = "timeout"; break
-                    time.sleep(poll_interval)
-                if final == "done":
-                    add_step("1_search", "done", f"run_id={run_id} status=done")
-                elif final == "timeout":
-                    add_step("1_search", "partial",
-                             f"run_id={run_id} 逾時（已寫入 candidates 仍可滾）")
-                    errors.append("search_timeout")
-                else:
-                    add_step("1_search", "partial", f"run_id={run_id} status={final}（續往下滾既有候選）")
-                    if final == "error":
-                        errors.append("search_error")
+                add_step("1_search", "partial", f"run_id={run_id} status={final}（續往下滾既有候選）")
+                if final == "error":
+                    errors.append("search_error")
         except HttpError as e:
-            add_step("1_search", "error", str(e))
-            errors.append(f"search:{e}")
+            add_step("1_search", "error", str(e)); errors.append(f"search:{e}")
 
-    # ── STEP 2：過閘滾入 forward（enable_replace=false 寫死）──────────────────
-    if over_budget_time():
-        add_step("2_auto_roll", "timeout", "總 timeout 已到，跳過 auto-roll")
-        errors.append("total_timeout_before_roll")
-    else:
+    def step_auto_roll():
+        """STEP 2：過閘滾入 forward（enable_replace=false 寫死）。在 search 停 daemon 後跑，
+        讀 search 寫好的 candidates；新滾入的策略次日才得選股（可接受：rolled 多數日為 0）。"""
+        if over_budget_time():
+            add_step("2_auto_roll", "timeout", "總 timeout 已到，跳過 auto-roll")
+            errors.append("total_timeout_before_roll"); return
         try:
             body = {"market": market, "regime": regime,
                     "dry_run": bool(dry_run),       # 實滾=false；--dry-run 稽核=true
@@ -425,77 +518,36 @@ def run_cron(opts):
                      audit={"rolled": r.get("rolled"), "rejected_collinear": r.get("rejected_collinear"),
                             "rejected_gate": r.get("rejected_gate"), "replaced": r.get("replaced")})
         except HttpError as e:
-            add_step("2_auto_roll", "error", str(e))
-            errors.append(f"auto_roll:{e}")
+            add_step("2_auto_roll", "error", str(e)); errors.append(f"auto_roll:{e}")
 
-    # ── STEP 3：今日選股（date 為 query param）──────────────────────────────
+    # ── 執行順序：每日必成「產品」先（無 daemon 競爭）→ 機器「探索」後（剩餘 budget 時間盒）──
+    step_refresh_kbar()   # 0 補今日日線
+    step_run_picks()      # 3 今日選股（產品；critical timeout）
+    step_update()         # 4 結算/mark（產品；critical timeout）
+    step_track()          # 5 接近畢業彙整（唯讀）
+    step_search()         # 1 機器探索（剩餘 budget 時間盒；結束停 daemon）
+    step_auto_roll()      # 2 過閘滾入（用 search 寫好的 candidates）
+
+    # ── 收尾：狀態判定（誠實>好看；只「每日必成」步驟壞才降級，search 時間盒不算失敗）────
+    CRITICAL_STEPS = {"health", "0_refresh_kbar", "3_run_picks", "4_update"}
+    crit_bad = [s for s in steps if s["step"] in CRITICAL_STEPS and s["status"] in ("error", "timeout")]
+    crit_done = any(s["step"] in CRITICAL_STEPS and s["status"] == "done" for s in steps)
+    opp_err = [s for s in steps if s["step"] not in CRITICAL_STEPS and s["status"] == "error"]
     if dry_run:
-        add_step("3_run_picks", "skipped", "dry-run：跳過選股（forward/run 無 dry 模式、會寫 ft_picks）")
-    elif over_budget_time():
-        add_step("3_run_picks", "timeout", "總 timeout 已到，跳過選股")
-        errors.append("total_timeout_before_run")
-    else:
-        try:
-            r = _request("POST",
-                         base.rstrip("/") + "/api/forward/run?" + urllib.parse.urlencode({"date": run_date}),
-                         token, body=None, timeout=step_timeout)
-            results = r.get("results") or []
-            picks_total = sum((x.get("n_picks") or 0) for x in results)
-            rec["picks_total"] = picks_total
-            n_skip = sum(1 for x in results if x.get("skipped"))
-            add_step("3_run_picks", "done",
-                     f"strategies={len(results)} picks_total={picks_total} skipped={n_skip}")
-        except HttpError as e:
-            add_step("3_run_picks", "error", str(e))
-            errors.append(f"run:{e}")
-
-    # ── STEP 4：結算/計分推進 ──────────────────────────────────────────────
-    if dry_run:
-        add_step("4_update", "skipped", "dry-run：跳過結算（forward/update 無 dry 模式、會寫 ft_picks）")
-    elif over_budget_time():
-        add_step("4_update", "timeout", "總 timeout 已到，跳過結算")
-        errors.append("total_timeout_before_update")
-    else:
-        try:
-            r = _post(base, "/api/forward/update", token, body=None, timeout=step_timeout)
-            rec["settled"] = r.get("settled", 0)
-            add_step("4_update", "done",
-                     f"entered={r.get('entered')} marked={r.get('marked')} settled={r.get('settled')}")
-        except HttpError as e:
-            add_step("4_update", "error", str(e))
-            errors.append(f"update:{e}")
-
-    # ── STEP 5：畢業閘＝只報不動（唯讀彙整）─────────────────────────────────
-    near_grad = []
-    try:
-        track = _get(base, "/api/forward/track", token, timeout=step_timeout)
-        near_grad = _summarize_near_graduation(track)
-        rec["near_graduation_json"] = json.dumps(near_grad, ensure_ascii=False)
-        add_step("5_graduation_report", "done",
-                 f"near_graduation={len(near_grad)}（只報不動，人工審）")
-    except HttpError as e:
-        add_step("5_graduation_report", "error", str(e))
-        errors.append(f"track:{e}")
-
-    # ── 收尾：狀態判定（誠實 > 好看）─────────────────────────────────────────
-    step_statuses = [s["status"] for s in steps]
-    if errors and any(st == "error" for st in step_statuses):
-        # 有硬 error → 看是否全毀或部分成功
-        if all(st in ("error", "timeout") for st in step_statuses if st not in ("done", "skipped")):
-            rec["status"] = "error" if not any(st == "done" for st in step_statuses) else "partial"
-        else:
-            rec["status"] = "partial"
-    elif any(st in ("partial", "timeout") for st in step_statuses):
-        rec["status"] = "partial"
-    elif dry_run:
         rec["status"] = "dryrun"          # 稽核模式：不算 done，今日守門不擋真跑
+    elif crit_bad:
+        rec["status"] = "partial" if crit_done else "error"
+    elif opp_err:
+        rec["status"] = "partial"
     else:
-        rec["status"] = "done"
+        rec["status"] = "done"            # search 時間盒(partial step)不降級：每日產品已交付
 
-    if errors:
+    if errors and rec["status"] in ("error", "partial"):
         rec["error"] = " | ".join(errors)[:1000]
+    else:
+        rec["error"] = None               # 純 search 時間盒等診斷不掛 ERROR 紅旗（留 summary_json）
     rec["completed_at"] = datetime.now().isoformat()
-    rec["summary_json"] = json.dumps({"steps": steps}, ensure_ascii=False)
+    rec["summary_json"] = json.dumps({"steps": steps, "diagnostics": errors}, ensure_ascii=False)
 
     # dry-run 不覆寫已存在的真跑紀錄
     if dry_run and existing and existing.get("status") == "done":
@@ -533,6 +585,7 @@ def build_opts(args):
         "dry_run": args.dry_run,
         "search_timeout": args.search_timeout,
         "step_timeout": args.step_timeout,
+        "critical_step_timeout": args.critical_step_timeout,
         "total_timeout": args.total_timeout,
         "search_poll": args.search_poll,
         "state_dir": state_dir,
@@ -557,7 +610,9 @@ def main(argv=None):
     p.add_argument("--dry-run", action="store_true",
                    help="稽核模式：auto-roll dry_run:true、search/run/update 跳過（不寫資料、不計 done）")
     p.add_argument("--search-timeout", type=int, default=DEFAULT_SEARCH_TIMEOUT, help="搜尋步 poll 上限秒")
-    p.add_argument("--step-timeout", type=int, default=DEFAULT_STEP_TIMEOUT, help="單次 HTTP 上限秒")
+    p.add_argument("--step-timeout", type=int, default=DEFAULT_STEP_TIMEOUT, help="一般步驟單次 HTTP 上限秒")
+    p.add_argument("--critical-step-timeout", type=int, default=DEFAULT_CRITICAL_STEP_TIMEOUT,
+                   help=f"每日必成重活(run/update/kbar)單次 HTTP 上限秒（預設 {DEFAULT_CRITICAL_STEP_TIMEOUT}）")
     p.add_argument("--total-timeout", type=int, default=DEFAULT_TOTAL_TIMEOUT, help="總 run 硬上限秒")
     p.add_argument("--search-poll", type=int, default=DEFAULT_SEARCH_POLL, help="搜尋 status poll 間隔秒")
     args = p.parse_args(argv)
