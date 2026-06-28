@@ -16333,6 +16333,133 @@ def _extract_row(s: dict, mkt: str, buy_strat: str) -> dict:
     }
 
 
+# ── R-DOWNSIDE（gate-label-conditional-reframe F 節 R-DOWNSIDE + B.4 防禦型判準切換 + A③，2026-06-27）──
+#   把 downside_excess 正式接成「防禦型」訊號的判準路徑：下行桶(RISK_OFF/CRISIS/2022)逐筆超額
+#   bootstrap CI_low > 0 ＋ 全期 Sharpe/IR 為正 ＋ 與指定順勢 alpha（如 A4）逐筆報酬相關(要低/負)。
+#
+#   ★命門＝零回歸：只有被標/pre-register 為「defensive」的訊號才走此下行判準路徑；其餘訊號
+#     一律走既有標準超額閘（_extract_row 原樣），輸出位元級不變。目前**無任何 defensive 訊號**
+#     登記（_DEFENSIVE_SIGNAL_IDS 為空）→ 整條防禦型分支 latent，對所有現有訊號零行為改動。
+#     未來 pre-register/R-PROD-LABEL-WIRE 標 defensive 才會啟動（屆時由其補 regime-bucket 切片與
+#     對 A4 逐筆報酬相關係數的實算；本件提供判準計算與路由地基）。
+_DEFENSIVE_SIGNAL_IDS: set = set()   # 被標/pre-register 為防禦型(做多低beta/低特質波動)的 signal_id；空＝R-DOWNSIDE latent
+_DEFENSIVE_CORR_MAX = 0.30           # 與順勢 alpha 逐筆報酬相關上限（B.4(c)/C.3：要低/負 → 分散互補價值）
+
+
+def _is_defensive_signal(signal_id) -> bool:
+    """訊號是否被標/pre-register 為防禦型。目前恆 False（_DEFENSIVE_SIGNAL_IDS 空）→ 對所有現有
+       訊號零行為改動。未來標 defensive 才走下行判準（B.4）。"""
+    return (signal_id or "") in _DEFENSIVE_SIGNAL_IDS
+
+
+def _bootstrap_ci_low(values, n_boot: int = 1000, seed: int = 0):
+    """對 values 算 bootstrap 95% 平均數 CI。**用本地 random.Random(seed)**，零全域 RNG 干擾
+       → 不影響 _summarize_trades 既有 wr/ar/excess bootstrap（命門：既有輸出位元級不變）。
+       N<5 → (None,None)。回 (ci_low, ci_high)。"""
+    import random as _r
+    vals = [v for v in (values or []) if v is not None]
+    n = len(vals)
+    if n < 5:
+        return (None, None)
+    rng = _r.Random(seed)
+    boot = []
+    for _ in range(n_boot):
+        boot.append(sum(vals[rng.randint(0, n - 1)] for __ in range(n)) / n)
+    boot.sort()
+    lo, hi = int(n_boot * 0.025), int(n_boot * 0.975)
+    return (round(boot[lo], 2), round(boot[hi], 2))
+
+
+def _defensive_gate_eval(downside_excess, *, sharpe=None, info_ratio=None,
+                         corr_with_trend_alpha=None, boot_seed: int = 0) -> dict:
+    """下行超額判準計算（B.4）。純函式、無副作用。
+       downside_excess = 該訊號在下行桶(RISK_OFF/CRISIS/2022)的逐筆超額 list（vs 公平基準）。
+       回 dict：下行桶 N / avg / bootstrap CI95 / CI_low ＋ 透傳全期 sharpe/info_ratio ＋
+       與順勢 alpha 逐筆報酬相關係數。判定交給 _defensive_gate_decision。"""
+    de = [x for x in (downside_excess or []) if x is not None]
+    n = len(de)
+    avg = round(sum(de) / n, 2) if n else None
+    ci_low, ci_high = _bootstrap_ci_low(de, seed=boot_seed) if n >= 5 else (None, None)
+    return {
+        "downside_excess_n": n,
+        "downside_excess_avg": avg,
+        "downside_excess_ci95": [ci_low, ci_high],
+        "downside_excess_ci_low": ci_low,
+        "sharpe": sharpe,
+        "info_ratio": info_ratio,
+        "corr_with_trend_alpha": (round(float(corr_with_trend_alpha), 2)
+                                  if corr_with_trend_alpha is not None else None),
+    }
+
+
+def _defensive_gate_decision(ev: dict) -> dict:
+    """防禦型升格判定（A③ defensive-conditional 的閘，B.4）。命門三條：
+       (a) 下行桶逐筆超額 bootstrap CI_low > 0（崩盤時仍贏大盤）；
+       (b) 全期 Sharpe 或 IR 為正（風險調整後不虧）；
+       (c) 與指定順勢 alpha（A4）逐筆報酬相關 ≤ _DEFENSIVE_CORR_MAX（低/負 → 分散互補）；
+           未提供相關係數 → 不否決、標 caveat（分散價值待驗）。
+       保守：下行桶 N<5 或 CI_low 不可得 → 一律不過（不臆斷防禦性）。
+       回 {pass, beta_filter, status, reason, corr_caveat}。"""
+    ci_low = ev.get("downside_excess_ci_low")
+    n = ev.get("downside_excess_n", 0) or 0
+    sharpe = ev.get("sharpe")
+    ir = ev.get("info_ratio")
+    corr = ev.get("corr_with_trend_alpha")
+    fails = []
+    # (a) 下行超額 CI_low > 0
+    if n < 5 or ci_low is None:
+        fails.append(f"下行桶樣本不足(N={n})或CI不可得")
+    elif ci_low <= 0:
+        fails.append(f"下行超額CI下界{ci_low}≤0(崩盤未保護)")
+    # (b) 風險調整後為正
+    risk_adj_pos = (sharpe is not None and sharpe > 0) or (ir is not None and ir > 0)
+    if not risk_adj_pos:
+        fails.append("Sharpe/IR 皆非正(風險調整後未顯防禦)")
+    # (c) 與順勢 alpha 相關低/負（未提供→caveat 不否決）
+    corr_caveat = None
+    if corr is not None and corr > _DEFENSIVE_CORR_MAX:
+        fails.append(f"與順勢alpha相關{corr}>{_DEFENSIVE_CORR_MAX}(共線、無分散價值)")
+    elif corr is None:
+        corr_caveat = "未提供與順勢alpha相關係數(分散互補價值待驗)"
+    passed = not fails
+    if passed:
+        reason = (f"防禦型過閘：下行超額CI下界{ci_low}>0(崩盤保護)"
+                  + (f"、與順勢alpha相關{corr}(低/負→分散)" if corr is not None else "")
+                  + (f" ｜ {corr_caveat}" if corr_caveat else ""))
+        return {"pass": True, "beta_filter": "DEFENSIVE_PASS",
+                "status": "DEFENSIVE", "reason": reason, "corr_caveat": corr_caveat}
+    return {"pass": False, "beta_filter": "DEFENSIVE_FAIL",
+            "status": "DEFENSIVE_FAIL", "reason": "防禦型未過閘：" + "; ".join(fails),
+            "corr_caveat": corr_caveat}
+
+
+def _extract_row_routed(s: dict, mkt: str, buy_strat: str,
+                        downside_excess=None, corr_with_trend_alpha=None) -> dict:
+    """標籤路由（R-DOWNSIDE 核心接線）：
+       • 非防禦型訊號 → return _extract_row(...) **原樣**（位元級不變·零回歸命門）。
+       • 防禦型訊號（_is_defensive_signal=True，目前無）→ 走下行超額判準，覆寫 status/pass/
+         reason/beta_filter，並附 defensive_eval / gate_path 欄（latent 分支，只在未來標 defensive 才走）。
+       downside_excess 預設取 summary 的 downside_excess_returns（下行桶逐筆超額）；
+       corr_with_trend_alpha 由呼叫方（標 defensive 時）提供與 A4 的逐筆報酬相關係數。"""
+    if not _is_defensive_signal(buy_strat):
+        return _extract_row(s, mkt, buy_strat)          # ← 既有標準超額閘路徑，原封不動
+    # ── 防禦型路徑（latent；目前無 defensive 訊號）──────────────────────────────
+    row = _extract_row(s, mkt, buy_strat)               # 先取標準 row（保留全部數值欄供呈現）
+    de = downside_excess if downside_excess is not None else s.get("downside_excess_returns")
+    ev = _defensive_gate_eval(de, sharpe=row.get("sharpe"),
+                              info_ratio=row.get("info_ratio"),
+                              corr_with_trend_alpha=corr_with_trend_alpha)
+    dec = _defensive_gate_decision(ev)
+    # 防禦型：判準改由下行超額閘決定（B.4「換對的尺」），覆寫判決欄
+    row["gate_path"] = "defensive"
+    row["defensive_eval"] = ev
+    row["beta_filter"] = dec["beta_filter"]
+    row["status"] = dec["status"]
+    row["pass"] = dec["pass"]
+    row["reason"] = dec["reason"]
+    return row
+
+
 def _base_rate_worker(job_id: str, markets: list, buy_ids: list, sell_ids: list, start: str, end: str,
                       cs_top_k: float = _CS_DEFAULT_K, cs_overlay_factor: str = None,
                       benchmark: str = "twii"):
@@ -16407,7 +16534,8 @@ def _base_rate_worker(job_id: str, markets: list, buy_ids: list, sell_ids: list,
 
         for buy_strat in buy_ids:
             s = summaries.get(buy_strat, {})
-            row = _extract_row(s, mkt, buy_strat)
+            # R-DOWNSIDE 路由：非防禦型 → _extract_row 原樣（位元級不變）；防禦型(目前無) → 走下行判準。
+            row = _extract_row_routed(s, mkt, buy_strat)
             rows.append(row)
             progress += 1
             job["progress"] = progress
@@ -16600,6 +16728,7 @@ def _summarize_trades(trades: list, mkt: str, excess_bench_map: dict,
                         "subperiod_pos": "0/0", "subperiod_frac": None, "subperiod_buckets": 0,
                         "excess_avg": None, "excess_ci95": [None, None], "excess_n": 0,
                         "info_ratio": None, "downside_excess_avg": None, "downside_excess_n": 0,
+                        "downside_excess_returns": [],
                         "cs_factor": cs_factor, "cs_top_k": (cs_top_k if cs_factor else None)})
         return summary
 
@@ -16696,6 +16825,10 @@ def _summarize_trades(trades: list, mkt: str, excess_bench_map: dict,
         "info_ratio": info_ratio,
         "downside_excess_avg": down_avg,
         "downside_excess_n": down_n,
+        # R-DOWNSIDE（2026-06-27）：additive — 暴露下行桶逐筆超額 list（既有迴圈已建好、原本丟棄），
+        #   供防禦型判準路徑（_defensive_gate_eval）lazily 算 bootstrap CI_low。零 RNG、零額外計算、
+        #   既有 _extract_row/composite 持久化讀的是 explicit key → 此 additive key 對既有輸出位元級不變。
+        "downside_excess_returns": list(down_excess),
         "cs_factor": cs_factor,
         "cs_top_k": (cs_top_k if cs_factor else None),
     })
