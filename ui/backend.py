@@ -1614,6 +1614,21 @@ def delete_trade_record(rid: int, _: None = Depends(require_token)):
     con.close()
     return {"ok": True}
 
+def _trade_row_amount(t):
+    """單筆交易的『淨現金流量值』(恆正)：買入=含費總付出、賣出=已扣費+稅實收。
+    資料不一致防呆：台股 total_cost 存完整 J 總金額(含費)可直接用；美股 total_cost 只存到手續費 →
+    退回用 price×股數±(手續費+證交稅) 重建。手續費/證交稅兩欄兩市場都可靠，故以重建為準繩、
+    僅當 total_cost 看似完整金額(≥成交額一半)才採信它(尊重老婆實錄 J)。回傳 (amount, is_buy, qty)。"""
+    q = abs(t.get("shares", 0) or 0)
+    price = t.get("price", 0) or 0
+    gross = price * q
+    fee = (t.get("commission") or 0) + (t.get("tax") or 0)
+    buy = _is_buy(t["action"])
+    recon = gross + fee if buy else gross - fee
+    tc = t.get("total_cost") or 0
+    amt = abs(tc) if abs(tc) >= gross * 0.5 else recon
+    return amt, buy, q
+
 @app.get("/api/trade-records/analytics")
 def trade_analytics(code: str = ""):
     con = db()
@@ -1640,24 +1655,45 @@ def trade_analytics(code: str = ""):
                 buys.append(t)
             else:
                 sells.append(t)
-        # shares 帶正負 → 一律取絕對量計算
-        total_buy_val = sum(b["price"] * abs(b["shares"]) for b in buys)
-        total_buy_shares = sum(abs(b["shares"]) for b in buys)
-        avg_cost = total_buy_val / total_buy_shares if total_buy_shares else 0
-        total_sell_val = sum(s["price"] * abs(s["shares"]) for s in sells)
-        total_sell_shares = sum(abs(s["shares"]) for s in sells)
-        realized = total_sell_val - avg_cost * total_sell_shares if total_sell_shares else 0
+        # 損益一律「淨」(含手續費/證交稅)，採『移動平均成本法』——買入併入成本池、賣出按當時均成本結算。
+        # 比 naive「全部買入÷全部股數」正確：當買→賣→再買交錯時，剩餘股的成本基準是移動均(=avg_price 欄/持倉均價)，
+        # 不是全期均。實證對台股完全重現 avg_price 欄(如 2344=118.032)，與持倉頁口徑一致、不破壞老婆既有認知。
+        # trades 已依 trade_date,id 排序 → 直接照時序累進。
+        pos_shares = 0.0   # 目前持股
+        pos_cost = 0.0     # 目前持股的含費總成本
+        realized = 0.0     # 已實現淨損益
+        last_avg = 0.0     # 最近一次有持股時的均成本(全平後保留供顯示)
+        total_buy_shares = total_sell_shares = 0
+        for t in trades:
+            amt, is_b, q = _trade_row_amount(t)
+            if is_b:
+                pos_cost += amt; pos_shares += q; total_buy_shares += q
+            else:
+                avg = pos_cost / pos_shares if pos_shares else 0
+                realized += amt - avg * q            # 賣出實收 − 當時均成本×賣出股數
+                pos_cost -= avg * q; pos_shares -= q; total_sell_shares += q
+            if pos_shares > 0:
+                last_avg = pos_cost / pos_shares
+        hold_shares = round(pos_shares)
+        net_avg_cost = (pos_cost / pos_shares) if pos_shares > 0 else last_avg
         analytics["realized_pnl"] += realized
         analytics["stocks"][c] = {
             "name": trades[0].get("name", c), "buy_count": len(buys), "sell_count": len(sells),
-            "avg_cost": round(avg_cost, 2), "total_buy_shares": total_buy_shares,
-            "total_sell_shares": total_sell_shares, "realized_pnl": round(realized, 2),
+            # avg_cost 改為「均淨成本」(移動均·含費)，與持倉頁/avg_price 欄同口徑；保留欄名相容前端
+            "avg_cost": round(net_avg_cost, 2), "net_avg_cost": round(net_avg_cost, 4),
+            "market": "US" if not _is_tw_market(trades[0].get("market")) else "TW",
+            "total_buy_shares": total_buy_shares, "total_sell_shares": total_sell_shares,
+            "hold_shares": hold_shares, "realized_pnl": round(realized, 2),
+            # 未實現淨/合計淨：現價依賴 live source，由前端用「持倉頁同一 live 來源」算後填回；後端先給 0
+            "unrealized_pnl": 0, "total_pnl": round(realized, 2),
             # total_cost 欄已改存 J 總金額 → 此處「總費用」改由 手續費+稅 計算，維持原語意
             "total_cost": round(sum(t.get("commission", 0) + t.get("tax", 0) for t in trades), 2)
         }
     analytics["total_commission"] = round(analytics["total_commission"], 2)
     analytics["total_tax"] = round(analytics["total_tax"], 2)
     analytics["realized_pnl"] = round(analytics["realized_pnl"], 2)
+    # 總未實現/總損益(淨)：未實現需 live 現價 → 前端算妥後可覆蓋；後端先以 realized 起底
+    analytics["total_unrealized_pnl"] = 0
     analytics["total_pnl"] = analytics["realized_pnl"]
     sell_trades = sum(s.get("sell_count", 0) for s in analytics["stocks"].values())
     wins = sum(1 for s in analytics["stocks"].values() if s.get("realized_pnl", 0) > 0 and s.get("sell_count", 0) > 0)

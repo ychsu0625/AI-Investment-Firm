@@ -3419,6 +3419,13 @@ async function loadPositions() {
     const pos = await fetch(API + '/api/positions', {headers:authHeaders()}).then(r => r.json());
     _posCache = pos; // cache for edit
     pos.forEach(p => { if (p.name) _nameMap[p.code] = p.name; });
+    // 均淨成本（含手續費/稅）→ 與交易分析同一口徑，未實現對齊「淨」。無交易紀錄者 fallback 持倉均價。
+    let netAvgMap = {};
+    try {
+      const _an = await fetch(API + '/api/trade-records/analytics').then(r => r.json());
+      Object.entries(_an.stocks || {}).forEach(([c, s]) => { if (s.net_avg_cost != null) netAvgMap[c] = s.net_avg_cost; });
+    } catch {}
+    const _costBasis = p => (netAvgMap[p.code] != null ? netAvgMap[p.code] : p.cost);
     if (!_riskCfg.stop_loss_wave) {
       try { _riskCfg = await fetch(API+'/api/risk-config', {headers:authHeaders()}).then(r=>r.json()); } catch {}
     }
@@ -3458,11 +3465,12 @@ async function loadPositions() {
       const sym = currency === 'USD' ? 'US$' : 'NT$';
       const cur = snapMap[p.code] || 0;
       const lotMul = 1; // shares stores actual share count for both TW and US
-      const pnlPct = p.cost > 0 && cur > 0 ? ((cur - p.cost) / p.cost * 100) : 0;
-      const pnlAmt = p.cost > 0 && cur > 0 ? (cur - p.cost) * p.shares * lotMul : 0;
+      const basis = _costBasis(p);  // 均淨成本（含費）優先；無交易紀錄 fallback 持倉均價
+      const pnlPct = basis > 0 && cur > 0 ? ((cur - basis) / basis * 100) : 0;
+      const pnlAmt = basis > 0 && cur > 0 ? (cur - basis) * p.shares * lotMul : 0;
       const cls = pnlPct > 0.05 ? 'up' : pnlPct < -0.05 ? 'down' : 'flat';
       const sign = pnlPct > 0 ? '+' : '';
-      const costTotal = p.cost * p.shares * lotMul;
+      const costTotal = basis * p.shares * lotMul;
       const mktVal = cur > 0 ? cur * p.shares * lotMul : 0;
       const fmt = (v) => v >= 1000 ? Math.round(v).toLocaleString() : v.toFixed(2);
       const _dfltBadge = '<span style="font-size:12px;color:var(--text3);margin-left:3px">預設</span>';
@@ -3476,7 +3484,7 @@ async function loadPositions() {
       return `<tr onclick="openChart('${p.code}')" title="點擊看K線">
         <td><span class="pt-code">${(p.name||p.code).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')} (${p.code})</span>${p.lifecycle_stage&&p.lifecycle_stage!=='holding'?`<span style="font-size:12px;background:var(--bg2);padding:1px 4px;border-radius:3px;margin-left:4px">${{research:'📋研究',building:'🔨建倉',holding:'📦持有',reducing:'📉減碼',exiting:'🚪出場'}[p.lifecycle_stage]||p.lifecycle_stage}</span>`:''}</td>
         <td>${p.shares.toLocaleString()}</td>
-        <td>${sym}${p.cost.toLocaleString()}</td>
+        <td>${sym}${Number(basis).toLocaleString('en',{maximumFractionDigits:2})}</td>
         <td>${costTotal > 0 ? sym+fmt(costTotal) : '--'}</td>
         <td class="pt-price" style="color:${cls==='up'?'#2ecb71':cls==='down'?'#e74c3c':'var(--text)'}">${cur > 0 ? sym+cur.toLocaleString() : '--'}</td>
         <td>${mktVal > 0 ? sym+fmt(mktVal) : '--'}</td>
@@ -3498,8 +3506,9 @@ async function loadPositions() {
       let cost=0, mkt=0, pnl=0;
       list.forEach(p => {
         const cur = snapMap[p.code] || 0;
-        cost += p.cost * p.shares;
-        if (cur > 0) { mkt += cur * p.shares; pnl += (cur - p.cost) * p.shares; }
+        const basis = _costBasis(p);  // 均淨成本（含費）→ 未實現對齊「淨」
+        cost += basis * p.shares;
+        if (cur > 0) { mkt += cur * p.shares; pnl += (cur - basis) * p.shares; }
       });
       const pct = cost > 0 && mkt > 0 ? (pnl / cost * 100) : 0;
       return {cost, mkt, pnl, pct};
@@ -5831,7 +5840,7 @@ function tradeRender() {
     const isBuy = t.action === '買入' || t.action === 'BUY';
     const actColor = isBuy ? 'var(--green)' : 'var(--red)';
     const total = Number(t.total_cost || 0);  // J 總金額（帶正負）
-    html += `<tr>
+    html += `<tr onclick="tradeShowDetail(${t.id})" style="cursor:pointer" title="點看完整資訊">
       <td>${_tEsc(t.trade_date)}</td>
       <td><b>${_tEsc(t.code)}</b></td>
       <td style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_tEsc(t.name)}</td>
@@ -5845,11 +5854,42 @@ function tradeRender() {
       <td style="text-align:right">${t.avg_price==null||t.avg_price===''?'—':_tNum(t.avg_price,2)}</td>
       <td style="color:var(--text3);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_tEsc(t.note)}">${_tEsc(t.note)}</td>
       <td style="color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_tEsc(t.review_note)}">${_tEsc(t.review_note)}</td>
-      <td style="white-space:nowrap"><span style="display:inline-flex;align-items:center;gap:10px"><button onclick="tradeEdit(${t.id})" style="background:none;border:none;cursor:pointer;font-size:17px;line-height:1;padding:5px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center" title="編輯">✏️</button><button onclick="tradeDelete(${t.id})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:17px;line-height:1;padding:5px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center" title="刪除">🗑</button></span></td>
+      <td style="white-space:nowrap" onclick="event.stopPropagation()"><span style="display:inline-flex;align-items:center;gap:10px"><button onclick="tradeEdit(${t.id})" style="background:none;border:none;cursor:pointer;font-size:17px;line-height:1;padding:5px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center" title="編輯">✏️</button><button onclick="tradeDelete(${t.id})" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:17px;line-height:1;padding:5px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center" title="刪除">🗑</button></span></td>
     </tr>`;
   }
   html += '</tbody></table>';
   box.innerHTML = html;
+}
+
+// 點交易紀錄列 → 複用 ck-sheet slide-over 顯示該筆完整資訊（含完整策略/檢討長文，手機友善）。
+function tradeShowDetail(id) {
+  const t = _tradeRecords.find(r => r.id === id);
+  if (!t) return;
+  const isBuy = t.action === '買入' || t.action === 'BUY';
+  const actColor = isBuy ? 'var(--green)' : 'var(--red)';
+  const total = Number(t.total_cost || 0);
+  const _row = (label, val) => `<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span style="color:var(--text3);font-size:12px">${label}</span>
+      <span style="color:var(--text);font-size:13px;text-align:right;font-variant-numeric:tabular-nums">${val}</span></div>`;
+  const _block = (label, txt) => `<div style="margin-top:14px">
+      <div style="color:var(--text3);font-size:12px;margin-bottom:5px">${label}</div>
+      <div style="color:var(--text);font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${txt ? _tEsc(txt) : '<span style="color:var(--text3)">—</span>'}</div></div>`;
+  const body =
+    _row('日期', _tEsc(t.trade_date)) +
+    _row('股票', `<b>${_tEsc(t.code)}</b> ${_tEsc(t.name)}`) +
+    _row('市場', _tEsc(t.market)) +
+    _row('買/賣', `<span style="color:${actColor};font-weight:700">${_tEsc(t.action)}</span>`) +
+    _row('股數', _tNum(Math.abs(Number(t.shares)), 0)) +
+    _row('成交單價', _tNum(t.price, 2)) +
+    _row('平均成交價', (t.avg_price == null || t.avg_price === '') ? '—' : _tNum(t.avg_price, 2)) +
+    _row('手續費', _tNum(t.commission, 2)) +
+    _row('證交稅', _tNum(t.tax, 2)) +
+    _row('總金額 (J)', `<b style="color:${total >= 0 ? 'var(--green)' : 'var(--red)'}">${_tNum(total, 0)}</b>`) +
+    _block('策略', t.note) +
+    _block('檢討', t.review_note);
+  _ckSheet(`${_tEsc(t.code)} ${_tEsc(t.name || '')}`,
+           `${_tEsc(t.trade_date)} · <span style="color:${actColor}">${_tEsc(t.action)}</span> ${_tNum(Math.abs(Number(t.shares)),0)} 股 @ ${_tNum(t.price,2)}`,
+           body);
 }
 
 let _tradeEditId = null;
@@ -5943,6 +5983,27 @@ async function tradeDelete(id) {
   tradeLoad();
 }
 
+// 取一批 code 的即時現價（與持倉頁同一 live 來源：台股 /api/watchlist、美股 /api/us/snapshot）。
+// items: [{code, market}]；回傳 {code: price}。失敗的略過（呼叫端 fallback）。
+async function _fetchLivePrices(items) {
+  const map = {};
+  const tw = items.filter(i => i.market !== 'US').map(i => i.code);
+  const us = items.filter(i => i.market === 'US');
+  try {
+    if (tw.length) {
+      const snap = await fetch(`${API}/api/watchlist?codes=${tw.join(',')}`, {headers:authHeaders()}).then(r=>r.json());
+      if (Array.isArray(snap)) snap.forEach(s => { const p = s.close || s.price || 0; if (p) map[s.code] = p; });
+    }
+  } catch {}
+  try {
+    if (us.length) {
+      const res = await Promise.allSettled(us.map(i => fetch(`${API}/api/us/snapshot/${i.code}`, {headers:authHeaders()}).then(r=>r.json())));
+      res.forEach((r, i) => { if (r.status === 'fulfilled' && r.value && r.value.price) map[us[i].code] = r.value.price; });
+    }
+  } catch {}
+  return map;
+}
+
 async function tradeShowAnalytics() {
   const box = document.getElementById('trade-analytics-box');
   if (box.style.display !== 'none') { box.style.display = 'none'; return; }
@@ -5951,30 +6012,55 @@ async function tradeShowAnalytics() {
   try {
     const r = await fetch(`${API}/api/trade-records/analytics?code=${code}`);
     const a = await r.json();
-    const pnlColor = a.realized_pnl >= 0 ? 'var(--green)' : 'var(--red)';
     const fmt = v => Math.round(v).toLocaleString();
+    // 未實現淨：用「持倉頁同一 live 來源」現價算 (現價 − 均淨成本) × 持股；持股>0 才算。
+    const held = Object.entries(a.stocks || {}).filter(([c, s]) => (s.hold_shares || 0) > 0);
+    const priceMap = await _fetchLivePrices(held.map(([c, s]) => ({code: c, market: s.market})));
+    let totUnreal = 0, totUnrealKnown = false;
     let stockRows = '';
     for (const [c, s] of Object.entries(a.stocks || {})) {
-      const sc = s.realized_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+      const hold = s.hold_shares || 0;
+      const px = priceMap[c] || 0;
+      let unreal = null;
+      if (hold > 0 && px > 0) {
+        unreal = (px - (s.net_avg_cost != null ? s.net_avg_cost : s.avg_cost)) * hold;
+        totUnreal += unreal; totUnrealKnown = true;
+      }
+      const total = s.realized_pnl + (unreal || 0);
+      const rc = s.realized_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+      const uc = unreal == null ? 'var(--text3)' : (unreal >= 0 ? 'var(--green)' : 'var(--red)');
+      const tc = total >= 0 ? 'var(--green)' : 'var(--red)';
       stockRows += `<tr>
         <td><b>${c}</b> ${s.name}</td>
         <td style="text-align:center">${s.buy_count}</td>
         <td style="text-align:center">${s.sell_count}</td>
         <td style="text-align:right">${Number(s.avg_cost).toLocaleString('zh-TW',{maximumFractionDigits:2})}</td>
-        <td style="text-align:right;color:${sc};font-weight:600">${fmt(s.realized_pnl)}</td>
+        <td style="text-align:right">${hold > 0 ? Number(hold).toLocaleString() : '—'}</td>
+        <td style="text-align:right;color:${rc};font-weight:600">${s.sell_count ? fmt(s.realized_pnl) : '—'}</td>
+        <td style="text-align:right;color:${uc};font-weight:600">${unreal == null ? '—' : fmt(unreal)}</td>
+        <td style="text-align:right;color:${tc};font-weight:700">${fmt(total)}</td>
         <td style="text-align:right">${fmt(s.total_cost)}</td></tr>`;
     }
+    const realColor = a.realized_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const grandTotal = a.realized_pnl + totUnreal;  // 總損益(淨) = 總已實現淨 + 總未實現淨
+    const unrealColor = totUnreal >= 0 ? 'var(--green)' : 'var(--red)';
+    const gtColor = grandTotal >= 0 ? 'var(--green)' : 'var(--red)';
     box.innerHTML = `<div class="card" style="padding:12px">
       <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:10px">
         <div><span style="color:var(--text3);font-size:12px">總筆數</span><br><b>${a.total_records}</b></div>
-        <div><span style="color:var(--text3);font-size:12px">已實現損益 (${cur})</span><br><b style="color:${pnlColor}">${fmt(a.realized_pnl)}</b></div>
+        <div><span style="color:var(--text3);font-size:12px">總已實現 (淨, ${cur})</span><br><b style="color:${realColor}">${fmt(a.realized_pnl)}</b></div>
+        <div><span style="color:var(--text3);font-size:12px">總未實現 (${cur})</span><br><b style="color:${unrealColor}">${totUnrealKnown ? fmt(totUnreal) : '—'}</b></div>
+        <div><span style="color:var(--text3);font-size:12px">總損益 (淨, ${cur})</span><br><b style="color:${gtColor}">${fmt(grandTotal)}</b></div>
         <div><span style="color:var(--text3);font-size:12px">總手續費 (${cur})</span><br><b>${fmt(a.total_commission)}</b></div>
         <div><span style="color:var(--text3);font-size:12px">總交易稅 (${cur})</span><br><b>${fmt(a.total_tax)}</b></div>
       </div>
       ${stockRows ? `<table class="wl-table" style="font-size:12px"><thead><tr>
         <th style="text-align:left">股票</th><th style="text-align:center">買入次</th><th style="text-align:center">賣出次</th>
-        <th style="text-align:right">均成本</th><th style="text-align:right">已實現P&L(${cur})</th><th style="text-align:right">總費用(${cur})</th>
-      </tr></thead><tbody>${stockRows}</tbody></table>` : ''}
+        <th style="text-align:right">均淨成本</th><th style="text-align:right">持股</th>
+        <th style="text-align:right">已實現(淨,${cur})</th><th style="text-align:right">未實現(${cur})</th><th style="text-align:right">合計(${cur})</th>
+        <th style="text-align:right">總費用(${cur})</th>
+      </tr></thead><tbody>${stockRows}</tbody></table>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">損益皆為「淨額」(已扣手續費/證交稅)；未實現＝(現價−均淨成本)×持股，現價同持倉頁 live 來源。</div>` : ''}
     </div>`;
     box.style.display = 'block';
   } catch(e) { box.innerHTML = `<div class="empty-state">分析載入失敗</div>`; box.style.display = 'block'; }
