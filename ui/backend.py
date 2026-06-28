@@ -17278,6 +17278,113 @@ def _eval_composite_market(mkt, codes, start, end, layers, preloaded,
             "n_stocks": len(feats), "layer_kinds": layer_kinds}
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# R-LABEL（gate-label-conditional-reframe F 節，2026-06-27）：六標籤分級欄位。
+#   全加法（additive）地基件：只「擴充欄位 + 保守落值」，不取代既有 status、不改任何
+#   選股/閘/打分邏輯（那是後續 R-COND-SLICE / R-PROD-LABEL-WIRE，不在本工單）。
+#   命門＝零回歸：① 新欄全部 ADD COLUMN（metadata-only，既有 explicit-column 的 INSERT/
+#   UPDATE/SELECT 一律不列新欄 → 既有讀寫路徑位元級不變）；② backfill 只 UPDATE 新欄、
+#   WHERE label IS NULL（冪等、重入安全、絕不覆寫已標、絕不亂升級）。
+# ──────────────────────────────────────────────────────────────────────────────
+# 六標籤（A 節）：ALPHA-keeper / conditional-ALPHA / defensive-conditional /
+#   POSITIVE_EV-beta / composite-feature-only / parked-unproven
+# R-LABEL 擴充欄（兩表共用；皆 nullable，預設 NULL → 未標 = parked 語義由讀方判定）
+_RLABEL_COLS = (
+    ("label",               "TEXT"),  # 六標籤 enum（A.1）
+    ("permitted_use",       "TEXT"),  # enum{standalone,conditional,feature,beta-sleeve,none}
+    ("confidence_cap",      "TEXT"),  # enum{keeper,candidate,feature,beta,none}（量產信心上限）
+    ("gating_condition",    "TEXT"),  # 條件上閘（如 regime=TREND_UP / regime=RISK_OFF）；NULL=未限定
+    ("label_evidence",      "TEXT"),  # JSON：初判依據（src/status/basis），後續接 G1–G5 逐項
+    ("live_pending",        "INTEGER"),  # 1=待 live(G5) 確認，封在候選級（E.5 紅線#5）
+    ("single_market",       "INTEGER"),  # 1=僅單市場驗過（待 G4 跨市場），封信心
+    ("parked_subtype",      "TEXT"),  # enum{honest-negative,untested,inconclusive}；NULL=未知
+    ("retrigger_condition", "TEXT"),  # parked 重啟條件
+)
+
+
+def _rlabel_migrate(cur, table):
+    """冪等補 R-LABEL 欄到指定表（ADD COLUMN 為 metadata-only；duplicate-column 吞掉 → 重入安全）。"""
+    for col, typ in _RLABEL_COLS:
+        try:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+        except Exception:
+            pass
+
+
+def _rlabel_initial(status, market, regime_gate=None):
+    """從現有 status 保守對映初始標籤（不確定 → parked-unproven，絕不亂升級、絕不給 keeper）。
+       回傳欄位 dict（鍵 = _RLABEL_COLS 名）。對映規則（task + A.1 表）：
+         ALPHA            → conditional-ALPHA（候選級，封 live/single-market，不升 keeper）
+         active(forward)  → conditional-ALPHA（已滾入紙上、受 regime_gate 條件約束）
+         POSITIVE_EV      → POSITIVE_EV-beta（beta sleeve，不灌 alpha 信心）
+         FAIL/retired/其他 → parked-unproven（量產不用；subtype 未知標 NULL，不臆斷 honest-negative）"""
+    s = (status or "").strip().upper()
+    single = 1 if (market or "").strip() else None
+    if s == "ALPHA" or s == "ACTIVE":
+        gating = f"regime={regime_gate}" if (regime_gate and str(regime_gate).strip()) else None
+        return {
+            "label": "conditional-ALPHA",
+            "permitted_use": "conditional",
+            "confidence_cap": "candidate",
+            "gating_condition": gating,
+            "label_evidence": json.dumps(
+                {"src": "R-LABEL-init", "status": s,
+                 "basis": "conservative status->label; no live(G5)/cross-market(G4) evidence"},
+                ensure_ascii=False),
+            "live_pending": 1,
+            "single_market": single,
+            "parked_subtype": None,
+            "retrigger_condition": None,
+        }
+    if s == "POSITIVE_EV":
+        return {
+            "label": "POSITIVE_EV-beta",
+            "permitted_use": "beta-sleeve",
+            "confidence_cap": "beta",
+            "gating_condition": None,
+            "label_evidence": json.dumps(
+                {"src": "R-LABEL-init", "status": s,
+                 "basis": "positive-EV but excess vs benchmark not significant -> beta sleeve"},
+                ensure_ascii=False),
+            "live_pending": None,
+            "single_market": single,
+            "parked_subtype": None,
+            "retrigger_condition": None,
+        }
+    # FAIL / retired / NULL / 未知 → 保守 parked-unproven（不臆斷 subtype）
+    return {
+        "label": "parked-unproven",
+        "permitted_use": "none",
+        "confidence_cap": "none",
+        "gating_condition": None,
+        "label_evidence": json.dumps(
+            {"src": "R-LABEL-init", "status": s or None,
+             "basis": "conservative default; not promoted"},
+            ensure_ascii=False),
+        "live_pending": None,
+        "single_market": None,
+        "parked_subtype": None,   # 未知（不臆斷 honest-negative vs untested）
+        "retrigger_condition": "re-test under pre-registered sector x regime slice (R-COND-SLICE)",
+    }
+
+
+def _rlabel_backfill(cur, table, key_col, status_col, regime_col=None):
+    """保守落初始標籤：只 UPDATE label IS NULL 的列（冪等、不覆寫已標）。
+       只寫 R-LABEL 新欄，既有欄一律不碰 → 既有讀路徑位元級不變。"""
+    sel = f"SELECT {key_col},{status_col}" + (f",{regime_col}" if regime_col else "") + \
+          f",market FROM {table} WHERE label IS NULL"
+    rows = cur.execute(sel).fetchall()
+    set_cols = ",".join(f"{c}=?" for c, _ in _RLABEL_COLS)
+    for r in rows:
+        key = r[0]; status = r[1]
+        regime = r[2] if regime_col else None
+        market = r[-1]
+        vals = _rlabel_initial(status, market, regime_gate=regime)
+        params = [vals[c] for c, _ in _RLABEL_COLS] + [key]
+        cur.execute(f"UPDATE {table} SET {set_cols} WHERE {key_col}=?", params)
+    return len(rows)
+
+
 # ── R-PROD-7e：試驗持久化（知識森林 store，重啟不丟、續搜基礎）─────────────────
 def _ensure_composite_search_tables():
     """冪等建表：composite_candidates（每次複合評估 = 一筆試驗）。"""
@@ -17311,6 +17418,10 @@ def _ensure_composite_search_tables():
         con.execute("ALTER TABLE composite_candidates ADD COLUMN per_sentiment_json TEXT")
     except Exception:
         pass
+    # R-LABEL（2026-06-27）：補六標籤欄 + 保守落初始標籤（冪等、零回歸；見 _RLABEL_COLS）。
+    cur = con.cursor()
+    _rlabel_migrate(cur, "composite_candidates")
+    _rlabel_backfill(cur, "composite_candidates", "cand_id", "status")
     con.commit(); con.close()
 
 
@@ -18546,6 +18657,10 @@ def _ensure_ft_tables():
             cur.execute(f"ALTER TABLE ft_strategies ADD COLUMN {col} {typ}")
         except Exception:
             pass
+    # R-LABEL（2026-06-27）：補六標籤欄 + 保守落初始標籤（active→conditional-ALPHA 受 regime_gate
+    #   條件約束；retired→parked-unproven）。冪等、零回歸（只寫新欄、WHERE label IS NULL）。
+    _rlabel_migrate(cur, "ft_strategies")
+    _rlabel_backfill(cur, "ft_strategies", "id", "status", regime_col="regime_gate")
     con.commit(); con.close()
 
 
