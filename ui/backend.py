@@ -17385,6 +17385,109 @@ def _rlabel_backfill(cur, table, key_col, status_col, regime_col=None):
     return len(rows)
 
 
+# ── R-COND-SLICE-A：pre-registration 表 + 升格防火牆 ────────────────────────────
+#   設計依據：2026-06-27-gate-label-conditional-reframe.md B 節（假設驅動條件重測協議）
+#   + F 節 R-COND-SLICE。核心：要升 ② conditional-ALPHA（可單獨條件上），必須事前 pre-register
+#   機制+切片（「先講 why 才准測」）；盲掃 daemon 無 prereg → 永遠升不了（B.5 防火牆）。
+#   本件只做 prereg 表 + 升格牆（純新增、零回歸）；sector 切片引擎與 DSR-T 改造屬 R-COND-SLICE-B。
+
+def _parse_ts(ts):
+    """把 epoch 數字 / 數字字串 / ISO8601 字串統一解析成 epoch float；無法解析回 None。
+       升格防火牆用它把 prereg.created_ts 與外部傳入的 backtest_run_ts 化到同一刻度比較。"""
+    if ts is None:
+        return None
+    if isinstance(ts, bool):           # bool 是 int 子類，明確排除
+        return None
+    if isinstance(ts, (int, float)):
+        return float(ts)
+    s = str(ts).strip()
+    if not s:
+        return None
+    try:
+        return float(s)                # 純數字字串（epoch）
+    except ValueError:
+        pass
+    try:
+        return datetime.fromisoformat(s).timestamp()   # ISO8601（與全檔 created_at 同款）
+    except Exception:
+        return None
+
+
+def _ensure_preregistration_table():
+    """冪等建表：preregistration（事前假設紀錄；monitor.db / db()）。
+       每筆＝一次「先講機制+切片+預測符號 才准測」的 pre-register，帶不可事後改的 created_ts。
+       欄位對齊 F 節 R-COND-SLICE：{id, signal_id, hypothesized_mechanism, target_slices(JSON),
+       predicted_sign(JSON), author, created_ts(epoch timestamp), notes}；created_iso 為顯示便利欄。"""
+    con = db()
+    con.execute("""CREATE TABLE IF NOT EXISTS preregistration(
+        id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+        signal_id               TEXT,
+        hypothesized_mechanism  TEXT,
+        target_slices           TEXT,   -- JSON array（要測的 regime/sector 切片）
+        predicted_sign          TEXT,   -- JSON（每切片預測符號，事前寫的）
+        author                  TEXT,
+        created_ts              REAL,   -- epoch 秒（升格防火牆比對基準，落地後不改）
+        created_iso             TEXT,   -- 人讀時間戳（顯示用）
+        notes                   TEXT
+    )""")
+    con.commit(); con.close()
+
+
+def _preregister(signal_id, hypothesized_mechanism, target_slices, predicted_sign,
+                 author=None, notes=None, created_ts=None):
+    """落一筆 pre-registration。created_ts 不帶 → 現在 epoch（測試可注入以驗早/晚於回測）。
+       target_slices / predicted_sign 接受 list/dict（自動 json.dumps）或已是 JSON 字串。回 inserted row dict。"""
+    _ensure_preregistration_table()
+    ts = float(created_ts) if created_ts is not None else time.time()
+    iso = datetime.fromtimestamp(ts).isoformat()
+    def _as_json(v):
+        if v is None or isinstance(v, str):
+            return v
+        return json.dumps(v, ensure_ascii=False)
+    con = db(); cur = con.cursor()
+    cur.execute("""INSERT INTO preregistration
+        (signal_id,hypothesized_mechanism,target_slices,predicted_sign,author,created_ts,created_iso,notes)
+        VALUES(?,?,?,?,?,?,?,?)""",
+        (signal_id, hypothesized_mechanism, _as_json(target_slices), _as_json(predicted_sign),
+         author, ts, iso, notes))
+    con.commit()
+    rid = cur.lastrowid
+    con.close()
+    return {"id": rid, "signal_id": signal_id, "created_ts": ts, "created_iso": iso}
+
+
+def _can_promote_to_conditional_alpha(signal_id, backtest_run_ts):
+    """升格防火牆（B 節核心紅線）：要升 ② conditional-ALPHA（拿到「單獨條件上」權限），必須能連到
+       一筆 created_ts 早於本次回測執行時刻(backtest_run_ts) 的 pre-registration（事前寫的機制+切片）。
+       連不到 → 最高停在 candidate / composite-feature-only。盲掃(daemon)無 prereg → 永遠 False。
+       回 (can_promote: bool, reason: str)。fail-closed：signal_id 空 / ts 無法解析 → False。"""
+    _ensure_preregistration_table()
+    sid = (signal_id or "").strip()
+    if not sid:
+        return False, "no signal_id → cannot bind pre-registration (blind-scan / unidentified); cap at candidate/composite-feature-only"
+    bt = _parse_ts(backtest_run_ts)
+    if bt is None:
+        return False, f"backtest_run_ts unparseable ({backtest_run_ts!r}) → fail-closed, refuse promotion"
+    con = db(); cur = con.cursor()
+    rows = cur.execute(
+        "SELECT id,created_ts,created_iso,hypothesized_mechanism FROM preregistration "
+        "WHERE signal_id=? ORDER BY created_ts", (sid,)).fetchall()
+    con.close()
+    if not rows:
+        return False, (f"no pre-registration for signal_id={sid} → blind-scan: "
+                       f"cap at candidate/composite-feature-only, cannot promote to conditional-ALPHA")
+    eligible = [r for r in rows if (r[1] is not None and float(r[1]) < bt)]
+    if not eligible:
+        earliest = min((r for r in rows if r[1] is not None),
+                       key=lambda r: float(r[1]), default=None)
+        et = earliest[1] if earliest else None
+        return False, (f"pre-registration(s) exist for {sid} but none predate backtest_run_ts "
+                       f"(earliest prereg ts={et} >= backtest ts={bt}) → post-hoc, refuse promotion")
+    pre = eligible[0]
+    return True, (f"pre-registered before backtest (prereg id={pre[0]} ts={pre[1]} "
+                  f"mechanism='{pre[3]}') predates backtest ts={bt} → eligible for conditional-ALPHA")
+
+
 # ── R-PROD-7e：試驗持久化（知識森林 store，重啟不丟、續搜基礎）─────────────────
 def _ensure_composite_search_tables():
     """冪等建表：composite_candidates（每次複合評估 = 一筆試驗）。"""
@@ -19108,6 +19211,49 @@ def forward_list_strategies():
             d["layers"] = None; d.pop("layers_json", None)
         out.append(d)
     return {"ok": True, "count": len(out), "strategies": out}
+
+
+@app.post("/api/reframe/preregister")
+def reframe_preregister(body: dict = Body(...), _: None = Depends(require_token)):
+    """R-COND-SLICE-A：落一筆事前 pre-registration（「先講 why 才准測」，B-S1/S2/S3）。
+       body: {signal_id*, hypothesized_mechanism*, target_slices(JSON/list), predicted_sign(JSON/dict),
+              author, notes, created_ts?(epoch；測試注入用)}。created_ts 不帶 → 現在 epoch。
+       signal_id 與機制必填（沒有可命名機制 = 資料挖掘噪音，B-S1 直接拒）。"""
+    sid = str(body.get("signal_id", "")).strip()
+    mech = str(body.get("hypothesized_mechanism", "")).strip()
+    if not sid:
+        return JSONResponse({"ok": False, "error": "signal_id 必填"}, status_code=400)
+    if not mech:
+        return JSONResponse({"ok": False, "error": "hypothesized_mechanism 必填（沒有可命名機制=噪音，B-S1）"},
+                            status_code=400)
+    rec = _preregister(sid, mech, body.get("target_slices"), body.get("predicted_sign"),
+                       body.get("author"), body.get("notes"), body.get("created_ts"))
+    return {"ok": True, "preregistration": rec}
+
+
+@app.get("/api/reframe/preregistrations")
+def reframe_list_preregistrations(signal_id: str = None):
+    """列出 pre-registrations（可選 signal_id 過濾），created_ts 新到舊。"""
+    _ensure_preregistration_table()
+    cols = ["id", "signal_id", "hypothesized_mechanism", "target_slices", "predicted_sign",
+            "author", "created_ts", "created_iso", "notes"]
+    sel = "SELECT " + ",".join(cols) + " FROM preregistration"
+    con = db(); cur = con.cursor()
+    if signal_id:
+        rows = cur.execute(sel + " WHERE signal_id=? ORDER BY created_ts DESC", (signal_id,)).fetchall()
+    else:
+        rows = cur.execute(sel + " ORDER BY created_ts DESC").fetchall()
+    con.close()
+    out = []
+    for r in rows:
+        d = dict(zip(cols, r))
+        for k in ("target_slices", "predicted_sign"):
+            try:
+                d[k] = json.loads(d[k]) if d[k] else None
+            except Exception:
+                pass   # 非 JSON（如手填字串）→ 原樣回傳
+        out.append(d)
+    return {"ok": True, "count": len(out), "preregistrations": out}
 
 
 def _ft_auto_name(layers: list) -> str:
