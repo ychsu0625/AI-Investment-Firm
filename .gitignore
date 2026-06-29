@@ -11,6 +11,12 @@ ui/.env
 *.db-shm
 data/
 
+# ── Python venv (隔離 venv，如 openbb；勿入庫) ──
+.venv/
+.venv*/
+venv/
+env/
+
 # ── Python cache ──
 __pycache__/
 *.py[cod]
