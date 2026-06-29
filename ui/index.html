@@ -957,6 +957,21 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
 </div>
 
 <div id="app">
+
+  <!-- drill-down 論證 slide-over（全域浮層、所有頁共用；fixed → 覆蓋視窗）。
+       原本被關在 #page-cockpit 內 → 在交易/持倉等其他頁是 display:none 的子元素而畫不出來；搬到 #app 最外層（不在任何 .page 裡）後全頁皆可開。 -->
+  <div class="ck-sheet-ov" id="ck-sheet-ov" onclick="ckCloseSheet()"></div>
+  <aside class="ck-sheet" id="ck-sheet" role="dialog" aria-modal="true" aria-labelledby="ck-sheet-t1">
+    <div class="ck-sheet-hd">
+      <div class="ck-sheet-ttl">
+        <div class="ck-sheet-t1" id="ck-sheet-t1"></div>
+        <div class="ck-sheet-t2" id="ck-sheet-t2"></div>
+      </div>
+      <button class="ck-sheet-x" onclick="ckCloseSheet()" aria-label="關閉論證面板" title="關閉 (Esc)">✕</button>
+    </div>
+    <div class="ck-sheet-body" id="ck-sheet-body"></div>
+  </aside>
+
   <div id="header">
     <div class="logo">智慧投顧</div>
     <span id="mode-badge" class="sim-badge">模擬盤</span>
@@ -1150,19 +1165,6 @@ body:has(#exitd-strip.show) #main{padding-bottom:36px;box-sizing:border-box}
           </div>
           <div class="ck-kpis" id="ck-kpis"><div class="empty-state">載入中…</div></div>
         </div>
-
-        <!-- v1.2 drill-down 論證 slide-over（個股 / 策略；fixed → 覆蓋視窗，不離開決策台）-->
-        <div class="ck-sheet-ov" id="ck-sheet-ov" onclick="ckCloseSheet()"></div>
-        <aside class="ck-sheet" id="ck-sheet" role="dialog" aria-modal="true" aria-labelledby="ck-sheet-t1">
-          <div class="ck-sheet-hd">
-            <div class="ck-sheet-ttl">
-              <div class="ck-sheet-t1" id="ck-sheet-t1"></div>
-              <div class="ck-sheet-t2" id="ck-sheet-t2"></div>
-            </div>
-            <button class="ck-sheet-x" onclick="ckCloseSheet()" aria-label="關閉論證面板" title="關閉 (Esc)">✕</button>
-          </div>
-          <div class="ck-sheet-body" id="ck-sheet-body"></div>
-        </aside>
 
       </div>
 
@@ -3481,7 +3483,7 @@ async function loadPositions() {
       const tgtDisp = p.target_price
         ? sym + p.target_price
         : p.cost > 0 ? sym + (p.cost * 1.20).toFixed(2) + _dfltBadge : '--';
-      return `<tr onclick="openChart('${p.code}')" title="點擊看K線">
+      return `<tr onclick="posShowTrades('${p.code}','${p.market==='US'?'US':'TW'}','${(p.name||'').replace(/\\/g,'').replace(/'/g,"\\'").replace(/"/g,'')}')" title="點看本檔交易紀錄" style="cursor:pointer">
         <td><span class="pt-code">${(p.name||p.code).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')} (${p.code})</span>${p.lifecycle_stage&&p.lifecycle_stage!=='holding'?`<span style="font-size:12px;background:var(--bg2);padding:1px 4px;border-radius:3px;margin-left:4px">${{research:'📋研究',building:'🔨建倉',holding:'📦持有',reducing:'📉減碼',exiting:'🚪出場'}[p.lifecycle_stage]||p.lifecycle_stage}</span>`:''}</td>
         <td>${p.shares.toLocaleString()}</td>
         <td>${sym}${Number(basis).toLocaleString('en',{maximumFractionDigits:2})}</td>
@@ -5890,6 +5892,59 @@ function tradeShowDetail(id) {
   _ckSheet(`${_tEsc(t.code)} ${_tEsc(t.name || '')}`,
            `${_tEsc(t.trade_date)} · <span style="color:${actColor}">${_tEsc(t.action)}</span> ${_tNum(Math.abs(Number(t.shares)),0)} 股 @ ${_tNum(t.price,2)}`,
            body);
+}
+
+// 點持倉列 → 滑出該股交易紀錄（方案 A）。一律打端點帶 code+market，避免「持倉是 US 但 _tradeRecords 目前是 TW」的市場錯位。
+async function posShowTrades(code, mkt, name) {
+  const m = (mkt === 'US') ? 'US' : 'TW';
+  let recs = [];
+  try {
+    const r = await fetch(`${API}/api/trade-records?code=${encodeURIComponent(code)}&market=${m}`);
+    recs = await r.json();
+    if (!Array.isArray(recs)) recs = [];
+  } catch (e) { recs = []; }
+  const flag = m === 'US' ? '🇺🇸' : '🇹🇼';
+  let body;
+  if (!recs.length) {
+    body = `<div style="color:var(--text3);font-size:13px;padding:24px 0;text-align:center">尚無此檔交易紀錄</div>`;
+  } else {
+    // 取回的紀錄併入 _tradeRecords（去重），讓內層點擊複用 tradeShowDetail（靠 id 查找）。下次 tradeLoad 會整批重設，無副作用。
+    recs.forEach(t => { if (!_tradeRecords.some(x => x.id === t.id)) _tradeRecords.push(t); });
+    const sorted = recs.slice().sort((a, b) => String(b.trade_date).localeCompare(String(a.trade_date)));
+    let rows = '';
+    for (const t of sorted) {
+      const isBuy = t.action === '買入' || t.action === 'BUY';
+      const actColor = isBuy ? 'var(--green)' : 'var(--red)';
+      const total = Number(t.total_cost || 0);
+      rows += `<div onclick="tradeShowDetail(${t.id})" style="cursor:pointer;display:grid;grid-template-columns:auto auto 1fr auto;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--border)" title="點看完整資訊">
+        <span style="color:var(--text3);font-size:12px;font-variant-numeric:tabular-nums">${_tEsc(t.trade_date)}</span>
+        <span style="color:${actColor};font-weight:700;font-size:12px;white-space:nowrap">${_tEsc(t.action)}</span>
+        <span style="color:var(--text2);font-size:12px;font-variant-numeric:tabular-nums">${_tNum(Math.abs(Number(t.shares)),0)} 股 @ ${_tNum(t.price,2)}</span>
+        <span style="font-weight:600;font-size:13px;color:${total>=0?'var(--green)':'var(--red)'};font-variant-numeric:tabular-nums">${_tNum(total,0)}</span>
+      </div>`;
+    }
+    body = rows;
+  }
+  body += `<button class="ck-sheet-btn" onclick="posGotoTrades('${code}','${m}')">看完整交易紀錄 →</button>`;
+  _ckSheet(`${flag} ${_tEsc(code)}` + (name ? ` <span class="ck-nm">${_tEsc(name)}</span>` : ''),
+           '交易紀錄 · 本檔', body);
+}
+
+// 小卡底部「看完整交易紀錄 →」：關卡 + 切交易紀錄頁，並把市場/篩選對齊到該股（單次載入，避免 race）。
+function posGotoTrades(code, mkt) {
+  ckCloseSheet();
+  _tradeMarket = (mkt === 'US') ? 'US' : 'TW';
+  // 同步市場切換鈕外觀（沿用 tradeSetMarket 的視覺）
+  const bTw = document.getElementById('trade-mkt-tw'), bUs = document.getElementById('trade-mkt-us');
+  if (bTw) { bTw.style.background = _tradeMarket === 'TW' ? 'var(--blue)' : 'var(--bg2)'; bTw.style.color = _tradeMarket === 'TW' ? '#fff' : 'var(--text2)'; }
+  if (bUs) { bUs.style.background = _tradeMarket === 'US' ? 'var(--blue)' : 'var(--bg2)'; bUs.style.color = _tradeMarket === 'US' ? '#fff' : 'var(--text2)'; }
+  // 先把篩選下拉設成該股（option 不存在就補），再切頁讓 showPage 的 tradeLoad 一次帶對 code+market（單次載入）
+  const sel = document.getElementById('trade-filter-code');
+  if (sel) {
+    if (![...sel.options].some(o => o.value === code)) sel.insertAdjacentHTML('beforeend', `<option value="${code}">${code}</option>`);
+    sel.value = code;
+  }
+  showPage('trade');
 }
 
 let _tradeEditId = null;
